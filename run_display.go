@@ -163,6 +163,15 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 // Matching by NAME rather than by the rectangle a caller saw earlier is what
 // survives the desktop being rearranged underneath — which creating a virtual
 // display does, every time.
+//
+// An earlier version of this waited until two readings of the arrangement came
+// back identical, on the theory that the desktop was still moving. It settled
+// INSTANTLY on a false answer, every time, and that is worth recording: on macOS
+// `+[NSScreen screens]` was a cache that a process with no running NSApplication
+// never saw refreshed, so every reading agreed with every other because they all
+// came from the same stale snapshot. A heuristic that waits for agreement cannot
+// tell a settled arrangement from a frozen one. go-widgets/window v0.51.0 reads
+// the geometry from the window server instead, so one reading is now the truth.
 func currentScreen(name string) (*window.Screen, error) {
 	ss, err := window.Screens()
 	if err != nil {

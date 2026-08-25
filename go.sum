@@ -44,8 +44,8 @@ github.com/go-widgets/painter v0.11.0 h1:xsj4zTz8B43rOZnWrx7ZsaUBMgJyvgaE/Pq2Ffc
 github.com/go-widgets/painter v0.11.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.201.0 h1:hkf4BB8wYxKg7OlEwUjB0aMca2hphki3tTfBeGvwr9g=
 github.com/go-widgets/toolkit v0.201.0/go.mod h1:pNroe6a4TiuFC//n6kbsikgs/actqsvqN88vUxjwESg=
-github.com/go-widgets/window v0.50.0 h1:uRquUcy5/k2Mrv5kyNKOcfM+6fXkxNYBM98ZN5Tiz8A=
-github.com/go-widgets/window v0.50.0/go.mod h1:MrjUpxjSViyV84RPWAG3gLXG7gqC0O0uKkR7nL8tfZY=
+github.com/go-widgets/window v0.51.0 h1:OfItN0JUtACUC3jYL3ikgt1C5nmqw4zqROP3RbGmSCM=
+github.com/go-widgets/window v0.51.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
 github.com/go-xrkit/xrkit v0.3.0 h1:tudyxQ6zbWg2Z8vO+BIJ1bp5KmL5BQlrz0s/msSLI+A=
