@@ -26,8 +26,8 @@ func TestOneScreenIsOneView(t *testing.T) {
 		{Name: "VITURE Beast", Width: 3840, Height: 1080},
 		{Name: "VITURE Beast", Width: 1920, Height: 1200},
 		{Name: "VITURE Luma Ultra", Width: 3840, Height: 1080},
-		{Name: "XREAL One S", Width: 3840, Height: 1080},
-		{Name: "XREAL One S", Width: 1920, Height: 1200},
+		{Name: "XREAL 1S", Width: 3840, Height: 1080},
+		{Name: "XREAL 1S", Width: 1920, Height: 1200},
 	} {
 		p, err := NewPlan(d, Options{})
 		if err != nil {
@@ -203,12 +203,16 @@ func TestRefusesToGuessOptics(t *testing.T) {
 		name string
 		d    glasses.Display
 	}{
-		{"a headset with no published figure", glasses.Display{Name: "VITURE Luma Pro", Width: 3840, Height: 1080}},
+		{"a headset with no published figure", glasses.Display{Name: "VITURE Pro 2", Width: 3840, Height: 1080}},
 		{"not a headset at all", glasses.Display{Name: "Odyssey G95NC", Width: 7680, Height: 2160}},
 	} {
 		_, err := NewPlan(tc.d, Options{})
 		if !errors.Is(err, ErrUnknownOptics) {
+			// Continue rather than fall through: the next assertion reads the
+			// error, and a nil one would take the whole run down with a panic
+			// instead of reporting the case that failed.
 			t.Errorf("%s: err = %v, want ErrUnknownOptics", tc.name, err)
+			continue
 		}
 		if !strings.Contains(err.Error(), "field of view") {
 			t.Errorf("%s: the error does not say what to do about it: %v", tc.name, err)
