@@ -1,4 +1,12 @@
-# desk
+<p align="center"><img src="https://raw.githubusercontent.com/go-xrkit/brand/main/social/go-xrkit.png" alt="go-xrkit" width="720"></p>
+
+# go-xrkit/desk
+
+[![ci](https://github.com/go-xrkit/desk/actions/workflows/ci.yml/badge.svg)](https://github.com/go-xrkit/desk/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/go-xrkit/desk.svg)](https://pkg.go.dev/github.com/go-xrkit/desk)
+[![Go Report Card](https://goreportcard.com/badge/github.com/go-xrkit/desk)](https://goreportcard.com/report/github.com/go-xrkit/desk)
+[![Coverage](https://img.shields.io/badge/coverage-100%25%20portable%20logic-1a7f37)](#tests)
+[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
 Several computer screens, floating on a 360° ribbon inside AR glasses, scrolled
 from the keyboard.
@@ -108,6 +116,25 @@ refusal is about MAKING a display, not about using the one you were given.
 
 Where virtual displays are not available the ribbon carries the real displays
 and windows instead. That is fewer screens, and everything else is identical.
+
+## Tests
+
+```
+go test ./...
+```
+
+The geometry, the plan and the compositor have no operating system in them, and
+they are held at **100 % statement coverage, gated in CI**. The gate selects
+files by SHAPE rather than by a list of names -- everything that is not a
+platform file (Go's own `_darwin`/`_linux`/`_android`/`_windows`/`_js`/`_other`
+suffixes), not a command, and not a `_display.go` -- so a new portable file is
+gated the day it is written instead of the day someone remembers to add it.
+
+Playback needs a display, a video file and a pair of glasses, none of which a
+runner has, so a total-coverage figure would be a number chosen to pass rather
+than a standard. The `_display.go` files are named, not listed, so the exemption
+is visible in the file name instead of buried in CI, and they stay deliberately
+thin -- wiring pieces that ARE covered.
 
 ## Licence
 
