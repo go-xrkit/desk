@@ -6,6 +6,10 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/ebitengine/purego v0.10.2 h1:W809HbnvzAxgdm+aOvlSekrM16wGCdT/e76+9tS7gzE=
 github.com/ebitengine/purego v0.10.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
+github.com/go-freedesktop/screencast v0.1.0 h1:LZF4SAYUI79n31U1qfCXZ0+FdEN8c6/Vbzmqkoz4VEY=
+github.com/go-freedesktop/screencast v0.1.0/go.mod h1:S2FPTvX9NmbDLHOqXm1MVmN74n8gzyrJBrSa+P7zZbo=
+github.com/go-freedesktop/x11 v0.1.0 h1:yWwygwCijUOEXJun4OaoSCGtNyNx3463JZE59CjPxMg=
+github.com/go-freedesktop/x11 v0.1.0/go.mod h1:a+Fma9oOlsagw0CJKe+VHYxIl5/PzPSmlCVaYCtUSYA=
 github.com/go-gfx/gfx v0.6.0 h1:sQkGEmB9YLouHxrscwvS4OW6oELsTtrKtQqsNdJ8L8Q=
 github.com/go-gfx/gfx v0.6.0/go.mod h1:bFt/MWyYWRU3Ic9IaB8XOC9KLMMHRRmahMk4FaIGK7g=
 github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43EndujIC0=
