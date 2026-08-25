@@ -21,7 +21,7 @@ import (
 // same thing at all.
 type Screens struct {
 	// IDs are CGDirectDisplayIDs, in ribbon order.
-	IDs []uint32
+	IDs []uint64
 	// Virtual reports whether these were created by us.
 	Virtual bool
 	// Why explains what happened, and is worth showing to a person: a fallback
@@ -85,7 +85,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 			return realScreens(ctx, &Screens{}, fmt.Sprintf("virtual display %d refused (%v)", i+1, err))
 		}
 		s.virtual = append(s.virtual, d)
-		s.IDs = append(s.IDs, d.ID())
+		s.IDs = append(s.IDs, uint64(d.ID()))
 	}
 	s.Virtual = true
 	s.Why = fmt.Sprintf("%d virtual displays of %dx%d", len(s.IDs), plan.ScreenW, plan.ScreenH)
@@ -109,7 +109,9 @@ func realScreens(_ context.Context, s *Screens, why string) (*Screens, error) {
 	if len(ids) == 0 {
 		return nil, errors.New("desk: no displays at all")
 	}
-	s.IDs = append(s.IDs, ids...)
+	for _, id := range ids {
+		s.IDs = append(s.IDs, uint64(id))
+	}
 	s.Virtual = false
 	s.Why = why + fmt.Sprintf("; showing the %d display(s) this machine already has", len(s.IDs))
 	return s, nil
@@ -155,7 +157,7 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 	feeds := make([]Feed, plan.Count())
 	for i := 0; i < plan.Count() && i < len(s.IDs); i++ {
 		st, err := screencapture.CaptureDisplay(ctx,
-			screencapture.Display{ID: s.IDs[i], Width: plan.ScreenW, Height: plan.ScreenH},
+			screencapture.Display{ID: uint32(s.IDs[i]), Width: plan.ScreenW, Height: plan.ScreenH},
 			screencapture.Options{
 				Width:  plan.ScreenW,
 				Height: plan.ScreenH,

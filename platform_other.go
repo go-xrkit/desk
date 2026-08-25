@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//go:build !darwin && !linux && !android
+//go:build !darwin && !linux && !android && !windows
 
 package desk
 
@@ -24,7 +24,7 @@ var ErrNoPlatform = errors.New("desk: no screen capture on this platform yet")
 // Screens is what the ribbon will show, and how it was obtained.
 type Screens struct {
 	// IDs identify the displays, in ribbon order.
-	IDs []uint32
+	IDs []uint64
 	// Virtual reports whether these were created by us.
 	Virtual bool
 	// Why explains what happened, and is worth showing to a person.
