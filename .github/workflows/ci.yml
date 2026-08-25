@@ -42,9 +42,19 @@ jobs:
       - name: 100% coverage gate on the portable logic
         shell: bash
         run: |
-          go tool cover -func=cover.out | grep -E '/(detect|screen|source|controls|controlbar)\.go:' > portable.txt
+          # Every file that is not platform-specific and not a command. Selecting
+          # by SHAPE rather than by a list of names means a new portable file is
+          # gated the day it is written, instead of the day someone remembers to
+          # add it here.
+          go tool cover -func=cover.out \
+            | grep -v '_darwin\.go:' \
+            | grep -v '/cmd/' \
+            | grep -v '^total:' > portable.txt || true
           cat portable.txt
-          if grep -v '100.0%' portable.txt; then
+          if [ ! -s portable.txt ]; then
+            echo "::error::no portable files were measured at all; the filter is wrong"; exit 1
+          fi
+          if grep -v '100\.0%' portable.txt; then
             echo "::error::the portable logic is below 100% (lines above)"; exit 1
           fi
           echo "portable logic: 100%"
