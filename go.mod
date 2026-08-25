@@ -10,7 +10,7 @@ require (
 	github.com/go-widgets/toolkit v0.201.0
 	github.com/go-widgets/window v0.51.0
 	github.com/go-xrkit/android v0.1.0
-	github.com/go-xrkit/xrkit v0.3.0
+	github.com/go-xrkit/xrkit v0.4.0
 )
 
 require (
