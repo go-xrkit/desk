@@ -197,3 +197,24 @@ func (d *Desk) Close() error {
 	}
 	return first
 }
+
+// KeyAction maps a key to what it does.
+//
+// These are the keys that work while the desk itself has focus. The shortcuts
+// the viewer actually reaches for — turning the ribbon while working INSIDE one
+// of the screens — cannot be these, because the focus is then in somebody else's
+// application. Those are system-wide shortcuts and they are registered
+// separately; this table is what remains useful when the desk is in front.
+func KeyAction(code string) Action {
+	switch code {
+	case "Escape", "q", "Q":
+		return ActionQuit
+	case "ArrowLeft", "h", "H":
+		return ActionPrev
+	case "ArrowRight", "l", "L":
+		return ActionNext
+	case " ", "f", "F":
+		return ActionFullscreen
+	}
+	return ActionNone
+}

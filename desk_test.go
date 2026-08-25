@@ -375,3 +375,17 @@ func TestPromotingAnyScreenAlwaysWorks(t *testing.T) {
 		t.Errorf("stepping round the ribbon reached %d of %d screens", len(seen), p.Count())
 	}
 }
+
+func TestKeyAction(t *testing.T) {
+	for code, want := range map[string]Action{
+		"Escape": ActionQuit, "q": ActionQuit, "Q": ActionQuit,
+		"ArrowLeft": ActionPrev, "h": ActionPrev, "H": ActionPrev,
+		"ArrowRight": ActionNext, "l": ActionNext, "L": ActionNext,
+		" ": ActionFullscreen, "f": ActionFullscreen, "F": ActionFullscreen,
+		"x": ActionNone, "": ActionNone, "ArrowUp": ActionNone,
+	} {
+		if got := KeyAction(code); got != want {
+			t.Errorf("KeyAction(%q) = %v, want %v", code, got, want)
+		}
+	}
+}
