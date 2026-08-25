@@ -119,3 +119,45 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 	}
 	return feeds, nil
 }
+
+// Sources lists everything a ribbon position could show.
+//
+// The phone's own screen is one, and it is the only CAPTURED one an ordinary
+// application gets. Panels this program renders onto are the other kind, and
+// they are opened rather than enumerated: what a panel shows is chosen when it
+// is created, not discovered.
+func Sources(ctx context.Context, _ *Screens) ([]Offer, error) {
+	if !android.Available() {
+		return nil, errors.New("desk: this process was not started by the Android host")
+	}
+	d, err := android.DefaultDisplay(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot find the screen to capture: %w", err)
+	}
+	name := d.Name
+	if name == "" {
+		name = "this phone"
+	}
+	return []Offer{{
+		ID: fmt.Sprintf("display-%d", d.ID), Name: name,
+		Kind: KindDisplay, W: d.Width, H: d.Height,
+	}}, nil
+}
+
+// OpenOffer starts capturing one source, ready to be put on a position.
+func OpenOffer(ctx context.Context, plan Plan, o Offer) (Feed, error) {
+	d, err := android.DefaultDisplay(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot find the screen to capture: %w", err)
+	}
+	if o.ID != fmt.Sprintf("display-%d", d.ID) {
+		return nil, fmt.Errorf("%w: %q is not this phone's screen", ErrNoSuchOffer, o.ID)
+	}
+	st, err := android.CaptureDisplay(ctx, d, android.Options{
+		Width: plan.ScreenW, Height: plan.ScreenH, FPS: 60,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot capture %s: %w", o, err)
+	}
+	return &captureFeed{s: st}, nil
+}

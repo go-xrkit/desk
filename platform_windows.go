@@ -99,3 +99,46 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 	}
 	return feeds, nil
 }
+
+// offerID is how a display is named in an inventory. It is derived rather than
+// arbitrary so the same display keeps its identity across a restart.
+func offerID(id uint64) string { return fmt.Sprintf("display-%d", id) }
+
+// Sources lists everything on this machine that a ribbon position could show.
+func Sources(ctx context.Context, _ *Screens) ([]Offer, error) {
+	if !screencapture.Available() {
+		return nil, errors.New("desk: the Windows display libraries did not load")
+	}
+	ds, err := screencapture.Displays(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
+	}
+	out := make([]Offer, 0, len(ds))
+	for _, d := range ds {
+		name := d.DeviceName
+		if name == "" {
+			name = fmt.Sprintf("display %d", d.ID)
+		}
+		if d.Primary {
+			name += " (primary)"
+		}
+		out = append(out, Offer{ID: offerID(d.ID), Name: name, Kind: KindDisplay,
+			W: d.PixelWidth, H: d.PixelHeight})
+	}
+	return out, nil
+}
+
+// OpenOffer starts capturing one source, ready to be put on a position.
+func OpenOffer(ctx context.Context, plan Plan, o Offer) (Feed, error) {
+	var id uint64
+	if _, err := fmt.Sscanf(o.ID, "display-%d", &id); err != nil {
+		return nil, fmt.Errorf("%w: %q is not a display on this platform", ErrNoSuchOffer, o.ID)
+	}
+	st, err := screencapture.CaptureDisplay(ctx,
+		screencapture.Display{ID: id, Width: plan.ScreenW, Height: plan.ScreenH},
+		screencapture.Options{Width: plan.ScreenW, Height: plan.ScreenH, FPS: 60, ShowsCursor: true})
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot capture %s: %w", o, err)
+	}
+	return &captureFeed{s: st}, nil
+}

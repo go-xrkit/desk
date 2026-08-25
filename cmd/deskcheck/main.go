@@ -95,6 +95,30 @@ func run() int {
 	}()
 	logf("virtual=%v ids=%v", screens.Virtual, screens.IDs)
 
+	fmt.Printf("\nsources\n")
+	offers, err := desk.Sources(ctx, screens)
+	if err != nil {
+		logf("%v", err)
+	} else {
+		for _, o := range offers {
+			logf("%s  id=%s", o, o.ID)
+		}
+		inv, err := desk.NewInventory(plan.Count(), offers)
+		if err != nil {
+			logf("inventory: %v", err)
+		} else {
+			// Fill the ribbon the way one key would: cycle each position
+			// once, which takes the next unused source.
+			for i := 0; i < plan.Count(); i++ {
+				inv.Cycle(i)
+			}
+			fmt.Printf("\narrangement après une passe de Cycle\n")
+			for _, line := range strings.Split(strings.TrimRight(inv.Describe(), "\n"), "\n") {
+				logf("%s", line)
+			}
+		}
+	}
+
 	fmt.Printf("\ncapture\n")
 	feeds, err := desk.Capture(ctx, plan, screens, logf)
 	if err != nil {
