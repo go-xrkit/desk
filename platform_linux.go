@@ -2,6 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
+// GOOS=android also matches the _linux suffix, so this file must say it is not
+// for Android; the phone has its own adapter and a very different answer about
+// virtual displays.
+//go:build linux && !android
+
 package desk
 
 import (
