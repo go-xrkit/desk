@@ -4,7 +4,6 @@
 
 [![ci](https://github.com/go-xrkit/desk/actions/workflows/ci.yml/badge.svg)](https://github.com/go-xrkit/desk/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-xrkit/desk.svg)](https://pkg.go.dev/github.com/go-xrkit/desk)
-[![Go Report Card](https://goreportcard.com/badge/github.com/go-xrkit/desk)](https://goreportcard.com/report/github.com/go-xrkit/desk)
 [![Coverage](https://img.shields.io/badge/coverage-100%25%20portable%20logic-1a7f37)](#tests)
 [![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
