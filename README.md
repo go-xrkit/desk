@@ -82,7 +82,7 @@ it is possible at all, creating displays.
 | macOS | ScreenCaptureKit | yes, via private CoreGraphics |
 | Linux | X11, and Wayland where the compositor offers `wlr-screencopy` | no — capture the displays you have |
 | Windows | in progress | no — an indirect display driver needs signing |
-| Android | in progress, via `MediaProjection` | being established — putting other apps on a virtual display appears to need privileges an ordinary APK does not have |
+| Android | `MediaProjection` | **no — settled** |
 
 Android is a different shape from the others. Android hands no drawable surface
 to a process that is not the app, and every path to one is behind JNI, which
@@ -91,6 +91,20 @@ Activity and the Surface, and an ordinary `CGO_ENABLED=0 GOOS=android` Go binary
 speaking to it over a socket, with pixels through a shared buffer. That is the
 pattern `go-widgets/android` already proved with a real installable APK, and it
 is the one the capture follows.
+
+On Android the ribbon carries the phone's own screen and our content, not a set
+of desktops. That is not a gap to be closed later: Android 15 was asked directly,
+and refused four different ways. An app-created virtual display comes back
+without `FLAG_TRUSTED`, and launching anything onto it — even the app's OWN
+activity — is a `SecurityException`. Asking for `VIRTUAL_DISPLAY_FLAG_TRUSTED`
+wants `ADD_TRUSTED_DISPLAY`, whose protection level is `signature`; the flag is
+not in the public SDK at all. `VirtualDeviceManager` needs `CREATE_VIRTUAL_DEVICE`,
+which is `internal|role` and not grantable even by signature.
+
+What DOES work there, and is worth knowing: on the display the glasses themselves
+provide — public and trusted, as any real external display is — an ordinary app
+may place other applications with `ActivityOptions.setLaunchDisplayId`. The
+refusal is about MAKING a display, not about using the one you were given.
 
 Where virtual displays are not available the ribbon carries the real displays
 and windows instead. That is fewer screens, and everything else is identical.
