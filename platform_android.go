@@ -24,7 +24,7 @@ import (
 // manufacturer's own software does here.
 type Screens struct {
 	// IDs identify the displays, in ribbon order.
-	IDs []uint32
+	IDs []uint64
 	// Virtual reports whether these were created by us. Never true here.
 	Virtual bool
 	// Why explains what happened, and is worth showing to a person.
@@ -62,7 +62,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	if err != nil {
 		return nil, fmt.Errorf("desk: cannot find the screen to capture: %w", err)
 	}
-	s := &Screens{IDs: []uint32{uint32(d.ID)}}
+	s := &Screens{IDs: []uint64{uint64(d.ID)}}
 	s.Why = fmt.Sprintf("Android does not let an ordinary application put other apps on a "+
 		"display it creates, so the ribbon shows this phone's own screen: %q %dx%d",
 		d.Name, d.Width, d.Height)
