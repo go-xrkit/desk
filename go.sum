@@ -8,8 +8,8 @@ github.com/ebitengine/purego v0.10.2 h1:W809HbnvzAxgdm+aOvlSekrM16wGCdT/e76+9tS7
 github.com/ebitengine/purego v0.10.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
 github.com/go-freedesktop/screencast v0.1.0 h1:LZF4SAYUI79n31U1qfCXZ0+FdEN8c6/Vbzmqkoz4VEY=
 github.com/go-freedesktop/screencast v0.1.0/go.mod h1:S2FPTvX9NmbDLHOqXm1MVmN74n8gzyrJBrSa+P7zZbo=
-github.com/go-freedesktop/x11 v0.1.0 h1:yWwygwCijUOEXJun4OaoSCGtNyNx3463JZE59CjPxMg=
-github.com/go-freedesktop/x11 v0.1.0/go.mod h1:a+Fma9oOlsagw0CJKe+VHYxIl5/PzPSmlCVaYCtUSYA=
+github.com/go-freedesktop/x11 v0.2.0 h1:qHvov5jn7GG4QxeealqRJVj72/MjR5qi2IXqyD7N02A=
+github.com/go-freedesktop/x11 v0.2.0/go.mod h1:a+Fma9oOlsagw0CJKe+VHYxIl5/PzPSmlCVaYCtUSYA=
 github.com/go-gfx/gfx v0.6.0 h1:sQkGEmB9YLouHxrscwvS4OW6oELsTtrKtQqsNdJ8L8Q=
 github.com/go-gfx/gfx v0.6.0/go.mod h1:bFt/MWyYWRU3Ic9IaB8XOC9KLMMHRRmahMk4FaIGK7g=
 github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43EndujIC0=
@@ -42,8 +42,8 @@ github.com/go-widgets/painter v0.11.0 h1:xsj4zTz8B43rOZnWrx7ZsaUBMgJyvgaE/Pq2Ffc
 github.com/go-widgets/painter v0.11.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.201.0 h1:hkf4BB8wYxKg7OlEwUjB0aMca2hphki3tTfBeGvwr9g=
 github.com/go-widgets/toolkit v0.201.0/go.mod h1:pNroe6a4TiuFC//n6kbsikgs/actqsvqN88vUxjwESg=
-github.com/go-widgets/window v0.48.0 h1:+b1VLHq0FbwgkVOdtK2igfXeR+iF12ju7qxyZ7nJbyk=
-github.com/go-widgets/window v0.48.0/go.mod h1:eMROolGL1P4XdX98I1UtzNl/sSdzUFQ47G54pac8juc=
+github.com/go-widgets/window v0.49.0 h1:iDUouzNWaWVQgKFJ0qZsVPWUzPgAWnZ1Km6jC7QFTFA=
+github.com/go-widgets/window v0.49.0/go.mod h1:cdYgpqZxKGmgk8cemUYYEoZwSGbdZO5fqv5KG0lVIAQ=
 github.com/go-xrkit/xrkit v0.3.0 h1:tudyxQ6zbWg2Z8vO+BIJ1bp5KmL5BQlrz0s/msSLI+A=
 github.com/go-xrkit/xrkit v0.3.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
