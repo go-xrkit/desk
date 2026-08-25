@@ -82,6 +82,15 @@ it is possible at all, creating displays.
 | macOS | ScreenCaptureKit | yes, via private CoreGraphics |
 | Linux | X11, and Wayland where the compositor offers `wlr-screencopy` | no — capture the displays you have |
 | Windows | in progress | no — an indirect display driver needs signing |
+| Android | in progress, via `MediaProjection` | being established — putting other apps on a virtual display appears to need privileges an ordinary APK does not have |
+
+Android is a different shape from the others. Android hands no drawable surface
+to a process that is not the app, and every path to one is behind JNI, which
+needs cgo. So an Android build is two processes — a small Java host owning the
+Activity and the Surface, and an ordinary `CGO_ENABLED=0 GOOS=android` Go binary
+speaking to it over a socket, with pixels through a shared buffer. That is the
+pattern `go-widgets/android` already proved with a real installable APK, and it
+is the one the capture follows.
 
 Where virtual displays are not available the ribbon carries the real displays
 and windows instead. That is fewer screens, and everything else is identical.
