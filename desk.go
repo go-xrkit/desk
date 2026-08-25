@@ -47,6 +47,11 @@ const (
 	// ActionFullscreen promotes the focused screen to fill the view, or puts it
 	// back.
 	ActionFullscreen
+	// ActionCycle asks for the next source on the focused screen. What that
+	// means is the application's business — this package knows the ribbon, not
+	// what a platform has to offer — so it is reported through OnCycle rather
+	// than acted on here.
+	ActionCycle
 	// ActionQuit ends the session.
 	ActionQuit
 )
@@ -60,6 +65,8 @@ func (a Action) String() string {
 		return "previous"
 	case ActionFullscreen:
 		return "fullscreen"
+	case ActionCycle:
+		return "cycle"
 	case ActionQuit:
 		return "quit"
 	default:
@@ -92,6 +99,11 @@ type Desk struct {
 
 	// Background is what the gaps between screens show.
 	Background [4]byte
+
+	// OnCycle, when set, is called with the FOCUSED position when the viewer
+	// asks for the next source there. It is called without the desk's lock held,
+	// so a handler may call SetFeed — which is the whole point of it.
+	OnCycle func(pos int)
 
 	quit bool
 }
@@ -150,8 +162,9 @@ func (d *Desk) Quit() bool {
 
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
+	var cycle func(int)
+	pos := -1
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	switch a {
 	case ActionNext:
 		d.nav.Next()
@@ -159,8 +172,16 @@ func (d *Desk) Do(a Action) {
 		d.nav.Prev()
 	case ActionFullscreen:
 		d.nav.ToggleFullscreen()
+	case ActionCycle:
+		// Answered after the lock is dropped: a handler that changes what this
+		// position shows has to be able to take it.
+		cycle, pos = d.OnCycle, d.nav.Focus()
 	case ActionQuit:
 		d.quit = true
+	}
+	d.mu.Unlock()
+	if cycle != nil {
+		cycle(pos)
 	}
 }
 
@@ -236,6 +257,8 @@ func KeyAction(code string) Action {
 		return ActionNext
 	case " ", "f", "F":
 		return ActionFullscreen
+	case "Tab", "c", "C":
+		return ActionCycle
 	}
 	return ActionNone
 }
