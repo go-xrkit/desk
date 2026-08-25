@@ -55,11 +55,17 @@ jobs:
       - name: 100% coverage gate on the portable logic
         shell: bash
         run: |
-          # Every file that is not platform-specific and not a command. Selecting
-          # by SHAPE rather than by a list of names means a new portable file is
-          # gated the day it is written, instead of the day someone remembers to
-          # add it here.
+          # Every file that is not platform-specific, not a command, and does not
+          # need a real display. Selecting by SHAPE rather than by a list of
+          # names means a new portable file is gated the day it is written,
+          # instead of the day someone remembers to add it here.
+          #
+          # A _display.go suffix is the third shape: code that can only run with a
+          # window server in front of it. It is NAMED rather than listed, so the
+          # exemption is visible in the file name instead of buried in CI, and
+          # it stays deliberately thin — wiring pieces that ARE covered.
           go tool cover -func=cover.out \
+            | grep -v '_display\.go:' \
             | grep -v '_darwin\.go:' \
             | grep -v '/cmd/' \
             | grep -v '^total:' > portable.txt || true
