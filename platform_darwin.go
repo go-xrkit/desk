@@ -148,10 +148,7 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 		return nil, errors.New("desk: ScreenCaptureKit is not available on this system")
 	}
 	if !screencapture.Authorized() {
-		return nil, fmt.Errorf("desk: screen recording is not permitted. " +
-			"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording " +
-			"to the application that launched this program — for a program started from a shell " +
-			"that is the terminal or editor, not the program itself — then restart it")
+		return nil, errPermission()
 	}
 
 	feeds := make([]Feed, plan.Count())
@@ -173,4 +170,83 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 		feeds[i] = &captureFeed{s: st}
 	}
 	return feeds, nil
+}
+
+// offerID is how a display is named in an inventory. It is derived rather than
+// arbitrary so that the same display keeps the same identity across a restart,
+// which is what lets an arrangement be written down and restored.
+func offerID(id uint32) string { return fmt.Sprintf("display-%d", id) }
+
+// Sources lists everything on this machine that a ribbon position could show.
+//
+// The displays this program created come first, because they are what it is
+// for; the machine's own screens follow, because a viewer may well want their
+// laptop on the ribbon too.
+func Sources(ctx context.Context, s *Screens) ([]Offer, error) {
+	if !screencapture.Available() {
+		return nil, errors.New("desk: ScreenCaptureKit is not available on this system")
+	}
+	if !screencapture.Authorized() {
+		return nil, errPermission()
+	}
+	ds, err := screencapture.Displays(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
+	}
+
+	ours := make(map[uint32]bool, len(s.IDs))
+	if s != nil && s.Virtual {
+		for _, id := range s.IDs {
+			ours[uint32(id)] = true
+		}
+	}
+	var mine, theirs []Offer
+	for _, d := range ds {
+		o := Offer{
+			ID:   offerID(d.ID),
+			Kind: KindDisplay,
+			W:    d.PixelWidth,
+			H:    d.PixelHeight,
+		}
+		if ours[d.ID] {
+			o.Name = fmt.Sprintf("XR screen %d", len(mine)+1)
+			mine = append(mine, o)
+			continue
+		}
+		o.Name = fmt.Sprintf("display %d", d.ID)
+		if d.Main {
+			o.Name += " (main)"
+		}
+		theirs = append(theirs, o)
+	}
+	return append(mine, theirs...), nil
+}
+
+// OpenOffer starts capturing one source, ready to be put on a position.
+func OpenOffer(ctx context.Context, plan Plan, o Offer) (Feed, error) {
+	var id uint32
+	if _, err := fmt.Sscanf(o.ID, "display-%d", &id); err != nil {
+		return nil, fmt.Errorf("%w: %q is not a display on this platform", ErrNoSuchOffer, o.ID)
+	}
+	st, err := screencapture.CaptureDisplay(ctx,
+		screencapture.Display{ID: id, Width: plan.ScreenW, Height: plan.ScreenH},
+		screencapture.Options{
+			Width: plan.ScreenW, Height: plan.ScreenH, FPS: 60, ShowsCursor: true,
+		})
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot capture %s: %w", o, err)
+	}
+	return &captureFeed{s: st}, nil
+}
+
+// errPermission is the one message about the screen-recording grant, said once.
+//
+// It names what to do rather than what failed, because "permission denied" sends
+// a person to the wrong place: the grant belongs to whatever LAUNCHED this, not
+// to this.
+func errPermission() error {
+	return errors.New("desk: screen recording is not permitted. " +
+		"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording " +
+		"to the application that launched this program — for a program started from a shell " +
+		"that is the terminal or editor, not the program itself — then restart it")
 }

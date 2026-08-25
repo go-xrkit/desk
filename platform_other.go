@@ -49,3 +49,9 @@ func Capture(_ context.Context, _ Plan, _ *Screens, logf func(string, ...any)) (
 	}
 	return nil, ErrNoPlatform
 }
+
+// Sources lists what a ribbon position could show. Not on this platform.
+func Sources(context.Context, *Screens) ([]Offer, error) { return nil, ErrNoPlatform }
+
+// OpenOffer starts capturing one source. Not on this platform.
+func OpenOffer(context.Context, Plan, Offer) (Feed, error) { return nil, ErrNoPlatform }
