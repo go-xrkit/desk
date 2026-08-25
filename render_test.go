@@ -155,3 +155,57 @@ func TestWordsAndBytesRefuseNothing(t *testing.T) {
 		t.Error("writing through the word view did not reach the bytes")
 	}
 }
+
+// TestSnapshotIsHandedTheFrameOnce is what the -snapshot flag rests on, and it
+// covers the branch my own coverage gate caught me shipping untested.
+//
+// Once, not every frame: once is evidence, every frame is a film. And the
+// picture handed over must be the one actually drawn — a snapshot of an empty
+// buffer would look like a working feature and prove nothing.
+func TestSnapshotIsHandedTheFrameOnce(t *testing.T) {
+	p := stereoPlan(t)
+	v, err := newView(p, 3840, 1080)
+	if err != nil {
+		t.Fatalf("newView = %v", err)
+	}
+	c := NewCanvas(p.Pano)
+	c.Fill([4]byte{0x10, 0x20, 0x30, 0xff})
+
+	calls := 0
+	var gotW, gotH int
+	var painted bool
+	v.Snapshot = func(pix []byte, w, h int) {
+		calls++
+		gotW, gotH = w, h
+		for i := 0; i+4 <= len(pix); i += 4 {
+			if pix[i] != 0 || pix[i+1] != 0 || pix[i+2] != 0 {
+				painted = true
+				break
+			}
+		}
+	}
+
+	v.draw(c)
+	v.draw(c)
+	v.draw(c)
+
+	if calls != 1 {
+		t.Errorf("Snapshot was called %d times, want exactly once", calls)
+	}
+	if gotW != 3840 || gotH != 1080 {
+		t.Errorf("Snapshot got %dx%d, want the framebuffer", gotW, gotH)
+	}
+	if !painted {
+		t.Error("Snapshot was handed an empty buffer; it must be the frame that was drawn")
+	}
+}
+
+// TestDrawWithoutASnapshotIsFine covers the ordinary path, where nobody asked.
+func TestDrawWithoutASnapshotIsFine(t *testing.T) {
+	p := stereoPlan(t)
+	v, err := newView(p, 1920, 1200)
+	if err != nil {
+		t.Fatalf("newView = %v", err)
+	}
+	v.draw(NewCanvas(p.Pano))
+}
