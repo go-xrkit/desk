@@ -6,6 +6,7 @@ package desk
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/go-xrkit/xrkit/glasses"
@@ -386,6 +387,125 @@ func TestKeyAction(t *testing.T) {
 	} {
 		if got := KeyAction(code); got != want {
 			t.Errorf("KeyAction(%q) = %v, want %v", code, got, want)
+		}
+	}
+}
+
+// TestTheViewerAndTheFrameLoopAreDifferentGoroutines is the test that should
+// have existed the moment Run was written.
+//
+// Keys arrive on the window back-end's EVENT thread; the ribbon is advanced and
+// drawn on a TICKER. Neither ribbon.Nav nor the desk's own slices are safe on
+// their own, and every test until now was single-goroutine, so nothing could
+// see it. Under -race this fails without the lock and passes with it.
+func TestTheViewerAndTheFrameLoopAreDifferentGoroutines(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	defer d.Close()
+
+	var wg sync.WaitGroup
+
+	// The frame loop. It runs a fixed number of turns rather than until a stop
+	// signal: a goroutine waited on by the same WaitGroup that would close the
+	// signal never gets one, which is how the first version of this test hung.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			d.Advance(1.0 / 60)
+			d.Render()
+			_ = d.Quit()
+		}
+	}()
+
+	// The viewer, on another goroutine, doing everything a viewer can do.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i++ {
+			d.Do(ActionNext)
+			d.Do(ActionFullscreen)
+			d.Do(ActionPrev)
+			_ = d.FeedAt(i % p.Count())
+		}
+	}()
+
+	// And a third changing what the screens show underneath both.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			old, err := d.SetFeed(i%p.Count(), newFakeFeed(p.ScreenW, p.ScreenH, byte(i)))
+			if err != nil {
+				t.Errorf("SetFeed = %v", err)
+				return
+			}
+			if old != nil {
+				_ = old.Close()
+			}
+		}
+	}()
+
+	wg.Wait()
+}
+
+// TestSetFeedHandsBackTheOldOneWithoutClosingIt: a viewer parking a screen to
+// look at something else usually wants it back, so swapping and discarding must
+// not be the same gesture.
+func TestSetFeedHandsBackTheOldOneWithoutClosingIt(t *testing.T) {
+	p := testPlan(t)
+	feeds := feedsFor(p)
+	first := feeds[1].(*fakeFeed)
+	d, err := New(p, feeds)
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	d.Render() // give position 1 a picture to forget
+
+	replacement := newFakeFeed(p.ScreenW, p.ScreenH, 200)
+	old, err := d.SetFeed(1, replacement)
+	if err != nil {
+		t.Fatalf("SetFeed = %v", err)
+	}
+	if old != Feed(first) {
+		t.Error("SetFeed did not hand back the feed that was there")
+	}
+	if first.closes != 0 {
+		t.Errorf("SetFeed closed the old feed %d times; swapping is not discarding", first.closes)
+	}
+	if got := d.FeedAt(1); got != Feed(replacement) {
+		t.Error("FeedAt does not report the new feed")
+	}
+
+	// The old picture must be dropped with the old feed: showing the previous
+	// screen's contents on a panel that now holds something else is a lie about
+	// what is on it.
+	replacement.neverReady = true
+	c := d.Render()
+	blits := d.comp.Frame(nil, d.nav.Yaw())
+	for _, b := range blits {
+		if b.Screen != 1 {
+			continue
+		}
+		o := ((b.Dst.Y+b.Dst.H/2)*c.W + b.Dst.X + b.Dst.W/2) * 4
+		if c.Pix[o] == 20 { // the tag the old feed painted
+			t.Error("the old feed's picture survived the swap")
+		}
+	}
+}
+
+func TestSetFeedRefusesAPositionThatIsNotThere(t *testing.T) {
+	p := testPlan(t)
+	d, _ := New(p, feedsFor(p))
+	for _, i := range []int{-1, p.Count(), 999} {
+		if _, err := d.SetFeed(i, nil); !errors.Is(err, ErrNoScreens) {
+			t.Errorf("SetFeed(%d) = %v, want ErrNoScreens", i, err)
+		}
+		if d.FeedAt(i) != nil {
+			t.Errorf("FeedAt(%d) returned something", i)
 		}
 	}
 }

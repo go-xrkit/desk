@@ -7,6 +7,7 @@ package desk
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/go-xrkit/xrkit/ribbon"
 )
@@ -83,6 +84,12 @@ type Desk struct {
 	sources []Source
 	blits   []ribbon.Blit
 
+	// mu serialises everything a viewer can change against everything the frame
+	// loop reads. They are genuinely different goroutines — keys arrive on the
+	// window back-end EVENT thread while the ribbon is advanced and drawn on a
+	// TICKER — and neither ribbon.Nav nor these slices is safe on its own.
+	mu sync.Mutex
+
 	// Background is what the gaps between screens show.
 	Background [4]byte
 
@@ -135,10 +142,16 @@ func (d *Desk) Nav() *ribbon.Nav { return d.nav }
 
 // Canvas is the panorama, for the warp to read.
 func (d *Desk) Canvas() *Canvas { return d.canvas }
-func (d *Desk) Quit() bool      { return d.quit }
+func (d *Desk) Quit() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.quit
+}
 
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	switch a {
 	case ActionNext:
 		d.nav.Next()
@@ -152,13 +165,19 @@ func (d *Desk) Do(a Action) {
 }
 
 // Advance moves the ribbon towards where it is going, dt seconds later.
-func (d *Desk) Advance(dt float64) { d.nav.Advance(dt) }
+func (d *Desk) Advance(dt float64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.nav.Advance(dt)
+}
 
 // Render draws the current frame into the panorama and returns it.
 //
 // Every feed is asked for its latest pixels whether or not it is visible: a feed
 // that is never read may stop delivering, and the cost is a pointer.
 func (d *Desk) Render() *Canvas {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	for i, f := range d.feeds {
 		if f == nil {
 			continue
@@ -186,6 +205,8 @@ func (d *Desk) Render() *Canvas {
 
 // Close shuts every feed down, returning the first error but closing them all.
 func (d *Desk) Close() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	var first error
 	for _, f := range d.feeds {
 		if f == nil {
@@ -217,4 +238,36 @@ func KeyAction(code string) Action {
 		return ActionFullscreen
 	}
 	return ActionNone
+}
+
+// SetFeed replaces what one ribbon position shows, while the desk is running.
+//
+// It returns the feed that was there, and does NOT close it. That is deliberate:
+// a viewer who parks a screen to look at something else usually wants it back,
+// and a method that closed it would make "swap" and "discard" the same gesture.
+// A caller that really is finished with the old feed closes it itself.
+//
+// The last picture from the old feed is dropped with it, so a position whose new
+// feed has not produced anything yet shows background rather than the previous
+// screen's contents — which would be a lie about what is on that panel.
+func (d *Desk) SetFeed(i int, f Feed) (Feed, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if i < 0 || i >= len(d.feeds) {
+		return nil, fmt.Errorf("%w: position %d of %d", ErrNoScreens, i, len(d.feeds))
+	}
+	old := d.feeds[i]
+	d.feeds[i] = f
+	d.sources[i] = Source{}
+	return old, nil
+}
+
+// FeedAt reports what is at a ribbon position, or nil for an empty one.
+func (d *Desk) FeedAt(i int) Feed {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if i < 0 || i >= len(d.feeds) {
+		return nil
+	}
+	return d.feeds[i]
 }
