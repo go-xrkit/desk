@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//go:build !darwin && !linux
+//go:build !darwin && !linux && !android
 
 package desk
 

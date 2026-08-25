@@ -8,6 +8,7 @@ require (
 	github.com/go-macos/virtualdisplay v0.1.0
 	github.com/go-widgets/toolkit v0.201.0
 	github.com/go-widgets/window v0.49.0
+	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/xrkit v0.3.0
 )
 
