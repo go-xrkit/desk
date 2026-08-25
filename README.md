@@ -81,8 +81,8 @@ it is possible at all, creating displays.
 |---|---|---|
 | macOS | ScreenCaptureKit | yes, via private CoreGraphics |
 | Linux | X11, and Wayland where the compositor offers `wlr-screencopy` | no — capture the displays you have |
-| Windows | in progress | no — an indirect display driver needs signing |
-| Android | `MediaProjection` | **no — settled** |
+| Windows | in progress — enumeration must be added to `go-mswin/win32` first | no — an indirect display driver needs signing |
+| Android | `MediaProjection` | **no — settled**; the ribbon carries the phone's own screen |
 
 Android is a different shape from the others. Android hands no drawable surface
 to a process that is not the app, and every path to one is behind JNI, which
