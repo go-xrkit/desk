@@ -22,10 +22,10 @@ github.com/go-macos/screencapture v0.1.0 h1:1ILEsodoTy6u381r7MORYhHHEQHbKIlHY7at
 github.com/go-macos/screencapture v0.1.0/go.mod h1:Vq+YGpLJhioRTQ3YJnOj9en8T9ON9s+UEp+BwHWbLQ4=
 github.com/go-macos/virtualdisplay v0.1.0 h1:mZll/h6+PVn+mNTDH17D7G5lXV5HPxlmJU9NKXJcR7c=
 github.com/go-macos/virtualdisplay v0.1.0/go.mod h1:SdD/x985/SWSqyARACyLX6F3xTD5dyFk/kWAT++RhyY=
-github.com/go-mswin/screencapture v0.1.1 h1:LU8ckOgz4gQOA/GpoAshTn7Ab/BfFYt7p/iVBSzBQy8=
-github.com/go-mswin/screencapture v0.1.1/go.mod h1:Ps3oRy6AMTxS6K6+Xch6Qb4OS93zxwRHzkL/dRnm/pg=
-github.com/go-mswin/win32 v0.3.0 h1:woBuRYApSkzs8PzloMI4qhQdAB8lDmbFC2VT/QRsB3E=
-github.com/go-mswin/win32 v0.3.0/go.mod h1:ypmW4zosl3mXhy0O39EDbHk+AUjgaXGyFgY5UpX3AxI=
+github.com/go-mswin/screencapture v0.2.0 h1:2wuzUiORPoQehjNrfBAkhlT7DJ12sd53B5U+x+4XoR0=
+github.com/go-mswin/screencapture v0.2.0/go.mod h1:jBFAxU39J9pxOjFNkTh72td13kq0oUWhyQc5XI4V1V8=
+github.com/go-mswin/win32 v0.4.0 h1:0JAvm3XNMxOyfYX1anbtAqxNvxvUA0DZ1SyAUinhMa0=
+github.com/go-mswin/win32 v0.4.0/go.mod h1:ypmW4zosl3mXhy0O39EDbHk+AUjgaXGyFgY5UpX3AxI=
 github.com/go-opentype/fonts v0.8.0 h1:77i3VPIH90GbstzNb21mk+an4WvEOe2idC6W+J0n0fw=
 github.com/go-opentype/fonts v0.8.0/go.mod h1:C6yQL2apHItfEZ5hztpsHF0S5mlX/hklLlq/Z5fRG/g=
 github.com/go-opentype/opentype v0.6.0 h1:2t1Qs/Uo4M+f9gahV5QGihLTTeI/q4s0l7MIsbkd290=
