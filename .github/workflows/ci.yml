@@ -11,6 +11,19 @@ permissions:
   contents: read
 
 jobs:
+  workflows:
+    name: workflows parse
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # A workflow that fails to PARSE reports nothing at all: no jobs run, no
+      # checks appear, and the pull request looks unexercised rather than
+      # broken. This is the only lane that would notice.
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
   gofmt:
     runs-on: ubuntu-latest
     steps:
