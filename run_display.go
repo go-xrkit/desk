@@ -7,6 +7,8 @@ package desk
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-widgets/toolkit"
@@ -27,6 +29,11 @@ type RunOptions struct {
 	For time.Duration
 	// Logf receives progress. A nil Logf says nothing.
 	Logf func(string, ...any)
+
+	// Snapshot, when set, is handed the first frame actually drawn — the picture
+	// the glasses were shown. It is written by the caller, so this package never
+	// decides where a capture of somebody's screens lands.
+	Snapshot func(pix []byte, w, h int)
 }
 
 // FrameInterval is how often the ribbon is advanced and redrawn.
@@ -52,10 +59,17 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		title = "xrdesk"
 	}
 
-	screen := window.Screen{
-		Name:   opt.Screen.Name,
-		Width:  opt.Screen.Width,
-		Height: opt.Screen.Height,
+	// Ask the window system for the target display NOW, rather than trusting the
+	// one the caller looked up earlier.
+	//
+	// Creating virtual displays REARRANGES the desktop: on the first live run a
+	// VITURE Beast sat at -1920,0 before three screens were made and at -3840,0
+	// afterwards, so the frame captured beforehand matched nothing and the window
+	// refused to open with "the requested screen is no longer attached". The name
+	// survives that; a rectangle does not.
+	screen, err := currentScreen(opt.Screen.Name)
+	if err != nil {
+		return err
 	}
 	win, err := window.Open(window.Config{
 		Title: title,
@@ -63,7 +77,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// handed, which is exactly what NativeScale is for: no logical-point
 		// scaling between us and the panel.
 		RenderScale: window.NativeScale,
-		Screen:      &screen,
+		Screen:      screen,
 		Fullscreen:  true,
 		Theme:       toolkit.DefaultDark(),
 	})
@@ -79,6 +93,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		return err
 	}
 	logf("the panorama reaches %.1f%% of the view", 100*v.Coverage)
+	v.Snapshot = opt.Snapshot
 
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {
@@ -141,4 +156,27 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	close(stop)
 	<-done
 	return err
+}
+
+// currentScreen finds a display by name, right now.
+//
+// Matching by NAME rather than by the rectangle a caller saw earlier is what
+// survives the desktop being rearranged underneath — which creating a virtual
+// display does, every time.
+func currentScreen(name string) (*window.Screen, error) {
+	ss, err := window.Screens()
+	if err != nil {
+		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
+	}
+	for i := range ss {
+		if ss[i].Name == name {
+			return &ss[i], nil
+		}
+	}
+	names := make([]string, len(ss))
+	for i, s := range ss {
+		names[i] = strconv.Quote(s.Name)
+	}
+	return nil, fmt.Errorf("desk: %q is not attached any more; there is %s",
+		name, strings.Join(names, ", "))
 }
