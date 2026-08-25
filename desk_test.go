@@ -8,6 +8,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-xrkit/xrkit/glasses"
 	"github.com/go-xrkit/xrkit/ribbon"
@@ -329,7 +330,7 @@ func TestPlanAndCanvasAreReachable(t *testing.T) {
 func TestActionString(t *testing.T) {
 	for a, want := range map[Action]string{
 		ActionNone: "none", ActionNext: "next", ActionPrev: "previous",
-		ActionFullscreen: "fullscreen", ActionQuit: "quit", Action(99): "none",
+		ActionFullscreen: "fullscreen", ActionCycle: "cycle", ActionQuit: "quit", Action(99): "none",
 	} {
 		if got := a.String(); got != want {
 			t.Errorf("Action(%d).String() = %q, want %q", a, got, want)
@@ -383,6 +384,7 @@ func TestKeyAction(t *testing.T) {
 		"ArrowLeft": ActionPrev, "h": ActionPrev, "H": ActionPrev,
 		"ArrowRight": ActionNext, "l": ActionNext, "L": ActionNext,
 		" ": ActionFullscreen, "f": ActionFullscreen, "F": ActionFullscreen,
+		"Tab": ActionCycle, "c": ActionCycle, "C": ActionCycle,
 		"x": ActionNone, "": ActionNone, "ArrowUp": ActionNone,
 	} {
 		if got := KeyAction(code); got != want {
@@ -507,5 +509,65 @@ func TestSetFeedRefusesAPositionThatIsNotThere(t *testing.T) {
 		if d.FeedAt(i) != nil {
 			t.Errorf("FeedAt(%d) returned something", i)
 		}
+	}
+}
+
+// TestCycleIsAnsweredWithoutTheLock is what lets a handler change the very
+// thing the action is about.
+//
+// The obvious implementation calls OnCycle while holding the desk's lock, and
+// then SetFeed — the only useful thing a handler can do — deadlocks. It would
+// deadlock in the application and in no test, because no test called SetFeed
+// from a handler until this one.
+func TestCycleIsAnsweredWithoutTheLock(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	defer d.Close()
+
+	var got int
+	done := make(chan struct{})
+	d.OnCycle = func(pos int) {
+		got = pos
+		// The whole point: a handler must be able to take the lock.
+		if _, err := d.SetFeed(pos, newFakeFeed(p.ScreenW, p.ScreenH, 77)); err != nil {
+			t.Errorf("SetFeed from the handler = %v", err)
+		}
+		_ = d.FeedAt(pos)
+		close(done)
+	}
+
+	d.Do(ActionNext) // move the focus somewhere that is not the default
+	want := d.Nav().Focus()
+
+	// Do runs on its OWN goroutine here, because a deadlock inside it would
+	// otherwise take the test goroutine with it and this would HANG rather than
+	// fail. A test that hangs in CI is worse than one that fails: it says
+	// nothing, slowly.
+	go d.Do(ActionCycle)
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnCycle deadlocked: it is being called with the desk's lock held")
+	}
+	if got != want {
+		t.Errorf("OnCycle was told position %d, want the focused %d", got, want)
+	}
+}
+
+// TestCycleWithNoHandlerDoesNothing: a key nobody wired must not be an error.
+func TestCycleWithNoHandlerDoesNothing(t *testing.T) {
+	p := testPlan(t)
+	d, _ := New(p, feedsFor(p))
+	before := d.Nav().Focus()
+	d.Do(ActionCycle)
+	if d.Nav().Focus() != before {
+		t.Error("cycling with no handler moved the focus")
+	}
+	if d.Quit() {
+		t.Error("cycling with no handler ended the session")
 	}
 }

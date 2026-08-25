@@ -109,7 +109,45 @@ func run() int {
 	}
 	defer d.Close()
 
-	fmt.Printf("arrow keys or h/l turn the ribbon, space promotes a screen, q quits\n")
+	// What a ribbon position shows is chosen while it runs. The inventory is the
+	// list; Cycle is that list reduced to one key.
+	if offers, err := desk.Sources(ctx, screens); err != nil {
+		logf("cannot list what could be shown: %v", err)
+	} else if inv, err := desk.NewInventory(plan.Count(), offers); err != nil {
+		logf("inventory: %v", err)
+	} else {
+		// Fill the ribbon the way one key would, so a session starts with
+		// something on every position rather than with a ring of holes.
+		for i := 0; i < plan.Count(); i++ {
+			if o, ok := inv.Cycle(i); ok {
+				logf("screen %d: %s", i+1, o.Name)
+			}
+		}
+		d.OnCycle = func(pos int) {
+			o, ok := inv.Cycle(pos)
+			if !ok {
+				old, _ := d.SetFeed(pos, nil)
+				closeFeed(old)
+				fmt.Printf("screen %d: nothing\n", pos+1)
+				return
+			}
+			f, err := desk.OpenOffer(ctx, plan, o)
+			if err != nil {
+				fmt.Printf("screen %d: %v\n", pos+1, err)
+				return
+			}
+			old, err := d.SetFeed(pos, f)
+			if err != nil {
+				fmt.Printf("screen %d: %v\n", pos+1, err)
+				closeFeed(f)
+				return
+			}
+			closeFeed(old)
+			fmt.Printf("screen %d: %s\n", pos+1, o.Name)
+		}
+	}
+
+	fmt.Printf("arrow keys or h/l turn the ribbon, space promotes, tab or c changes what a screen shows, q quits\n")
 	start := time.Now()
 	opts := desk.RunOptions{Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf}
 	if *snap {
@@ -174,5 +212,17 @@ func repoRootOf(dir string) string {
 			return ""
 		}
 		d = parent
+	}
+}
+
+// closeFeed releases a feed the ribbon no longer holds, and says so if it
+// refuses. SetFeed hands the old one back rather than closing it, because
+// swapping and discarding are not the same gesture — this is the discarding.
+func closeFeed(f desk.Feed) {
+	if f == nil {
+		return
+	}
+	if err := f.Close(); err != nil {
+		fmt.Printf("closing a replaced screen: %v\n", err)
 	}
 }
