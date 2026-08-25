@@ -35,6 +35,11 @@ type view struct {
 	bytes []byte
 	w, h  int
 
+	// Snapshot, when set, is called with the output picture once it has been
+	// drawn. It is how this proves what it put on the glasses without asking a
+	// person to describe what they saw.
+	Snapshot func(pix []byte, w, h int)
+
 	// Coverage is the fraction of the output the panorama actually reaches. A
 	// number far below 1 means the field of view and the panorama window
 	// disagree, which is invisible in a still picture and obvious here.
@@ -95,6 +100,11 @@ func (v *view) draw(c *Canvas) {
 	src := asWords(c.Pix)
 	for i, m := range v.eyeMaps {
 		m.ApplySwapRB(src, v.out, v.w, v.eyeOff[i], background)
+	}
+	if v.Snapshot != nil {
+		snap := v.Snapshot
+		v.Snapshot = nil // once is evidence; every frame is a film
+		snap(asBytes(v.out), v.w, v.h)
 	}
 }
 
