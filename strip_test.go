@@ -12,9 +12,29 @@ import (
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
+// testHFOV is a view a quarter of the way round, so four screens fill the
+// circle exactly and the arithmetic in these tests is checkable by hand.
+const testHFOV = math.Pi / 2
+
+// evenScreens places n screens of hfov radians each, evenly, the way a ribbon
+// of equal screens does.
+func evenScreens(n int, span float64) []ribbon.Placed {
+	out := make([]ribbon.Placed, n)
+	for i := range out {
+		out[i] = ribbon.Placed{
+			Screen:   ribbon.Screen{ID: "s", W: 1920, H: 1200},
+			Centre:   float64(i) * 2 * math.Pi / float64(n),
+			HalfSpan: span / 2,
+		}
+	}
+	return out
+}
+
 func testStrip(t *testing.T, n int) *Strip {
 	t.Helper()
-	s, err := NewStrip(n, 1920, 1200, 1920, 1200, DefaultGapPx)
+	// Evenly spread, each screen exactly one view wide, which is what a plan of
+	// equal screens gives.
+	s, err := NewStrip(evenScreens(n, testHFOV), testHFOV, 1920, 1200, 1920, 1200)
 	if err != nil {
 		t.Fatalf("NewStrip = %v", err)
 	}
@@ -28,7 +48,7 @@ func testStrip(t *testing.T, n int) *Strip {
 func TestAScreenAtRestFillsTheViewExactly(t *testing.T) {
 	s := testStrip(t, 4)
 	for i := 0; i < s.Screens(); i++ {
-		blits := s.Frame(nil, i*s.pitch)
+		blits := s.Frame(nil, s.centre[i])
 		var covered int
 		for _, b := range blits {
 			if b.Screen != i {
@@ -151,7 +171,7 @@ func TestFullscreenIsOneScreenAndNothingElse(t *testing.T) {
 // TestAScreenThatIsNotTheViewsShapeIsScaled: the rule is one screen one view,
 // but nothing here should break if a plan ever hands over something else.
 func TestAScreenThatIsNotTheViewsShapeIsScaled(t *testing.T) {
-	s, err := NewStrip(2, 3840, 2400, 1920, 1200, 0)
+	s, err := NewStrip(evenScreens(2, testHFOV), testHFOV, 3840, 2400, 1920, 1200)
 	if err != nil {
 		t.Fatalf("NewStrip = %v", err)
 	}
@@ -169,20 +189,35 @@ func TestAScreenThatIsNotTheViewsShapeIsScaled(t *testing.T) {
 
 func TestNewStripRefusesWhatItCannotLayOut(t *testing.T) {
 	for name, tc := range map[string]struct {
-		n, srcW, srcH, viewW, viewH, gap int
-		is                               error
+		n, srcW, srcH, viewW, viewH int
+		hfov                        float64
+		is                          error
 	}{
-		"no screens":     {0, 1920, 1200, 1920, 1200, 0, ErrNoScreens},
-		"a negative one": {-1, 1920, 1200, 1920, 1200, 0, ErrNoScreens},
-		"no source":      {2, 0, 1200, 1920, 1200, 0, ErrScreens},
-		"no source rows": {2, 1920, 0, 1920, 1200, 0, ErrScreens},
-		"no view":        {2, 1920, 1200, 0, 1200, 0, ErrScreens},
-		"no view rows":   {2, 1920, 1200, 1920, 0, 0, ErrScreens},
-		"a negative gap": {2, 1920, 1200, 1920, 1200, -1, ErrScreens},
+		"no screens":             {0, 1920, 1200, 1920, 1200, testHFOV, ErrNoScreens},
+		"no source":              {2, 0, 1200, 1920, 1200, testHFOV, ErrScreens},
+		"no source rows":         {2, 1920, 0, 1920, 1200, testHFOV, ErrScreens},
+		"no view":                {2, 1920, 1200, 0, 1200, testHFOV, ErrScreens},
+		"no view rows":           {2, 1920, 1200, 1920, 0, testHFOV, ErrScreens},
+		"a view spanning none":   {2, 1920, 1200, 1920, 1200, 0, ErrFOV},
+		"a view spanning it all": {2, 1920, 1200, 1920, 1200, 2 * math.Pi, ErrFOV},
 	} {
-		_, err := NewStrip(tc.n, tc.srcW, tc.srcH, tc.viewW, tc.viewH, tc.gap)
+		_, err := NewStrip(evenScreens(tc.n, tc.hfov), tc.hfov,
+			tc.srcW, tc.srcH, tc.viewW, tc.viewH)
 		if !errors.Is(err, tc.is) {
 			t.Errorf("%s: NewStrip = %v, want a %v", name, err, tc.is)
 		}
+	}
+}
+
+// TestAScreenTooNarrowToDrawIsRefused.
+//
+// A screen whose arc rounds to no pixels at all cannot be laid on the band, and
+// silently dropping it would leave the viewer looking for a screen the desk
+// says it has.
+func TestAScreenTooNarrowToDrawIsRefused(t *testing.T) {
+	placed := evenScreens(2, testHFOV)
+	placed[1].HalfSpan = 1e-12
+	if _, err := NewStrip(placed, testHFOV, 1920, 1200, 1920, 1200); !errors.Is(err, ErrScreens) {
+		t.Errorf("NewStrip = %v, want an ErrScreens", err)
 	}
 }

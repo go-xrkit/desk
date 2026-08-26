@@ -322,8 +322,10 @@ func TestPlanAndCanvasAreReachable(t *testing.T) {
 	if d.Plan().Count() != p.Count() {
 		t.Error("Plan() does not give back the plan")
 	}
-	if c := d.Canvas(); c.W != p.Pano.W || c.H != p.Pano.H {
-		t.Errorf("Canvas() is %dx%d, want the planned %dx%d", c.W, c.H, p.Pano.W, p.Pano.H)
+	// The canvas is the PICTURE now, not a panorama the picture is a projection
+	// of: one view is one screen.
+	if c := d.Canvas(); c.W != p.ScreenW || c.H != p.ScreenH {
+		t.Errorf("Canvas() is %dx%d, want the view's %dx%d", c.W, c.H, p.ScreenW, p.ScreenH)
 	}
 }
 
@@ -343,16 +345,6 @@ func TestActionString(t *testing.T) {
 // withCount returns the plan with a different number of screens on it.
 func withCount(p Plan, n int) Plan { p.count = n; return p }
 
-// TestNewRefusesAnUnusablePanorama covers the second way building a desk can
-// fail: the screens lay out, but the buffer they must be drawn into is not one.
-func TestNewRefusesAnUnusablePanorama(t *testing.T) {
-	p := testPlan(t)
-	p.Pano.W = 0
-	if _, err := New(p, feedsFor(p)); err == nil {
-		t.Error("a panorama with no columns was accepted")
-	}
-}
-
 // TestPromotingAnyScreenAlwaysWorks is what lets Render ignore the error from
 // Fullscreen instead of carrying a branch that can never be taken.
 //
@@ -370,7 +362,7 @@ func TestPromotingAnyScreenAlwaysWorks(t *testing.T) {
 	for i := 0; i < p.Count()*2+1; i++ {
 		focus := d.Nav().Focus()
 		seen[focus] = true
-		if _, err := d.comp.Fullscreen(nil, focus); err != nil {
+		if _, err := d.strip.Fullscreen(nil, focus); err != nil {
 			t.Fatalf("promoting the focused screen %d failed: %v", focus, err)
 		}
 		d.Do(ActionNext)
@@ -493,7 +485,7 @@ func TestSetFeedHandsBackTheOldOneWithoutClosingIt(t *testing.T) {
 	// what is on it.
 	replacement.neverReady = true
 	c := d.Render()
-	blits := d.comp.Frame(nil, d.nav.Yaw())
+	blits := d.strip.Frame(nil, d.strip.Offset(d.nav.Yaw()))
 	for _, b := range blits {
 		if b.Screen != 1 {
 			continue
@@ -648,7 +640,7 @@ func TestChoosingFromTheGalleryLandsOnTheHighlightedScreen(t *testing.T) {
 	d.Do(ActionGallery)
 	d.Do(ActionNext)
 	d.Do(ActionNext)
-	want := d.gal.Selected()
+	want := d.grid.Selected()
 
 	d.Do(ActionChoose)
 	if err := d.Err(); err != nil {
@@ -680,37 +672,29 @@ func TestQuittingFromTheGallery(t *testing.T) {
 	}
 }
 
-// TestADeskWithNoGalleryStillRuns.
+// TestNewRefusesAPlanItCannotDraw.
 //
-// Plan is a plain struct with exported fields: a caller who widened the spacing
-// can hand New a plan whose screens do not fit one view in any grid. That must
-// cost the viewer the gallery key and nothing else — not the application.
-func TestADeskWithNoGalleryStillRuns(t *testing.T) {
-	p := testPlan(t)
-	// A person who wants breathing space between screens sets a gap. These
-	// glasses see 51.6° wide by 30.4° tall; at a 32° gap no grid is left. One
-	// row of four spends 96° of the 51.6° on gaps, and two rows want more
-	// height than one eye has. The ribbon itself still holds them: 4 x 83.6° is
-	// under the circle.
-	p.Layout.GapDeg = 32
-	d, err := New(p, feedsFor(p))
-	if err != nil {
-		t.Fatalf("a desk with no possible gallery refused to start: %v", err)
-	}
-	defer d.Close()
-	if d.gal != nil {
-		t.Fatal("a gallery fitted at a 32° gap; the premise is wrong")
-	}
-	d.Do(ActionGallery)
-	if d.Err() == nil {
-		t.Error("the gallery key said nothing at all")
-	}
-	if d.Nav().Mode() != ribbon.ModeRibbon {
-		t.Error("the ribbon left its own mode over a gallery it does not have")
-	}
-	// And the ribbon itself still works.
-	d.Do(ActionNext)
-	if d.Render() == nil {
-		t.Error("the desk stopped drawing")
+// Plan is a plain struct with exported fields, so a caller can hand New one
+// whose screens have no pixels. Both the band and the gallery are laid out
+// from those numbers, and neither can be laid out from nothing.
+func TestNewRefusesAPlanItCannotDraw(t *testing.T) {
+	for name, spoil := range map[string]func(*Plan){
+		"screens with no columns": func(p *Plan) { p.ScreenW = 0 },
+		"screens with no rows":    func(p *Plan) { p.ScreenH = 0 },
+		"a view spanning nothing": func(p *Plan) { p.HFOVDeg = 0 },
+		"a view spanning it all":  func(p *Plan) { p.HFOVDeg = 360 },
+		// The band lays out — every screen is a pixel or two wide — and no fold
+		// of twenty of them leaves a cell in a hundred-pixel view.
+		"more screens than any grid holds": func(p *Plan) {
+			p.ScreenW, p.ScreenH = 100, 100
+			p.count = 20
+			p.Layout.DensityDeg = 360.0 / 20
+		},
+	} {
+		p := testPlan(t)
+		spoil(&p)
+		if _, err := New(p, feedsFor(p)); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
 	}
 }
