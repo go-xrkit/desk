@@ -148,6 +148,9 @@ type Desk struct {
 	// it has been turned off.
 	badge *badge
 
+	// marks number the gallery's cells and light the chosen one.
+	marks *marks
+
 	// err is the last thing a viewer's action returned. The gallery can refuse
 	// — a direction it has no cell for, choosing outside it — and a refusal that
 	// nobody can see is a key that silently does nothing.
@@ -292,6 +295,7 @@ func (d *Desk) Badge(seconds float64, theme *toolkit.Theme) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.badge = newBadge(seconds, theme)
+	d.marks = newMarks(theme)
 }
 
 func (d *Desk) Advance(dt float64) {
@@ -318,6 +322,7 @@ func (d *Desk) Render() *Canvas {
 	}
 
 	d.blits = d.blits[:0]
+	inGallery := d.nav.Mode() == ribbon.ModeGallery
 	switch d.nav.Mode() {
 	case ribbon.ModeGallery:
 		// Head-locked: no offset, because the grid is in front of the viewer
@@ -336,11 +341,18 @@ func (d *Desk) Render() *Canvas {
 
 	d.canvas.Compose(d.blits, d.sources, d.Background)
 
-	// After the screens, so it is ON the picture rather than under it — and only
-	// on the band: in the gallery every screen is in front of the viewer at
-	// once, so saying which one is focused would be answering a question nobody
-	// is asking.
-	if d.nav.Mode() != ribbon.ModeGallery {
+	// After the screens, so it is ON the picture rather than under it.
+	//
+	// The two say different things. On the band the question is "which one am I
+	// looking at", and the answer goes up for a moment and leaves. In the
+	// gallery every screen is in front of the viewer at once, so the question is
+	// "which is which, and which would Enter take" — and that has to be on the
+	// picture for as long as the gallery is.
+	if inGallery {
+		// Which cell is which, and which one Enter would take. Without this the
+		// arrows move a selection that is nowhere on the picture.
+		d.marks.draw(d.canvas, d.grid, d.grid.Selected())
+	} else {
 		d.badge.show(d.nav.Focus(), d.plan.Count())
 		d.badge.draw(d.canvas)
 	}
