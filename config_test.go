@@ -244,3 +244,37 @@ func TestAPlaceThatCannotBeUsed(t *testing.T) {
 		t.Errorf("Placements() = %v, want none", got)
 	}
 }
+
+// TestCoveringTheGlassesOwnMenuBarIsAChoice.
+//
+// macOS draws a menu bar on EVERY display when Spaces are separate, so the
+// glasses carry one of their own. Measured on a VITURE Beast: the window
+// server was drawing "Menubar" 1920x30 on the glasses and another 2056x39 on
+// the built-in screen, both at layer 24. Covering the glasses' one is what
+// stopped there being two bars in the picture — and it is not always right,
+// because when the glasses ARE the main display that bar is the real one.
+func TestCoveringTheGlassesOwnMenuBarIsAChoice(t *testing.T) {
+	// A file that does not say asks for it.
+	write(t, `ribbon { screens = 3 }`)
+	c, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig = %v", err)
+	}
+	if !c.Immersive() {
+		t.Error("a file that says nothing did not ask for the picture to be on top")
+	}
+	// No file at all, likewise.
+	t.Setenv(EnvConfig, filepath.Join(t.TempDir(), "not there.hcl"))
+	if c, _ := LoadConfig(); !c.Immersive() {
+		t.Error("with no file the picture is not on top")
+	}
+	// And saying so turns it off.
+	write(t, `ribbon { immersive = false }`)
+	c, err = LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig = %v", err)
+	}
+	if c.Immersive() {
+		t.Error("immersive = false was ignored")
+	}
+}
