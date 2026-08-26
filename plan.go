@@ -41,6 +41,17 @@ type Options struct {
 	// because a person who measures their own optics should be able to say so.
 	FOVDeg float64
 
+	// USB is what the headset says about itself over the bus, when the caller
+	// has looked. It may be nil.
+	//
+	// It is STRONGER evidence than the display name and is consulted first. A
+	// display name is whatever the panel puts in its EDID, and a dock, a
+	// capture card or a KVM in the path can replace it with something generic;
+	// a USB product id names a model, and for some brands it is the only thing
+	// that does. On these very glasses the bus says "XREAL 1S" while the
+	// display is not up at all.
+	USB *glasses.USB
+
 	// MarginDeg is how much wider than the view the panorama is kept, so that a
 	// scroll in progress has pixels to reveal rather than an edge. It is spent
 	// on both sides.
@@ -60,6 +71,10 @@ const DefaultMarginDeg = 12
 type Plan struct {
 	// Model is the headset this was worked out for.
 	Model string
+
+	// How says what named the model, so a caller can show whether the answer
+	// came from the bus, from the display, or from the person at the keyboard.
+	How glasses.How
 
 	// ScreenW and ScreenH are the pixel size to create each virtual display at:
 	// one eye's viewport, which is the most the glasses can show at once.
@@ -123,7 +138,9 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 
 	model := d.Name
 	var h, v float64
-	switch p, ok := glasses.Identify(d.Name); {
+	p, how := glasses.IdentifyDevice(d.Name, opts.USB)
+	ok := how != glasses.NotIdentified
+	switch {
 	case opts.FOVDeg > 0:
 		// The viewer's own figure wins, and the vertical follows from the shape
 		// of the eye rather than from any catalogue.
@@ -148,6 +165,7 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 
 	plan := Plan{
 		Model:        model,
+		How:          how,
 		ScreenW:      eyeW,
 		ScreenH:      eyeH,
 		Stereoscopic: stereoscopic,
@@ -197,3 +215,31 @@ func deg(r float64) float64 { return r * 180 / math.Pi }
 
 // Count is how many screens the ribbon carries.
 func (p Plan) Count() int { return p.count }
+
+// EvidenceFor returns the bus evidence when it may be applied to this display,
+// and nil when it may not.
+//
+// The bus says a headset is ATTACHED. It does not say which display is the
+// headset, and those are not the same claim. On the desk this was written at,
+// a pair of XREAL One S enumerated over USB with no video link at all while a
+// 7680x2160 monitor was the only display present: taking the model from the
+// bus and the pixels from that monitor produced a plan for "XREAL 1S: 7 screens
+// of 3840x2160", which is a headset's optics wrapped round somebody's desktop
+// screen. A wrong field of view renders everything, in the wrong place, with no
+// symptom — which is the whole reason the catalogue refuses to guess.
+//
+// So the evidence is applied only where something has actually tied it to this
+// display: the person named it, or the display names a headset itself and the
+// bus is only saying which one.
+func EvidenceFor(d glasses.Display, named bool, u *glasses.USB) *glasses.USB {
+	if u == nil {
+		return nil
+	}
+	if named {
+		return u
+	}
+	if _, ok := glasses.Identify(d.Name); ok {
+		return u
+	}
+	return nil
+}
