@@ -41,6 +41,17 @@ type Options struct {
 	// because a person who measures their own optics should be able to say so.
 	FOVDeg float64
 
+	// USB is what the headset says about itself over the bus, when the caller
+	// has looked. It may be nil.
+	//
+	// It is STRONGER evidence than the display name and is consulted first. A
+	// display name is whatever the panel puts in its EDID, and a dock, a
+	// capture card or a KVM in the path can replace it with something generic;
+	// a USB product id names a model, and for some brands it is the only thing
+	// that does. On these very glasses the bus says "XREAL 1S" while the
+	// display is not up at all.
+	USB *glasses.USB
+
 	// MarginDeg is how much wider than the view the panorama is kept, so that a
 	// scroll in progress has pixels to reveal rather than an edge. It is spent
 	// on both sides.
@@ -60,6 +71,10 @@ const DefaultMarginDeg = 12
 type Plan struct {
 	// Model is the headset this was worked out for.
 	Model string
+
+	// How says what named the model, so a caller can show whether the answer
+	// came from the bus, from the display, or from the person at the keyboard.
+	How glasses.How
 
 	// ScreenW and ScreenH are the pixel size to create each virtual display at:
 	// one eye's viewport, which is the most the glasses can show at once.
@@ -123,7 +138,9 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 
 	model := d.Name
 	var h, v float64
-	switch p, ok := glasses.Identify(d.Name); {
+	p, how := glasses.IdentifyDevice(d.Name, opts.USB)
+	ok := how != glasses.NotIdentified
+	switch {
 	case opts.FOVDeg > 0:
 		// The viewer's own figure wins, and the vertical follows from the shape
 		// of the eye rather than from any catalogue.
@@ -148,6 +165,7 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 
 	plan := Plan{
 		Model:        model,
+		How:          how,
 		ScreenW:      eyeW,
 		ScreenH:      eyeH,
 		Stereoscopic: stereoscopic,

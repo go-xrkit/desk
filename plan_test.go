@@ -264,3 +264,68 @@ func TestStereoscopicIsReported(t *testing.T) {
 		t.Error("a 1920x1200 mode is one eye, not two")
 	}
 }
+
+// TestTheBusNamesTheModelWhenTheDisplayDoesNot.
+//
+// A display name is whatever the panel put in its EDID, and a dock, a capture
+// card or a KVM in the path can replace it with something generic. A USB
+// product id names a model. These are the real numbers off a pair of XREAL 1S:
+// vendor 0x3318, product 0x043e, product string "XREAL 1S", read from the bus
+// while the video link was down.
+func TestTheBusNamesTheModelWhenTheDisplayDoesNot(t *testing.T) {
+	generic := glasses.Display{Name: "DisplayPort", Width: 1920, Height: 1200}
+	real := &glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}
+
+	// Without the bus, this is exactly the refusal the catalogue is for.
+	if _, err := NewPlan(generic, Options{}); !errors.Is(err, ErrUnknownOptics) {
+		t.Errorf("a nameless display gave %v, want %v", err, ErrUnknownOptics)
+	}
+
+	p, err := NewPlan(generic, Options{USB: real})
+	if err != nil {
+		t.Fatalf("with the bus: %v", err)
+	}
+	if p.Model != "XREAL 1S" {
+		t.Errorf("model is %q, want the one the bus named", p.Model)
+	}
+	if p.How != glasses.ByUSBProduct {
+		t.Errorf("How is %v, want %v", p.How, glasses.ByUSBProduct)
+	}
+	// 52° on the diagonal of a 16:10 eye is 44.94° across. If this ever reads
+	// 52, something has started treating a diagonal as a horizontal.
+	if got := p.HFOVDeg; math.Abs(got-44.94) > 0.01 {
+		t.Errorf("horizontal field of view is %.2f°, want 44.94°", got)
+	}
+}
+
+// TestTheBusOutranksTheDisplayName: both are present and they disagree. The
+// product id names one model; the display name is a different, real headset.
+func TestTheBusOutranksTheDisplayName(t *testing.T) {
+	p, err := NewPlan(
+		glasses.Display{Name: "XREAL Air 2", Width: 1920, Height: 1200},
+		Options{USB: &glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}})
+	if err != nil {
+		t.Fatalf("NewPlan = %v", err)
+	}
+	if p.Model != "XREAL 1S" || p.How != glasses.ByUSBProduct {
+		t.Errorf("got %q by %v; the bus should outrank the display name", p.Model, p.How)
+	}
+}
+
+// TestTheViewersOwnFigureStillWins: -fov is a person saying what they measured,
+// and no amount of evidence about the model overrides it.
+func TestTheViewersOwnFigureStillWins(t *testing.T) {
+	p, err := NewPlan(
+		glasses.Display{Name: "DisplayPort", Width: 1920, Height: 1200},
+		Options{FOVDeg: 40, USB: &glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}})
+	if err != nil {
+		t.Fatalf("NewPlan = %v", err)
+	}
+	if p.HFOVDeg != 40 {
+		t.Errorf("horizontal field of view is %v, want the 40° that was asked for", p.HFOVDeg)
+	}
+	// The model still comes from the bus: the person gave an angle, not a name.
+	if p.Model != "XREAL 1S" {
+		t.Errorf("model is %q, want the one the bus named", p.Model)
+	}
+}

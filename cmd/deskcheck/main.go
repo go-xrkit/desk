@@ -36,7 +36,22 @@ func run() int {
 
 	logf := func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) }
 
-	fmt.Println("displays")
+	// The bus first. A headset can be plugged in, powered and enumerated while
+	// its video link is down — a port with no DisplayPort lane, or one whose
+	// bandwidth a large monitor has already taken — and then it is present in
+	// every sense except the one that shows a picture. Saying so is the
+	// difference between "no glasses" and "no video".
+	peripheral := desk.Peripheral()
+	fmt.Println("bus")
+	if peripheral == nil {
+		logf("no headset on the USB bus")
+	} else {
+		p, how := glasses.IdentifyDevice("", peripheral)
+		logf("%04x:%04x %q -> %s (%s)", peripheral.Vendor, peripheral.Product,
+			peripheral.Name, p.Model, how)
+	}
+
+	fmt.Println("\ndisplays")
 	ss, err := window.Screens()
 	if err != nil {
 		fmt.Printf("  cannot list displays: %v\n", err)
@@ -71,12 +86,15 @@ func run() int {
 		logf("%s", advice)
 	}
 
-	plan, err := desk.NewPlan(chosen, desk.Options{Screens: *count, FOVDeg: *fov})
+	plan, err := desk.NewPlan(chosen, desk.Options{
+		Screens: *count, FOVDeg: *fov, USB: peripheral,
+	})
 	if err != nil {
 		fmt.Printf("\nplan: %v\n", err)
 		return 1
 	}
 	fmt.Printf("\nplan\n")
+	logf("identified %s", plan.How)
 	logf("%s", plan)
 	logf("one screen spans %.2f° across and %.2f° down, which is the whole view",
 		plan.HFOVDeg, plan.VFOVDeg)

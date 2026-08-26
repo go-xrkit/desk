@@ -76,7 +76,9 @@ func run() int {
 		logf("%s", advice)
 	}
 
-	plan, err := desk.NewPlan(chosen, desk.Options{Screens: *count, FOVDeg: *fov})
+	plan, err := desk.NewPlan(chosen, desk.Options{
+		Screens: *count, FOVDeg: *fov, USB: desk.Peripheral(),
+	})
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return 1
