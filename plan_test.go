@@ -37,9 +37,22 @@ func TestOneScreenIsOneView(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: Place = %v", d, err)
 		}
-		span := deg(2 * r.At(0).HalfSpan)
-		if math.Abs(span-p.HFOVDeg) > 1e-9 {
-			t.Errorf("%s: a screen spans %.6f° but the eye sees %.6f°", d, span, p.HFOVDeg)
+		// One screen is one full view, in PIXELS. It used to be stated in
+		// degrees — a screen's arc equalling the eye's field of view — and that
+		// was the right way to say it while the screens were curved. Flat, the
+		// angles are a scroll coordinate: what makes a screen fill the glasses
+		// is that it is drawn at one source pixel per panel pixel, and the arc
+		// only has to be the same for every screen so the band is even.
+		strip, err := NewStrip(placedOf(r), p.Count()*(p.ScreenW+DefaultGapPx),
+			p.ScreenW, p.ScreenH, p.ScreenW, p.ScreenH)
+		if err != nil {
+			t.Fatalf("%s: NewStrip = %v", d, err)
+		}
+		for i := 0; i < p.Count(); i++ {
+			if got := strip.width[i]; got != p.ScreenW {
+				t.Errorf("%s: screen %d is %d pixels wide on the band, want the view's %d",
+					d, i, got, p.ScreenW)
+			}
 		}
 		// And the screen created must be exactly one eye's worth of pixels,
 		// which is what "the most the glasses can show" means.
@@ -328,4 +341,13 @@ func TestTheViewersOwnFigureStillWins(t *testing.T) {
 	if p.Model != "XREAL 1S" {
 		t.Errorf("model is %q, want the one the bus named", p.Model)
 	}
+}
+
+// placedOf is the ribbon's screens, as the strip wants them.
+func placedOf(r *ribbon.Ribbon) []ribbon.Placed {
+	out := make([]ribbon.Placed, r.Len())
+	for i := range out {
+		out[i] = r.At(i)
+	}
+	return out
 }

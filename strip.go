@@ -49,9 +49,12 @@ type Strip struct {
 
 // NewStrip lays the ribbon's screens out flat for a view of viewW x viewH.
 //
-// hfov is what the view spans, in radians: one view is one field of view, and
-// that single number sets the scale for the whole band.
-func NewStrip(placed []ribbon.Placed, hfov float64, srcW, srcH, viewW, viewH int) (*Strip, error) {
+// totalPx is how long the whole band is, in pixels. That single number sets the
+// scale: a screen's arc becomes its width, and the arc between two of them
+// becomes the space between them. Nothing here needs a field of view — the band
+// is flat, so how large a screen LOOKS is the optics' business and not this
+// package's.
+func NewStrip(placed []ribbon.Placed, totalPx, srcW, srcH, viewW, viewH int) (*Strip, error) {
 	n := len(placed)
 	switch {
 	case n <= 0:
@@ -60,13 +63,13 @@ func NewStrip(placed []ribbon.Placed, hfov float64, srcW, srcH, viewW, viewH int
 		return nil, fmt.Errorf("%w: screens of %dx%d", ErrScreens, srcW, srcH)
 	case viewW <= 0 || viewH <= 0:
 		return nil, fmt.Errorf("%w: a view of %dx%d", ErrScreens, viewW, viewH)
-	case !(hfov > 0) || hfov >= 2*math.Pi:
-		return nil, fmt.Errorf("%w: a view spanning %g radians", ErrFOV, hfov)
+	case totalPx <= 0:
+		return nil, fmt.Errorf("%w: a band of %d pixels", ErrScreens, totalPx)
 	}
 	s := &Strip{n: n, viewW: viewW, viewH: viewH, srcW: srcW, srcH: srcH}
 
-	pxPerRad := float64(viewW) / hfov
-	s.total = int(math.Round(2 * math.Pi * pxPerRad))
+	s.total = totalPx
+	pxPerRad := float64(totalPx) / (2 * math.Pi)
 	s.centre = make([]int, n)
 	s.width = make([]int, n)
 	for i, p := range placed {
