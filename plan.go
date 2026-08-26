@@ -58,6 +58,14 @@ type Options struct {
 	MarginDeg float64
 }
 
+// DefaultScreens is how many virtual screens a desk gets when nobody says.
+//
+// Six: two rows of three in the gallery, which is a shape a person keeps a map
+// of, and enough screens that the band is worth turning. It used to be "as
+// many as fit round the circle", which was a real limit when the screens were
+// curved and is a fiction now that they are flat.
+const DefaultScreens = 6
+
 // DefaultMarginDeg is a margin wide enough that a scroll never reaches the edge
 // of the panorama between two frames at any speed the navigator will produce.
 const DefaultMarginDeg = 12
@@ -173,23 +181,38 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 		VFOVDeg:      v,
 	}
 
-	// DensityDeg is the arc for one width of a SQUARE screen, and a wider screen
-	// gets proportionally more. So dividing by the aspect is what makes a screen
-	// of the eye's own shape span exactly the eye's own field of view.
-	plan.Layout = ribbon.Layout{
-		DensityDeg:   h / aspect,
-		GapDeg:       0,
-		FullWidthDeg: h,
-		Arrangement:  ribbon.Spread,
-	}
-
 	n := opts.Screens
 	if n == 0 {
-		// At least two always fit, because a field of view is under 180°, so this
-		// needs no floor of its own.
-		n = int(360 / h)
+		n = DefaultScreens
 	}
 	plan.count = n
+
+	// The screens are FLAT, so the angles are a scroll coordinate and nothing
+	// more — which is what lets there be as many of them as a person wants.
+	//
+	// A curved band had to fit in 360°, and at one screen per view that is seven
+	// of them and no more. Flat, the circle is a fiction: the yaw says how far
+	// along the band the viewer is, and the band is however long it needs to be.
+	// So n screens are spread over the full turn whatever n is, and three, six or
+	// nine of them fold into a gallery a person can actually keep a map of.
+	// A hair under the full turn. The screens and their gaps must SUM to less
+	// than 360°, and n pitches of exactly 360/n sum to exactly 360 — which the
+	// placement refuses, correctly, for a band that is meant to close. A
+	// millionth of a degree of slack is 0.00003 pixels across an eleven-thousand
+	// pixel band: it settles the comparison and is not a position anyone could
+	// measure.
+	const turnDeg = 360 - 1e-6
+	pitchDeg := turnDeg / float64(n)
+	gapDeg := pitchDeg * DefaultGapPx / float64(eyeW+DefaultGapPx)
+	plan.Layout = ribbon.Layout{
+		// DensityDeg is the arc for one width of a SQUARE screen, and a wider
+		// screen gets proportionally more, so dividing by the aspect is what
+		// makes a screen of the eye's own shape span the whole pitch bar the gap.
+		DensityDeg:   (pitchDeg - gapDeg) / aspect,
+		GapDeg:       gapDeg,
+		FullWidthDeg: pitchDeg - gapDeg,
+		Arrangement:  ribbon.Packed,
+	}
 
 	// The panorama covers the view plus a margin on each side, and carries
 	// enough pixels that a screen at rest is neither stretched nor shrunk.

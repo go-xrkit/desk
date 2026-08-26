@@ -163,7 +163,7 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 	for i := range placed {
 		placed[i] = r.At(i)
 	}
-	strip, err := NewStrip(placed, rad(plan.HFOVDeg),
+	strip, err := NewStrip(placed, plan.Count()*(plan.ScreenW+DefaultGapPx),
 		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {
 		return nil, fmt.Errorf("desk: laying out the band: %w", err)
