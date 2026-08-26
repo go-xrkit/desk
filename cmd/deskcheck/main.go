@@ -119,6 +119,18 @@ func run() int {
 		}
 	}
 
+	// What the machine will actually let us have. This is the only way to find
+	// out: two of the three are taken on a stock macOS, and an application's own
+	// menu key cannot be detected at all.
+	fmt.Printf("\nglobal shortcuts\n")
+	hk := desk.ClaimGlobal(desk.DefaultShortcuts(), nil)
+	for _, line := range strings.Split(strings.TrimRight(hk.Describe(), "\n"), "\n") {
+		logf("%s", line)
+	}
+	if err := hk.Close(); err != nil {
+		logf("releasing them: %v", err)
+	}
+
 	fmt.Printf("\ncapture\n")
 	feeds, err := desk.Capture(ctx, plan, screens, logf)
 	if err != nil {
