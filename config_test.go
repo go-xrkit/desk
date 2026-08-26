@@ -201,3 +201,46 @@ func TestWithNowhereToPutSettings(t *testing.T) {
 		t.Errorf("LoadConfig() = %v, want an ErrConfig", err)
 	}
 }
+
+// TestApplicationsToPutOnTheBand.
+func TestApplicationsToPutOnTheBand(t *testing.T) {
+	write(t, `
+place "Safari"   { screen = 1 }
+place "Terminal" { screen = 3 }
+`)
+	c, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig = %v", err)
+	}
+	got := c.Placements()
+	if len(got) != 2 {
+		t.Fatalf("Placements() = %v, want two", got)
+	}
+	// In the order written: a person reading their own file down the page
+	// should see the desk built in that order.
+	if got[0] != (Placement{App: "Safari", Pos: 1}) || got[1] != (Placement{App: "Terminal", Pos: 3}) {
+		t.Errorf("Placements() = %v", got)
+	}
+}
+
+func TestAPlaceThatCannotBeUsed(t *testing.T) {
+	for name, body := range map[string]string{
+		"a screen counted from zero": `place "Safari" { screen = 0 }`,
+		"a screen before the first":  `place "Safari" { screen = -1 }`,
+		"no application at all":      `place "  " { screen = 1 }`,
+	} {
+		write(t, body)
+		if _, err := LoadConfig(); !errors.Is(err, ErrConfig) {
+			t.Errorf("%s: LoadConfig accepted it (%v)", name, err)
+		}
+	}
+	// And a file with no place block asks for nothing.
+	write(t, `ribbon { screens = 3 }`)
+	c, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig = %v", err)
+	}
+	if got := c.Placements(); got != nil {
+		t.Errorf("Placements() = %v, want none", got)
+	}
+}

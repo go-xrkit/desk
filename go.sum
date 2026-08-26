@@ -16,6 +16,8 @@ github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43Enduj
 github.com/go-iconoir/iconoir v0.2.0/go.mod h1:BrOQ68YO5BMsF7y+/nht4shbgjVfh9CxBoQF35eNosw=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 h1:nU+MGeyJzidGvCtx+HLZgHKG9GpUUomkQvB5nXLRWoc=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734/go.mod h1:ObuOBKDEidGX0LqLKY/5nqj7JVN/hsCzHMAJd0TNc0k=
+github.com/go-macos/accessibility v0.1.0 h1:85LzNQfe0NsgKGkn2xVKL0cFwqq7J0uDDjuXvDE6N6M=
+github.com/go-macos/accessibility v0.1.0/go.mod h1:q2r+hSRmG+gzo+OVMsAx/3lVyrMd+UxSiw/NK3RY/C0=
 github.com/go-macos/hotkey v0.2.0 h1:bLJ0WfCAKkugEiraCSGZ5NOYqnFsAbl+MyPJtt02EmI=
 github.com/go-macos/hotkey v0.2.0/go.mod h1:f2hW8saXMK7f/JhWQThMLHwki+TJwliB2IuOalp0RbQ=
 github.com/go-macos/iokit v0.1.0 h1:noPIXSMxCqC+sBT07i7arGkqYwzFBYSwocnbfFxGY5c=
