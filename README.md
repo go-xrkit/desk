@@ -90,6 +90,43 @@ there are 16.6 ms in a frame — but on an equirectangular panorama a yaw is
 exactly a horizontal shift, so the yaw is applied when the screens are
 composited into the panorama, where it costs nothing at all.
 
+
+### Which glasses are these
+
+Two questions, and they are not the same one: *is a headset attached*, and
+*which display is it*.
+
+The bus answers the first. `deskcheck` opens with it:
+
+```
+bus
+  3318:043e "XREAL 1S" -> XREAL 1S (USB product)
+
+displays
+  "Odyssey G95NC" 7680x2160 (primary)
+```
+
+That is a real reading. A headset can be plugged in, powered and enumerated
+with **no DisplayPort lane at all** — a port carrying USB 2 only, or one whose
+bandwidth a large monitor has already taken. It is then present in every sense
+except the one that shows a picture, and *no glasses* and *no video* are
+different problems that deserve different words.
+
+A USB product id is also the **stronger** evidence of the two. A display name is
+whatever the panel put in its EDID, and a dock, a capture card or a KVM in the
+path can replace it with something generic; a product id names one model, and
+for some brands it is the only thing that does.
+
+But the bus never says *which display* the headset is, so the evidence is
+applied only where something ties it to one: you named the display, or the
+display names a headset itself and the bus is only saying which one. Otherwise
+it is reported and not applied. Lending a headset's optics to a monitor renders
+everything, in the wrong place, with no symptom.
+
+Reading it opens no device and needs no permission — macOS asks IOKit for what
+the kernel cached at enumeration, Linux reads three files under
+`/sys/bus/usb/devices`. Windows and Android fall back to the display name.
+
 ## Tested against real hardware
 
 This section says what was actually connected to a machine, and what was only
@@ -102,6 +139,7 @@ wrong, and nothing about the picture says so.
 | Apple M4 Max, macOS 26.6.2 (build 25G83) | everything below |
 | **VITURE Beast** | connected over DisplayPort, observed presenting a 3840x1080 side-by-side 3D mode and a 1920x1200 2D mode, and **rendered to** |
 | **VITURE Luma Ultra** | **enumerated over USB only** — `35ca:1104 "VITURE Luma Ultra XR GLASSES"`. Its video was not connected, so its display name and modes are unconfirmed |
+| **XREAL One S** | **enumerated over USB only** — `3318:043e "XREAL 1S"`, identified by product id, on three different ports across two buses with the XREAL cable. **DisplayPort alternate mode never engaged**: it negotiated USB 2.0 alone and no second display ever appeared at any layer, so its display name, its modes and its rendering are unconfirmed |
 | Samsung Odyssey G95NC, 7680x2160 | used as the working display; it is a genuine 32:9 panel and therefore exercises the one case no arithmetic on panel size can classify |
 | Virtual displays | six created at once at 1920x1080, each coming up at exactly the requested size, all removed, the active display list returning to precisely what it was |
 
