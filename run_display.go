@@ -38,6 +38,10 @@ type RunOptions struct {
 	// [DefaultLadder].
 	Hotkeys *hotkey.Options
 
+	// Windowed leaves the glasses display's own menu bar and Dock on top of the
+	// picture instead of covering them. See [Config.Immersive].
+	Windowed bool
+
 	// NoGlobal leaves the system-wide shortcuts unclaimed.
 	//
 	// Claiming them takes them away from everything else on the machine for as
@@ -98,7 +102,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// window covers the DESKTOP and nothing more; on a display that carries
 		// the furniture it appears on top of the picture, which on glasses
 		// showing a captured desktop reads as two menu bars.
-		Immersive: true,
+		Immersive: !opt.Windowed,
 		Theme:     toolkit.DefaultDark(),
 	})
 	if err != nil {

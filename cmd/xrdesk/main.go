@@ -190,6 +190,7 @@ func run() int {
 	opts := desk.RunOptions{
 		Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
 		NoGlobal:  *noGlobal,
+		Windowed:  !settings.Immersive(),
 		Shortcuts: settings.ShortcutsOr(desk.DefaultShortcuts()),
 		Hotkeys:   settings.HotkeyOptions(),
 	}

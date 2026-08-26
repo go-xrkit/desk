@@ -71,3 +71,18 @@ glasses {
 #   place "Safari"   { screen = 1 }
 #   place "Terminal" { screen = 2 }
 #   place "Mail"     { screen = 3 }
+
+# ribbon { immersive = false }
+#
+# macOS draws a menu bar on EVERY display when Spaces are separate, so the
+# glasses carry one of their own — 1920x30 at the top of a Beast — and it is
+# drawn at a level above an ordinary window, so it lands ON TOP of the picture.
+# The desktop being shown already has a menu bar in it, which is why two of
+# them was the first thing anyone noticed wearing this.
+#
+# So the picture is put above that bar and the Dock by default. The bar on your
+# other screen is untouched: it belongs to a different display and stays where
+# it is.
+#
+# Turn this off if the glasses are your MAIN display — there the bar and the
+# Dock are the real ones, not a copy on a screen nobody is looking at.
