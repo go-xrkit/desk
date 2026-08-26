@@ -41,14 +41,15 @@ func run() int {
 	// bandwidth a large monitor has already taken — and then it is present in
 	// every sense except the one that shows a picture. Saying so is the
 	// difference between "no glasses" and "no video".
-	peripheral := desk.Peripheral()
+	peripherals := desk.Peripherals()
 	fmt.Println("bus")
-	if peripheral == nil {
+	if len(peripherals) == 0 {
 		logf("no headset on the USB bus")
-	} else {
-		p, how := glasses.IdentifyDevice("", peripheral)
-		logf("%04x:%04x %q -> %s (%s)", peripheral.Vendor, peripheral.Product,
-			peripheral.Name, p.Model, how)
+	}
+	for i := range peripherals {
+		p, how := glasses.IdentifyDevice("", &peripherals[i])
+		logf("%04x:%04x %q -> %s (%s)", peripherals[i].Vendor, peripherals[i].Product,
+			peripherals[i].Name, p.Model, how)
 	}
 
 	fmt.Println("\ndisplays")
@@ -88,7 +89,7 @@ func run() int {
 
 	plan, err := desk.NewPlan(chosen, desk.Options{
 		Screens: *count, FOVDeg: *fov,
-		USB: desk.EvidenceFor(chosen, *screen != "", peripheral),
+		USB: desk.EvidenceFor(chosen, *screen != "", peripherals),
 	})
 	if err != nil {
 		fmt.Printf("\nplan: %v\n", err)

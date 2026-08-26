@@ -41,10 +41,11 @@ func TestTheLinuxBusNamesTheHeadset(t *testing.T) {
 		// The glasses.
 		"1-2": {"idVendor": "3318\n", "idProduct": "043e\n", "product": "XREAL 1S\n"},
 	})
-	u := peripheralFromSysfs(root)
-	if u == nil {
-		t.Fatal("the glasses were not found")
+	us := peripheralsFromSysfs(root)
+	if len(us) != 1 {
+		t.Fatalf("found %d headsets, want the one", len(us))
 	}
+	u := us[0]
 	if u.Vendor != 0x3318 || u.Product != 0x043e || u.Name != "XREAL 1S" {
 		t.Errorf("found %04x:%04x %q", u.Vendor, u.Product, u.Name)
 	}
@@ -72,8 +73,8 @@ func TestALinuxBusWithNoHeadset(t *testing.T) {
 			"1-1": {"idVendor": "3318\n", "idProduct": "ffff\n", "product": "XREAL Something\n"},
 		},
 	} {
-		if u := peripheralFromSysfs(sysfs(t, devices)); u != nil {
-			t.Errorf("%s: found %04x:%04x %q", name, u.Vendor, u.Product, u.Name)
+		if us := peripheralsFromSysfs(sysfs(t, devices)); len(us) != 0 {
+			t.Errorf("%s: found %v", name, us)
 		}
 	}
 }
@@ -81,7 +82,7 @@ func TestALinuxBusWithNoHeadset(t *testing.T) {
 // TestNoUSBTreeAtAll: a kernel without sysfs mounted, or a container that does
 // not carry it, is a reason to know nothing and not a reason to fail.
 func TestNoUSBTreeAtAll(t *testing.T) {
-	if u := peripheralFromSysfs(filepath.Join(t.TempDir(), "nothing here")); u != nil {
+	if us := peripheralsFromSysfs(filepath.Join(t.TempDir(), "nothing here")); len(us) != 0 {
 		t.Error("a tree that does not exist produced a headset")
 	}
 }
@@ -92,11 +93,11 @@ func TestAHeadsetThatDoesNotSayItsName(t *testing.T) {
 	root := sysfs(t, map[string]map[string]string{
 		"1-1": {"idVendor": "3318\n", "idProduct": "043e\n"},
 	})
-	u := peripheralFromSysfs(root)
-	if u == nil {
-		t.Fatal("the glasses were not found without a product string")
+	us := peripheralsFromSysfs(root)
+	if len(us) != 1 {
+		t.Fatalf("found %d headsets without a product string, want the one", len(us))
 	}
-	if u.Name != "" {
-		t.Errorf("name is %q, want empty", u.Name)
+	if us[0].Name != "" {
+		t.Errorf("name is %q, want empty", us[0].Name)
 	}
 }

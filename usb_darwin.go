@@ -9,7 +9,7 @@ import (
 	"github.com/go-xrkit/xrkit/glasses"
 )
 
-// Peripheral finds the headset on the USB bus, or returns nil.
+// Peripherals lists every headset on the USB bus.
 //
 // It exists because a display name is the weaker evidence and is not always
 // there at all. These glasses announce themselves on the bus as "XREAL 1S", by
@@ -21,12 +21,12 @@ import (
 // Nothing is opened: this reads what the kernel cached when it enumerated the
 // device, so it needs no permission and cannot disturb whatever driver holds
 // the glasses.
-func Peripheral() *glasses.USB {
+func Peripherals() []glasses.USB {
 	devs, err := usb.Devices(usb.Filter{})
 	if err != nil {
 		return nil
 	}
-	var best *glasses.USB
+	var out []glasses.USB
 	for _, d := range devs {
 		i := d.Info()
 		d.Close()
@@ -35,9 +35,8 @@ func Peripheral() *glasses.USB {
 		// not a model, and a brand cannot give a field of view; taking it here
 		// would put a guess where the catalogue deliberately refuses one.
 		if _, how := glasses.IdentifyDevice("", &u); how == glasses.ByUSBProduct {
-			best = &u
-			break
+			out = append(out, u)
 		}
 	}
-	return best
+	return out
 }
