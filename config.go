@@ -84,9 +84,22 @@ type ConfigShortcut struct {
 
 // ConfigRibbon is the `ribbon { }` block.
 type ConfigRibbon struct {
-	// Screens is how many virtual screens to put on the band. Zero asks for as
-	// many as fit round the circle.
+	// Screens is how many virtual screens to put on the band. Zero asks for
+	// [DefaultScreens].
 	Screens *int `hcl:"screens"`
+
+	// Immersive covers the glasses display's own menu bar and Dock. Nil means
+	// true.
+	//
+	// macOS draws a menu bar on EVERY display when Spaces are separate, so the
+	// glasses carry one of their own — and being drawn at a level above an
+	// ordinary window, it sits on top of the picture. Covering it is the whole
+	// point: the desktop being shown has a menu bar of its own already, and two
+	// of them was the first thing anyone noticed wearing this.
+	//
+	// Turn it off if the glasses are the MAIN display, where that bar and the
+	// Dock are the real ones rather than a copy on a screen nobody is using.
+	Immersive *bool `hcl:"immersive"`
 }
 
 // ConfigGlasses is the `glasses { }` block.
@@ -287,4 +300,13 @@ func (c Config) Placements() []Placement {
 		out[i] = Placement{App: p.App, Pos: p.Screen}
 	}
 	return out
+}
+
+// Immersive reports whether to cover the glasses display's own menu bar and
+// Dock. A file that does not say asks for it.
+func (c Config) Immersive() bool {
+	if c.Ribbon == nil || c.Ribbon.Immersive == nil {
+		return true
+	}
+	return *c.Ribbon.Immersive
 }
