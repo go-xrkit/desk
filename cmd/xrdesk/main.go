@@ -77,7 +77,8 @@ func run() int {
 	}
 
 	plan, err := desk.NewPlan(chosen, desk.Options{
-		Screens: *count, FOVDeg: *fov, USB: desk.Peripheral(),
+		Screens: *count, FOVDeg: *fov,
+		USB: desk.EvidenceFor(chosen, *screen != "", desk.Peripheral()),
 	})
 	if err != nil {
 		fmt.Printf("%v\n", err)

@@ -329,3 +329,37 @@ func TestTheViewersOwnFigureStillWins(t *testing.T) {
 		t.Errorf("model is %q, want the one the bus named", p.Model)
 	}
 }
+
+// TestTheBusDoesNotLendItsOpticsToAMonitor.
+//
+// The bus says a headset is attached. It does not say which display is the
+// headset. Taking the model from one and the pixels from the other produced a
+// plan for "XREAL 1S: 7 screens of 3840x2160" against a desktop monitor, which
+// is a headset's optics wrapped round somebody's desk.
+func TestTheBusDoesNotLendItsOpticsToAMonitor(t *testing.T) {
+	bus := &glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}
+	monitor := glasses.Display{Name: "Odyssey G95NC", Width: 7680, Height: 2160, Primary: true}
+
+	if got := EvidenceFor(monitor, false, bus); got != nil {
+		t.Error("the bus lent its optics to a monitor nobody said was the glasses")
+	}
+	// Named by the person: they have asserted this display IS the headset.
+	if got := EvidenceFor(monitor, true, bus); got != bus {
+		t.Error("the bus was refused for a display the person named")
+	}
+	// The display names a headset itself; the bus only says which one.
+	head := glasses.Display{Name: "XREAL 1S", Width: 1920, Height: 1200}
+	if got := EvidenceFor(head, false, bus); got != bus {
+		t.Error("the bus was refused for a display that names a headset")
+	}
+	// Nothing on the bus is nothing to apply.
+	if got := EvidenceFor(head, true, nil); got != nil {
+		t.Error("EvidenceFor invented evidence")
+	}
+
+	// And the whole point, end to end: the monitor still gets refused rather
+	// than planned with somebody else's optics.
+	if _, err := NewPlan(monitor, Options{USB: EvidenceFor(monitor, false, bus)}); !errors.Is(err, ErrUnknownOptics) {
+		t.Errorf("planning the monitor gave %v, want %v", err, ErrUnknownOptics)
+	}
+}

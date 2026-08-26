@@ -215,3 +215,31 @@ func deg(r float64) float64 { return r * 180 / math.Pi }
 
 // Count is how many screens the ribbon carries.
 func (p Plan) Count() int { return p.count }
+
+// EvidenceFor returns the bus evidence when it may be applied to this display,
+// and nil when it may not.
+//
+// The bus says a headset is ATTACHED. It does not say which display is the
+// headset, and those are not the same claim. On the desk this was written at,
+// a pair of XREAL One S enumerated over USB with no video link at all while a
+// 7680x2160 monitor was the only display present: taking the model from the
+// bus and the pixels from that monitor produced a plan for "XREAL 1S: 7 screens
+// of 3840x2160", which is a headset's optics wrapped round somebody's desktop
+// screen. A wrong field of view renders everything, in the wrong place, with no
+// symptom — which is the whole reason the catalogue refuses to guess.
+//
+// So the evidence is applied only where something has actually tied it to this
+// display: the person named it, or the display names a headset itself and the
+// bus is only saying which one.
+func EvidenceFor(d glasses.Display, named bool, u *glasses.USB) *glasses.USB {
+	if u == nil {
+		return nil
+	}
+	if named {
+		return u
+	}
+	if _, ok := glasses.Identify(d.Name); ok {
+		return u
+	}
+	return nil
+}
