@@ -16,6 +16,8 @@ github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43Enduj
 github.com/go-iconoir/iconoir v0.2.0/go.mod h1:BrOQ68YO5BMsF7y+/nht4shbgjVfh9CxBoQF35eNosw=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 h1:nU+MGeyJzidGvCtx+HLZgHKG9GpUUomkQvB5nXLRWoc=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734/go.mod h1:ObuOBKDEidGX0LqLKY/5nqj7JVN/hsCzHMAJd0TNc0k=
+github.com/go-macos/hotkey v0.1.0 h1:4PD9+XZNTw3AGvVgf66iKQy8PNEbykES4pz/z5SKPHQ=
+github.com/go-macos/hotkey v0.1.0/go.mod h1:f2hW8saXMK7f/JhWQThMLHwki+TJwliB2IuOalp0RbQ=
 github.com/go-macos/objc v0.3.0 h1:/fMCYYDxkYE2wUoM0xSZj7nms0p2di+JArxSFA5WjPs=
 github.com/go-macos/objc v0.3.0/go.mod h1:00GJyieLzPcb65rPLVWNPPUCVm79nmmiEXUDsslRpOs=
 github.com/go-macos/screencapture v0.1.0 h1:1ILEsodoTy6u381r7MORYhHHEQHbKIlHY7atJx8KmFY=

@@ -47,6 +47,8 @@ func run() int {
 	count := flag.Int("screens", 0, "how many screens on the ribbon (0 = as many as fit)")
 	forDur := flag.Duration("for", 0, "stop after this long; 0 runs until you quit")
 	quiet := flag.Bool("quiet", false, "say less")
+	noGlobal := flag.Bool("no-global", false,
+		"do not claim the system-wide shortcuts (\u2325\u2318\u2190/\u2192 and \u2325\u2318Space)")
 	snap := flag.Bool("snapshot", false, "write the first frame shown, so it can be looked at afterwards")
 	flag.Parse()
 
@@ -149,7 +151,10 @@ func run() int {
 
 	fmt.Printf("arrow keys or h/l turn the ribbon, space promotes, tab or c changes what a screen shows, q quits\n")
 	start := time.Now()
-	opts := desk.RunOptions{Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf}
+	opts := desk.RunOptions{
+		Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
+		NoGlobal: *noGlobal,
+	}
 	if *snap {
 		opts.Snapshot = func(pix []byte, w, h int) {
 			path, err := writeSnapshot(pix, w, h)

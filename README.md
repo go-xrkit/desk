@@ -36,6 +36,46 @@ The Beast, the Luma Ultra and the XREAL One series all do their 3DoF anchoring
 to the host. So head movement is theirs and the ribbon is yours: the two compose
 instead of fighting. Turning the band is a key press, and it is deliberate.
 
+### The keys
+
+In the window, and in the glasses:
+
+| key | on the ribbon | in the gallery |
+|---|---|---|
+| `←` `→` | turn the band | move the selection — it wraps, because the ribbon is a circle |
+| `↑` `↓` | nothing: a band has no rows | move a row — it clamps, because the fold has no seam |
+| `Enter` | — | go to the highlighted screen, the short way round |
+| `Space` / `f` | fill the view with the focused screen | — |
+| `g` | show every screen at once | put the ribbon back exactly as it was |
+| `Tab` / `c` | show the next source here | — |
+| `Escape` / `q` | quit | quit — a mode you cannot leave is a trap |
+
+### And from anywhere else
+
+The point of a desk in glasses is that you are *using* the screens on it. So
+three of those keys are claimed **system-wide** and work while another
+application has the keyboard:
+
+| | |
+|---|---|
+| `⌥⌘←` `⌥⌘→` | turn the band |
+| `⌥⌘Space` | show every screen at once |
+
+macOS only, for now: this goes through Carbon's `RegisterEventHotKey`, which
+asks for **no permission at all** — no accessibility prompt, no input
+monitoring. On Linux and Windows the keys work in the window and the run says
+so. `-no-global` leaves them alone.
+
+**They are not always the keys you get.** `⌥⌘Space` is the Finder's search
+window on a stock macOS, so xrdesk falls back — Shift, then Control, then
+both — and on this machine ends up with `⌥⇧⌘Space`. Whatever it lands on is
+printed at start-up, because it has to be: of the three ways a shortcut can
+already be taken, two are detectable and one is not. An application's own menu
+key is invisible to everything. `⌥⌘←`/`⌥⌘→` register without complaint and are
+also Safari's tab navigation — while xrdesk runs, it wins them, and Safari
+quietly stops seeing them. That is the trade a global shortcut is; it is
+printed rather than hidden.
+
 ## How it is put together
 
 | | |
