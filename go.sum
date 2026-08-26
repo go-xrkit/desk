@@ -50,6 +50,8 @@ github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4u
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
 github.com/go-xrkit/xrkit v0.3.0 h1:tudyxQ6zbWg2Z8vO+BIJ1bp5KmL5BQlrz0s/msSLI+A=
 github.com/go-xrkit/xrkit v0.3.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
+github.com/go-xrkit/xrkit v0.4.0 h1:17os5aWs/7AeieuI47wmBVgUsbb75xW/7wCpqQMCakg=
+github.com/go-xrkit/xrkit v0.4.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
 github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=

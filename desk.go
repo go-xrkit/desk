@@ -47,6 +47,16 @@ const (
 	// ActionFullscreen promotes the focused screen to fill the view, or puts it
 	// back.
 	ActionFullscreen
+	// ActionGallery opens the gallery — every screen at once, as a grid — or
+	// closes it again leaving the ribbon exactly as it was.
+	ActionGallery
+	// ActionChoose takes the selected screen and returns to the ribbon focused
+	// on it. It means nothing outside the gallery.
+	ActionChoose
+	// ActionUp and ActionDown move the selection in the gallery. On the ribbon
+	// they mean nothing: a band has no rows.
+	ActionUp
+	ActionDown
 	// ActionCycle asks for the next source on the focused screen. What that
 	// means is the application's business — this package knows the ribbon, not
 	// what a platform has to offer — so it is reported through OnCycle rather
@@ -67,6 +77,14 @@ func (a Action) String() string {
 		return "fullscreen"
 	case ActionCycle:
 		return "cycle"
+	case ActionGallery:
+		return "gallery"
+	case ActionChoose:
+		return "choose"
+	case ActionUp:
+		return "up"
+	case ActionDown:
+		return "down"
 	case ActionQuit:
 		return "quit"
 	default:
@@ -85,6 +103,9 @@ type Desk struct {
 	plan Plan
 	nav  *ribbon.Nav
 	comp *ribbon.Compositor
+	gal  *ribbon.Gallery
+	// galErr is why there is no gallery, when there is none.
+	galErr error
 
 	canvas  *Canvas
 	feeds   []Feed
@@ -106,6 +127,10 @@ type Desk struct {
 	OnCycle func(pos int)
 
 	quit bool
+	// err is the last thing a viewer's action returned. The gallery can refuse
+	// — a direction it has no cell for, choosing outside it — and a refusal that
+	// nobody can see is a key that silently does nothing.
+	err error
 }
 
 // DefaultBackground is a near-black that is not black, so a gap between screens
@@ -134,10 +159,25 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desk: preparing the panorama: %w", err)
 	}
+	// The gallery is built once, with the eye's own field of view: it is
+	// head-locked, so unlike the ribbon it has no yaw to follow and nothing to
+	// rebuild when the viewer turns.
+	//
+	// A failure here is NOT a failure to start. Enough screens will not fit in
+	// one view at any gap, and a desk of forty screens is exactly the desk that
+	// most wants the ribbon: refusing to open at all would cost the viewer the
+	// whole application to spare them one key. The error is kept and handed back
+	// when that key is actually pressed.
+	gal, galErr := ribbon.NewGallery(comp, ribbon.View{HDeg: plan.HFOVDeg, VDeg: plan.VFOVDeg})
+	if galErr != nil {
+		gal, galErr = nil, fmt.Errorf("desk: no gallery for this desk: %w", galErr)
+	}
 	return &Desk{
 		plan:       plan,
 		nav:        ribbon.NewNav(r),
 		comp:       comp,
+		gal:        gal,
+		galErr:     galErr,
 		canvas:     NewCanvas(plan.Pano),
 		feeds:      feeds,
 		sources:    make([]Source, len(feeds)),
@@ -154,6 +194,25 @@ func (d *Desk) Nav() *ribbon.Nav { return d.nav }
 
 // Canvas is the panorama, for the warp to read.
 func (d *Desk) Canvas() *Canvas { return d.canvas }
+
+// toggleGallery opens or closes the gallery, or says why there is not one.
+func (d *Desk) toggleGallery() error {
+	if d.gal == nil {
+		return d.galErr
+	}
+	return d.nav.ToggleGallery(d.gal)
+}
+
+// Err reports what the last action returned, or nil. The gallery can refuse —
+// a direction it has no cell for — and a refusal nobody can see is a key that
+// silently does nothing.
+func (d *Desk) Err() error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.err
+}
+
+// Quit reports whether the viewer has asked to stop.
 func (d *Desk) Quit() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -165,11 +224,36 @@ func (d *Desk) Do(a Action) {
 	var cycle func(int)
 	pos := -1
 	d.mu.Lock()
+	// In the gallery the arrows move a selection in a grid; on the ribbon they
+	// turn the band. Same keys, and they must not mean both at once.
+	if d.nav.Mode() == ribbon.ModeGallery {
+		switch a {
+		case ActionPrev:
+			d.err = d.gal.Move(ribbon.Left)
+		case ActionNext:
+			d.err = d.gal.Move(ribbon.Right)
+		case ActionUp:
+			d.err = d.gal.Move(ribbon.Up)
+		case ActionDown:
+			d.err = d.gal.Move(ribbon.Down)
+		case ActionChoose:
+			d.err = d.nav.Choose()
+		case ActionGallery:
+			d.err = d.toggleGallery()
+		case ActionQuit:
+			d.quit = true
+		}
+		d.mu.Unlock()
+		return
+	}
+
 	switch a {
 	case ActionNext:
 		d.nav.Next()
 	case ActionPrev:
 		d.nav.Prev()
+	case ActionGallery:
+		d.err = d.toggleGallery()
 	case ActionFullscreen:
 		d.nav.ToggleFullscreen()
 	case ActionCycle:
@@ -209,7 +293,11 @@ func (d *Desk) Render() *Canvas {
 	}
 
 	d.blits = d.blits[:0]
-	if d.nav.Mode() == ribbon.ModeFullscreen {
+	if d.nav.Mode() == ribbon.ModeGallery {
+		// Head-locked: no yaw, because the grid is in front of the viewer rather
+		// than out on the band.
+		d.blits = d.gal.Frame(d.blits)
+	} else if d.nav.Mode() == ribbon.ModeFullscreen {
 		// The only error Fullscreen can return is an out-of-range screen, and
 		// the navigator's focus is always a screen on this very ribbon — so it
 		// cannot happen here. TestPromotingAnyScreenAlwaysWorks pins that
@@ -259,6 +347,14 @@ func KeyAction(code string) Action {
 		return ActionFullscreen
 	case "Tab", "c", "C":
 		return ActionCycle
+	case "g", "G":
+		return ActionGallery
+	case "Enter", "Return":
+		return ActionChoose
+	case "ArrowUp", "k", "K":
+		return ActionUp
+	case "ArrowDown", "j", "J":
+		return ActionDown
 	}
 	return ActionNone
 }

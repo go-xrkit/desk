@@ -330,7 +330,9 @@ func TestPlanAndCanvasAreReachable(t *testing.T) {
 func TestActionString(t *testing.T) {
 	for a, want := range map[Action]string{
 		ActionNone: "none", ActionNext: "next", ActionPrev: "previous",
-		ActionFullscreen: "fullscreen", ActionCycle: "cycle", ActionQuit: "quit", Action(99): "none",
+		ActionFullscreen: "fullscreen", ActionCycle: "cycle", ActionQuit: "quit",
+		ActionGallery: "gallery", ActionChoose: "choose",
+		ActionUp: "up", ActionDown: "down", Action(99): "none",
 	} {
 		if got := a.String(); got != want {
 			t.Errorf("Action(%d).String() = %q, want %q", a, got, want)
@@ -385,7 +387,11 @@ func TestKeyAction(t *testing.T) {
 		"ArrowRight": ActionNext, "l": ActionNext, "L": ActionNext,
 		" ": ActionFullscreen, "f": ActionFullscreen, "F": ActionFullscreen,
 		"Tab": ActionCycle, "c": ActionCycle, "C": ActionCycle,
-		"x": ActionNone, "": ActionNone, "ArrowUp": ActionNone,
+		"g": ActionGallery, "G": ActionGallery,
+		"Enter": ActionChoose, "Return": ActionChoose,
+		"ArrowUp": ActionUp, "k": ActionUp, "K": ActionUp,
+		"ArrowDown": ActionDown, "j": ActionDown, "J": ActionDown,
+		"x": ActionNone, "": ActionNone, "PageUp": ActionNone,
 	} {
 		if got := KeyAction(code); got != want {
 			t.Errorf("KeyAction(%q) = %v, want %v", code, got, want)
@@ -569,5 +575,142 @@ func TestCycleWithNoHandlerDoesNothing(t *testing.T) {
 	}
 	if d.Quit() {
 		t.Error("cycling with no handler ended the session")
+	}
+}
+
+// TestTheArrowsMeanTwoThings is the whole of wiring a gallery into a ribbon:
+// the same keys turn the band in one mode and move a selection in a grid in the
+// other, and they must not mean both at once.
+func TestTheArrowsMeanTwoThings(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	defer d.Close()
+
+	yawBefore := d.Nav().Yaw()
+	focusBefore := d.Nav().Focus()
+
+	d.Do(ActionGallery)
+	if d.Nav().Mode() != ribbon.ModeGallery {
+		t.Fatalf("the gallery did not open: mode is %v, err %v", d.Nav().Mode(), d.Err())
+	}
+	// In the gallery, Next must move the SELECTION and leave the ribbon alone.
+	for _, a := range []Action{ActionNext, ActionDown, ActionPrev, ActionUp} {
+		d.Do(a)
+		if err := d.Err(); err != nil {
+			t.Fatalf("%v in the gallery: %v", a, err)
+		}
+	}
+	d.Do(ActionNext)
+	if d.Nav().Yaw() != yawBefore {
+		t.Error("moving in the gallery turned the ribbon")
+	}
+
+	// And the picture must be the grid, not the band.
+	gallery := append([]byte(nil), d.Render().Pix...)
+
+	// Closing restores the ribbon exactly — not nearly.
+	d.Do(ActionGallery)
+	if d.Nav().Mode() != ribbon.ModeRibbon {
+		t.Fatalf("the gallery did not close: mode is %v", d.Nav().Mode())
+	}
+	if d.Nav().Yaw() != yawBefore || d.Nav().Focus() != focusBefore {
+		t.Errorf("closing left yaw %v focus %d, want %v and %d",
+			d.Nav().Yaw(), d.Nav().Focus(), yawBefore, focusBefore)
+	}
+	ribbonPix := d.Render().Pix
+	same := true
+	for i := range gallery {
+		if gallery[i] != ribbonPix[i] {
+			same = false
+			break
+		}
+	}
+	if same {
+		t.Error("the gallery drew exactly the same picture as the ribbon")
+	}
+
+	// Out of the gallery, Up and Down mean nothing: a band has no rows.
+	d.Do(ActionUp)
+	if d.Nav().Yaw() != yawBefore {
+		t.Error("Up turned the ribbon; a band has no rows")
+	}
+}
+
+// TestChoosingFromTheGalleryLandsOnTheHighlightedScreen.
+func TestChoosingFromTheGalleryLandsOnTheHighlightedScreen(t *testing.T) {
+	p := testPlan(t)
+	d, _ := New(p, feedsFor(p))
+	defer d.Close()
+
+	d.Do(ActionGallery)
+	d.Do(ActionNext)
+	d.Do(ActionNext)
+	want := d.gal.Selected()
+
+	d.Do(ActionChoose)
+	if err := d.Err(); err != nil {
+		t.Fatalf("choosing: %v", err)
+	}
+	if d.Nav().Mode() != ribbon.ModeRibbon {
+		t.Error("choosing did not return to the ribbon")
+	}
+	if got := d.Nav().Focus(); got != want {
+		t.Errorf("focus is %d, want the highlighted %d", got, want)
+	}
+}
+
+// TestQuittingFromTheGallery: Escape must stop the application from inside the
+// gallery too. A mode that swallows quit is a mode you cannot leave.
+func TestQuittingFromTheGallery(t *testing.T) {
+	p := testPlan(t)
+	d, _ := New(p, feedsFor(p))
+	defer d.Close()
+
+	d.Do(ActionGallery)
+	d.Do(ActionCycle) // means nothing here, and must not crash or quit
+	if d.Quit() {
+		t.Fatal("Cycle quit the application")
+	}
+	d.Do(ActionQuit)
+	if !d.Quit() {
+		t.Error("Escape did not stop the application from inside the gallery")
+	}
+}
+
+// TestADeskWithNoGalleryStillRuns.
+//
+// Plan is a plain struct with exported fields: a caller who widened the spacing
+// can hand New a plan whose screens do not fit one view in any grid. That must
+// cost the viewer the gallery key and nothing else — not the application.
+func TestADeskWithNoGalleryStillRuns(t *testing.T) {
+	p := testPlan(t)
+	// A person who wants breathing space between screens sets a gap. These
+	// glasses see 51.6° wide by 30.4° tall; at a 32° gap no grid is left. One
+	// row of four spends 96° of the 51.6° on gaps, and two rows want more
+	// height than one eye has. The ribbon itself still holds them: 4 x 83.6° is
+	// under the circle.
+	p.Layout.GapDeg = 32
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("a desk with no possible gallery refused to start: %v", err)
+	}
+	defer d.Close()
+	if d.gal != nil {
+		t.Fatal("a gallery fitted at a 32° gap; the premise is wrong")
+	}
+	d.Do(ActionGallery)
+	if d.Err() == nil {
+		t.Error("the gallery key said nothing at all")
+	}
+	if d.Nav().Mode() != ribbon.ModeRibbon {
+		t.Error("the ribbon left its own mode over a gallery it does not have")
+	}
+	// And the ribbon itself still works.
+	d.Do(ActionNext)
+	if d.Render() == nil {
+		t.Error("the desk stopped drawing")
 	}
 }
