@@ -360,3 +360,31 @@ func TestTheWindowIsTallEnoughForWhateverItHasToSay(t *testing.T) {
 		}
 	}
 }
+
+// TestWhenToAskWhichGlasses.
+//
+// Asking is for the case where nobody has decided and the machine cannot.
+// Asking when the answer is already written down would be a window in the way;
+// NOT asking when two headsets are attached would be a guess.
+func TestWhenToAskWhichGlasses(t *testing.T) {
+	chosen := Config{Glasses: &ConfigGlasses{Model: ptr("VITURE Luma Ultra")}}
+	brandOnly := glasses.USB{Vendor: 0x3318, Product: 0xffff, Name: "XREAL Something"}
+	for name, tc := range map[string]struct {
+		cfg      Config
+		screen   string
+		attached []glasses.USB
+		want     bool
+	}{
+		"two attached and nobody has said":  {Config{}, "", []glasses.USB{oneS, luma}, true},
+		"a display named on the line":       {Config{}, "VITURE", []glasses.USB{oneS, luma}, false},
+		"a display named with spaces":       {Config{}, "  VITURE ", []glasses.USB{oneS, luma}, false},
+		"already written in the settings":   {chosen, "", []glasses.USB{oneS, luma}, false},
+		"only one attached":                 {Config{}, "", []glasses.USB{luma}, false},
+		"none attached":                     {Config{}, "", nil, false},
+		"two on the bus but one is a brand": {Config{}, "", []glasses.USB{brandOnly, luma}, false},
+	} {
+		if got := ShouldChoose(tc.cfg, tc.screen, tc.attached); got != tc.want {
+			t.Errorf("%s: ShouldChoose = %v, want %v", name, got, tc.want)
+		}
+	}
+}

@@ -255,3 +255,18 @@ func wrapShortcuts(report string) []string {
 	}
 	return out
 }
+
+// ShouldChoose reports whether to put the settings window in front of somebody
+// before starting.
+//
+// Only when nobody has decided and the machine cannot: several headsets on the
+// bus, no model in the settings, and no display named on the command line.
+// Naming one with -screen is the answer for a script, and writing one in the
+// settings is the answer for a person who has already chosen — this is for the
+// case where neither has happened and picking one would be a guess.
+func ShouldChoose(cfg Config, screen string, attached []glasses.USB) bool {
+	if strings.TrimSpace(screen) != "" || cfg.Model() != "" {
+		return false
+	}
+	return len(headsetNames(attached)) > 1
+}

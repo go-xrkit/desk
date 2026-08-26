@@ -75,6 +75,22 @@ func run() int {
 		}
 		return 0
 	}
+	// Several headsets attached and nothing said about which: ask, once,
+	// rather than pick one. Naming a display with -screen is the answer for a
+	// script, and giving one in the settings is the answer for a person who has
+	// already decided; this is only for the case where nobody has.
+	if desk.ShouldChoose(settings, *screen, desk.Peripherals()) {
+		logf("several headsets are attached and none is chosen")
+		if err := desk.RunSettings(desk.SettingsOptions{Logf: logf}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		// Read it back: the choice has to take effect in THIS run, or the
+		// person is asked and then ignored.
+		if again, err := desk.LoadConfig(); err == nil {
+			settings = again
+		}
+	}
 	if *count == 0 {
 		*count = settings.Screens()
 	}
