@@ -75,14 +75,32 @@ func TestNewRefusesAMismatchedDesk(t *testing.T) {
 
 // TestNewRefusesAnImpossibleRibbon covers a plan whose screens cannot be laid
 // out — more screens than fit round the circle at that density.
-func TestNewRefusesAnImpossibleRibbon(t *testing.T) {
-	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
-		Options{Screens: 40})
-	if err != nil {
-		t.Fatalf("NewPlan = %v", err)
-	}
-	if _, err := New(p, feedsFor(p)); err == nil {
-		t.Error("forty screens of 51.57° were laid out on a 360° circle")
+// TestAsManyScreensAsAPersonWants.
+//
+// A curved band had to fit in 360°, and at one screen per view that was seven
+// of them and no more. Flat, the circle is a fiction — the yaw says how far
+// along the band the viewer is — so forty screens lay out as readily as three,
+// and every one of them is still exactly one view wide.
+func TestAsManyScreensAsAPersonWants(t *testing.T) {
+	for _, n := range []int{1, 2, 3, 6, 9, 12, 40} {
+		p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+			Options{Screens: n})
+		if err != nil {
+			t.Errorf("%d screens: NewPlan = %v", n, err)
+			continue
+		}
+		d, err := New(p, feedsFor(p))
+		if err != nil {
+			t.Errorf("%d screens: New = %v", n, err)
+			continue
+		}
+		for i := 0; i < n; i++ {
+			if got := d.strip.width[i]; got != p.ScreenW {
+				t.Errorf("%d screens: screen %d is %d wide on the band, want the view's %d",
+					n, i, got, p.ScreenW)
+			}
+		}
+		d.Close()
 	}
 }
 
@@ -251,9 +269,17 @@ func TestFullscreenIsANoOpAtOneViewPerScreen(t *testing.T) {
 // FOR: twelve screens round the circle, each narrower than the glasses can show.
 func TestFullscreenPromotesWhenScreensAreSmallerThanAView(t *testing.T) {
 	p := testPlan(t)
-	// Half the density: twice as many screens fit, each half a view wide.
-	p.Layout.DensityDeg /= 2
+	// Half the arc per screen, with the pitch left alone: twelve screens round
+	// the band, each half a view wide, with the other half of every pitch left
+	// as space. This is the shape promotion is FOR.
 	p = withCount(p, 12)
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 12})
+	if err != nil {
+		t.Fatalf("NewPlan = %v", err)
+	}
+	p.Layout.DensityDeg /= 2
+	p.Layout.FullWidthDeg /= 2
 	d, err := New(p, feedsFor(p))
 	if err != nil {
 		t.Fatalf("New = %v", err)
@@ -681,14 +707,20 @@ func TestNewRefusesAPlanItCannotDraw(t *testing.T) {
 	for name, spoil := range map[string]func(*Plan){
 		"screens with no columns": func(p *Plan) { p.ScreenW = 0 },
 		"screens with no rows":    func(p *Plan) { p.ScreenH = 0 },
-		"a view spanning nothing": func(p *Plan) { p.HFOVDeg = 0 },
-		"a view spanning it all":  func(p *Plan) { p.HFOVDeg = 360 },
-		// The band lays out — every screen is a pixel or two wide — and no fold
-		// of twenty of them leaves a cell in a hundred-pixel view.
-		"more screens than any grid holds": func(p *Plan) {
+		// The screens are placed, and each takes so little of the band that it
+		// rounds to no pixels at all.
+		"screens too narrow to draw": func(p *Plan) {
+			p.Layout.DensityDeg = 1e-12
+			p.Layout.FullWidthDeg = 1e-12
+		},
+		// The band lays out — every screen is a hundred and forty pixels wide —
+		// and no fold of twenty of them leaves a cell in a hundred-pixel view.
+		"more screens than any gallery holds": func(p *Plan) {
 			p.ScreenW, p.ScreenH = 100, 100
 			p.count = 20
-			p.Layout.DensityDeg = 360.0 / 20
+			p.Layout.DensityDeg = 17
+			p.Layout.FullWidthDeg = 17
+			p.Layout.GapDeg = 0.5
 		},
 	} {
 		p := testPlan(t)

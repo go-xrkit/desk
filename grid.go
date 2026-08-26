@@ -43,8 +43,32 @@ type Grid struct {
 	sel        int
 }
 
-// NewGrid folds n screens of srcW x srcH into a view of viewW x viewH.
+// DefaultColumns is how wide the gallery is when nobody says.
+//
+// Three, whenever three columns hold every screen in three rows or fewer —
+// which is exactly the three, six and nine a desk is usually built from. A
+// FIXED width is the point: a screen keeps its place in the grid as others are
+// added, so the map a person builds of where things are survives the desk
+// growing. Past nine it stops paying, and the shape is chosen by what leaves
+// the screens biggest instead.
+const DefaultColumns = 3
+
+// NewGrid folds n screens of srcW x srcH into a view of viewW x viewH, in
+// [DefaultColumns] where that holds them and in whatever leaves them biggest
+// otherwise.
 func NewGrid(n, srcW, srcH, viewW, viewH, gap int) (*Grid, error) {
+	cols := 0
+	if n <= DefaultColumns*DefaultColumns {
+		cols = min(n, DefaultColumns)
+	}
+	return NewGridCols(n, srcW, srcH, viewW, viewH, gap, cols)
+}
+
+// NewGridCols folds the screens into exactly cols columns. A cols of zero or
+// less asks for the shape that leaves the screens biggest, and so does a cols
+// that turns out to leave no cell at all: a person asking for six columns in a
+// window too narrow for them should get a gallery, not a refusal.
+func NewGridCols(n, srcW, srcH, viewW, viewH, gap, cols int) (*Grid, error) {
 	switch {
 	case n <= 0:
 		return nil, fmt.Errorf("%w: %d screens", ErrNoScreens, n)
@@ -60,7 +84,11 @@ func NewGrid(n, srcW, srcH, viewW, viewH, gap int) (*Grid, error) {
 	// the one whose cells come out biggest. Area, not width, because a taller
 	// grid that fits is worth more than a wider one that has to shrink to.
 	best := -1
-	for cols := 1; cols <= n; cols++ {
+	lo, hi := 1, n
+	if cols > 0 && cols <= n {
+		lo, hi = cols, cols
+	}
+	for cols := lo; cols <= hi; cols++ {
 		rows := (n + cols - 1) / cols
 		w := (viewW - (cols-1)*gap) / cols
 		h := (viewH - (rows-1)*gap) / rows
@@ -82,6 +110,12 @@ func NewGrid(n, srcW, srcH, viewW, viewH, gap int) (*Grid, error) {
 		}
 	}
 	if best < 0 {
+		if lo != 1 || hi != n {
+			// The asked-for width does not fit. Fall back on choosing rather than
+			// refusing: the number of columns is a preference, and a gallery in
+			// the wrong shape beats no gallery at all.
+			return NewGridCols(n, srcW, srcH, viewW, viewH, gap, 0)
+		}
 		return nil, fmt.Errorf("%w: %d screens with a %d-pixel gap in a %dx%d view",
 			ErrScreens, n, gap, viewW, viewH)
 	}
