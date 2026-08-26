@@ -65,6 +65,15 @@ type Config struct {
 
 	Ribbon  *ConfigRibbon  `hcl:"ribbon,block"`
 	Glasses *ConfigGlasses `hcl:"glasses,block"`
+
+	// Places are the applications to put on the band at start-up.
+	Places []ConfigPlace `hcl:"place,block"`
+}
+
+// ConfigPlace is one `place "Safari" { screen = 2 }` block.
+type ConfigPlace struct {
+	App    string `hcl:"app,label"`
+	Screen int    `hcl:"screen"`
 }
 
 // ConfigShortcut is one `shortcut "next" { keys = "..." }` block.
@@ -159,6 +168,15 @@ func (c Config) check() error {
 	}
 	if c.Ribbon != nil && c.Ribbon.Screens != nil && *c.Ribbon.Screens < 0 {
 		return fmt.Errorf("%w: ribbon screens = %d", ErrConfig, *c.Ribbon.Screens)
+	}
+	for _, p := range c.Places {
+		if strings.TrimSpace(p.App) == "" {
+			return fmt.Errorf("%w: a place with no application to put there", ErrConfig)
+		}
+		if p.Screen < 1 {
+			return fmt.Errorf("%w: place %q on screen %d; screens are counted from 1",
+				ErrConfig, p.App, p.Screen)
+		}
 	}
 	return nil
 }
@@ -257,4 +275,16 @@ func diagnostics(p *hclparse.Parser, diags hcl.Diagnostics) string {
 	w := hcl.NewDiagnosticTextWriter(&b, p.Files(), 78, false)
 	_ = w.WriteDiagnostics(diags)
 	return strings.TrimSpace(b.String())
+}
+
+// Placements are the applications to put on the band, in the order written.
+func (c Config) Placements() []Placement {
+	if len(c.Places) == 0 {
+		return nil
+	}
+	out := make([]Placement, len(c.Places))
+	for i, p := range c.Places {
+		out[i] = Placement{App: p.App, Pos: p.Screen}
+	}
+	return out
 }

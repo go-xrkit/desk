@@ -52,3 +52,22 @@ glasses {
   #
   # model = "VITURE Luma Ultra"
 }
+
+# Applications to put on the band when the desk starts.
+#
+# A ribbon screen is a real desktop: the cursor goes there, you click in it,
+# and a window moved there stays there. This saves dragging one across from
+# whatever monitor it opened on — which, while you are wearing the glasses, you
+# cannot see to do.
+#
+# The name is a fragment, case-insensitively: "code" finds "Visual Studio
+# Code", "safari" finds "Safari". Screens are counted from 1, in the plan's own
+# order — screen 1 is the one the band starts facing.
+#
+# It needs the Accessibility grant: System Settings > Privacy & Security >
+# Accessibility. Moving another application's window is the only thing on macOS
+# that does, and xrdesk says so rather than silently placing nothing.
+#
+#   place "Safari"   { screen = 1 }
+#   place "Terminal" { screen = 2 }
+#   place "Mail"     { screen = 3 }
