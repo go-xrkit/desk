@@ -16,18 +16,19 @@ import (
 // SysfsUSB is where Linux publishes what it enumerated.
 const SysfsUSB = "/sys/bus/usb/devices"
 
-// peripheralFromSysfs finds the headset in a Linux USB tree, or returns nil.
+// peripheralsFromSysfs lists every headset in a Linux USB tree.
 //
 // It reads three files per device and opens no device node, so it needs no
 // permission and cannot disturb whatever holds the glasses — the same property
 // the macOS side has, by a different road. Directories that are interfaces
 // rather than devices simply have no idVendor and are skipped by the read
 // failing, which is why nothing here tries to recognise a name shape.
-func peripheralFromSysfs(root string) *glasses.USB {
+func peripheralsFromSysfs(root string) []glasses.USB {
 	entries, err := os.ReadDir(root)
 	if err != nil {
 		return nil
 	}
+	var out []glasses.USB
 	for _, e := range entries {
 		dir := filepath.Join(root, e.Name())
 		vendor, ok := hexFile(filepath.Join(dir, "idVendor"))
@@ -43,10 +44,10 @@ func peripheralFromSysfs(root string) *glasses.USB {
 		// A product match only, for the reason [Peripheral] gives: a vendor
 		// match names a brand, and a brand cannot give a field of view.
 		if _, how := glasses.IdentifyDevice("", &u); how == glasses.ByUSBProduct {
-			return &u
+			out = append(out, u)
 		}
 	}
-	return nil
+	return out
 }
 
 // hexFile reads one of sysfs's four-digit hexadecimal ids.

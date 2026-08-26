@@ -138,8 +138,8 @@ wrong, and nothing about the picture says so.
 |---|---|
 | Apple M4 Max, macOS 26.6.2 (build 25G83) | everything below |
 | **VITURE Beast** | connected over DisplayPort, observed presenting a 3840x1080 side-by-side 3D mode and a 1920x1200 2D mode, and **rendered to** |
-| **VITURE Luma Ultra** | **enumerated over USB only** — `35ca:1104 "VITURE Luma Ultra XR GLASSES"`. Its video was not connected, so its display name and modes are unconfirmed |
-| **XREAL One S** | **enumerated over USB only** — `3318:043e "XREAL 1S"`, identified by product id, on three different ports across two buses with the XREAL cable. **DisplayPort alternate mode never engaged**: it negotiated USB 2.0 alone and no second display ever appeared at any layer, so its display name, its modes and its rendering are unconfirmed |
+| **VITURE Luma Ultra** | **enumerated over USB only** — `35ca:1104 "VITURE Luma Ultra XR GLASSES"`. Connected to this machine on 2026-08-26 alongside the XREAL One S, and like it produced **no display at all**: its display name and modes remain unconfirmed |
+| **XREAL One S** | **enumerated over USB only** — `3318:043e "XREAL 1S"`, identified by product id, on three different ports across two buses with the XREAL cable. **DisplayPort alternate mode never engaged**: it negotiated USB 2.0 alone and no second display ever appeared at any layer, so its display name, its modes and its rendering are unconfirmed. A VITURE Luma Ultra on the same machine failed the same way, and the system log knew of exactly one DisplayPort connection throughout — the monitor. Two brands failing identically points at the machine, not at either headset |
 | Samsung Odyssey G95NC, 7680x2160 | used as the working display; it is a genuine 32:9 panel and therefore exercises the one case no arithmetic on panel size can classify |
 | Virtual displays | six created at once at 1920x1080, each coming up at exactly the requested size, all removed, the active display list returning to precisely what it was |
 

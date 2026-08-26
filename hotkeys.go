@@ -29,9 +29,9 @@ type Shortcut struct {
 //
 // Option+Command with the arrows and the space bar, chosen because they are
 // what a person reaches for and because the arrows already mean "along the
-// band" inside the application. Two of the three are taken on a stock macOS —
-// see [Hotkeys.Describe] — which is why every one of them goes through the
-// fallback ladder rather than being assumed.
+// band" inside the application. ⌥⌘Space is the Finder's search window on a
+// stock macOS, so the gallery always falls back — see [DefaultLadder], and see
+// [Hotkeys.Describe] for what was actually granted.
 func DefaultShortcuts() []Shortcut {
 	const mods = hotkey.Option | hotkey.Command
 	return []Shortcut{
@@ -76,6 +76,11 @@ type Hotkeys struct {
 // reason to run without them, not a reason not to run. What went unclaimed is
 // in [Hotkeys.Describe], for the application to show.
 func ClaimGlobal(shortcuts []Shortcut, opts *hotkey.Options) *Hotkeys {
+	if opts == nil {
+		// The ladder matters more than any other default here: without one, the
+		// gallery key is simply refused on every stock macOS.
+		opts = &hotkey.Options{Ladder: DefaultLadder}
+	}
 	h := &Hotkeys{ch: make(chan Action, len(shortcuts))}
 	for _, s := range shortcuts {
 		k, err := register(s.Want, opts)

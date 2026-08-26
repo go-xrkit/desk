@@ -57,6 +57,21 @@ func run() int {
 		logf = func(string, ...any) {}
 	}
 
+	// The settings file comes first: a flag given on the command line is a
+	// person overriding what they wrote down, so the file has to be read before
+	// the flags are consulted.
+	settings, err := desk.LoadConfig()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	if *count == 0 {
+		*count = settings.Screens()
+	}
+	if *screen == "" {
+		*screen = settings.Model()
+	}
+
 	ss, err := window.Screens()
 	if err != nil {
 		fmt.Printf("cannot list displays: %v\n", err)
@@ -78,7 +93,7 @@ func run() int {
 
 	plan, err := desk.NewPlan(chosen, desk.Options{
 		Screens: *count, FOVDeg: *fov,
-		USB: desk.EvidenceFor(chosen, *screen != "", desk.Peripheral()),
+		USB: desk.EvidenceFor(chosen, *screen != "", desk.Peripherals()),
 	})
 	if err != nil {
 		fmt.Printf("%v\n", err)
@@ -156,7 +171,9 @@ func run() int {
 	start := time.Now()
 	opts := desk.RunOptions{
 		Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
-		NoGlobal: *noGlobal,
+		NoGlobal:  *noGlobal,
+		Shortcuts: settings.ShortcutsOr(desk.DefaultShortcuts()),
+		Hotkeys:   settings.HotkeyOptions(),
 	}
 	if *snap {
 		opts.Snapshot = func(pix []byte, w, h int) {

@@ -8,9 +8,9 @@ package desk
 
 import "github.com/go-xrkit/xrkit/glasses"
 
-// Peripheral finds the headset on the USB bus, or returns nil.
+// Peripherals lists every headset on the USB bus.
 //
 // Linux publishes what it enumerated under [SysfsUSB], so this reads three
 // files and opens no device node: no permission, and no chance of disturbing
 // whatever holds the glasses.
-func Peripheral() *glasses.USB { return peripheralFromSysfs(SysfsUSB) }
+func Peripherals() []glasses.USB { return peripheralsFromSysfs(SysfsUSB) }
