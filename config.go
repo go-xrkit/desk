@@ -283,6 +283,7 @@ var configActions = map[string]Action{
 	"gallery":       ActionGallery,
 	"gallery-open":  ActionGalleryOpen,
 	"gallery-close": ActionGalleryClose,
+	"choose":        ActionChoose,
 	"cycle":         ActionCycle,
 }
 
