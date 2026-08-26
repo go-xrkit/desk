@@ -41,7 +41,11 @@ func (s Source) row(y int) []byte {
 // so the whole stretch is one copy rather than one gather per pixel.
 type run struct{ dst, src, n int }
 
-// Canvas is the panorama the screens are drawn into, and the warp reads from.
+// Canvas is the picture the screens are drawn into, and the window shows.
+//
+// It used to be a panorama that a projection then read from. There is no
+// projection any more: the screens are flat, so the buffer they are composited
+// into IS what the glasses are given.
 type Canvas struct {
 	Pix  []byte
 	W, H int
@@ -51,9 +55,9 @@ type Canvas struct {
 	scratch []run
 }
 
-// NewCanvas allocates a panorama of the planned size.
-func NewCanvas(p ribbon.Pano) *Canvas {
-	return &Canvas{Pix: make([]byte, p.W*p.H*4), W: p.W, H: p.H}
+// NewCanvas allocates a picture of the given size.
+func NewCanvas(w, h int) *Canvas {
+	return &Canvas{Pix: make([]byte, w*h*4), W: w, H: h}
 }
 
 // Fill paints the whole canvas one colour, which is what the gaps between

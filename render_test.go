@@ -80,7 +80,7 @@ func TestDrawSwapsRedAndBlue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newView = %v", err)
 	}
-	c := NewCanvas(p.Pano)
+	c := NewCanvas(p.ScreenW, p.ScreenH)
 	// B=0x10 G=0x20 R=0x30 A=0xff in memory order.
 	c.Fill([4]byte{0x10, 0x20, 0x30, 0xff})
 	v.draw(c)
@@ -168,7 +168,7 @@ func TestSnapshotIsHandedTheFrameOnce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newView = %v", err)
 	}
-	c := NewCanvas(p.Pano)
+	c := NewCanvas(p.ScreenW, p.ScreenH)
 	c.Fill([4]byte{0x10, 0x20, 0x30, 0xff})
 
 	calls := 0
@@ -207,7 +207,7 @@ func TestDrawWithoutASnapshotIsFine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newView = %v", err)
 	}
-	v.draw(NewCanvas(p.Pano))
+	v.draw(NewCanvas(p.ScreenW, p.ScreenH))
 }
 
 // TestNewViewRefusesAPlanItCannotCopyFrom. The picture is the plan's screen, so
