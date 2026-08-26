@@ -30,6 +30,13 @@ type RunOptions struct {
 	// Logf receives progress. A nil Logf says nothing.
 	Logf func(string, ...any)
 
+	// NoGlobal leaves the system-wide shortcuts unclaimed.
+	//
+	// Claiming them takes them away from everything else on the machine for as
+	// long as the session lasts, which is what makes them useful and what makes
+	// them worth being able to refuse.
+	NoGlobal bool
+
 	// Snapshot, when set, is handed the first frame actually drawn — the picture
 	// the glasses were shown. It is written by the caller, so this package never
 	// decides where a capture of somebody's screens lands.
@@ -117,6 +124,21 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			"the picture will only move on input")
 	}
 
+	// The global shortcuts. They work while another application has the
+	// keyboard, which is the difference between a desk you use and a desk you
+	// have to click on first.
+	var global <-chan Action
+	if !opt.NoGlobal {
+		hk := ClaimGlobal(DefaultShortcuts(), nil)
+		defer hk.Close()
+		global = hk.C()
+		for _, line := range strings.Split(strings.TrimRight(hk.Describe(), "\n"), "\n") {
+			if line != "" {
+				logf("%s", line)
+			}
+		}
+	}
+
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -138,6 +160,8 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				d.Do(ActionQuit)
 			case <-deadline:
 				d.Do(ActionQuit)
+			case a := <-global:
+				d.Do(a)
 			case now := <-t.C:
 				dt := now.Sub(last).Seconds()
 				last = now
