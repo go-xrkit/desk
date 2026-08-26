@@ -52,8 +52,8 @@ func RunSettings(opt SettingsOptions) error {
 
 	win, err := window.Open(window.Config{
 		Title:  "xrdesk settings",
-		Width:  520,
-		Height: 400,
+		Width:  SettingsWidth,
+		Height: settingsHeight(cfg, attached),
 		Theme:  toolkit.DefaultDark(),
 	})
 	if err != nil {

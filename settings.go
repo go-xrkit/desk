@@ -112,10 +112,6 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		"Shortcuts this machine granted, not what was asked for",
 		shortcuts)})
 
-	// Whatever is left over goes here, so the rows keep their heights and the
-	// buttons stay at the bottom.
-	box.Add(toolkit.Item{Widget: toolkit.NewContainer(nil), Flex: 1})
-
 	read := func() {
 		if i := list.Selected().Get(); len(names) > 0 && i >= 0 && i < len(names) {
 			cfg.Glasses = &ConfigGlasses{Model: &names[i]}
@@ -148,9 +144,12 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		closeWindow()
 	})})
 	buttons.Add(toolkit.Item{Widget: toolkit.NewButton("Close", func() { closeWindow() }), Size: 96})
-	box.Add(toolkit.Item{Widget: buttons, Size: 32})
+	// The buttons are pinned to the bottom; the fields take what is above them.
+	frame := toolkit.NewContainer(toolkit.BorderLayout{})
+	frame.Add(toolkit.Item{Widget: box, Region: toolkit.RegionCenter})
+	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth, Size: 40})
 
-	return pad(box, 20, 16), read
+	return pad(frame, 20, 16), read
 }
 
 // headsetNames is what the catalogue calls each headset on the bus.
@@ -180,9 +179,32 @@ func whatWeGet(cfg *Config) string {
 	return h.DescribeNames()
 }
 
+// SettingsWidth is how wide the settings window is. Its HEIGHT depends on what
+// the machine has to say; see settingsHeight.
+const SettingsWidth = 560
+
 // rowH is one line of a list or a caption, and fieldH is a form field holding n
 // of them: its label, its child, and the padding the toolkit puts between.
 const rowH = 20
+
+// settingsHeight is how tall the window has to be for THIS machine's settings.
+//
+// It is computed rather than fixed. How much this window has to say depends on
+// the machine: one that grants no global shortcut at all reports three long
+// refusals instead of three short grants, and a window sized for the short
+// version puts its Save button below the frame — measured on Linux, where
+// exactly that happened. A window whose buttons have fallen off the end is
+// worse than an ugly one.
+func settingsHeight(cfg Config, attached []glasses.USB) int {
+	const spacing, buttons, margins = 12, 40, 32
+	rows := len(headsetNames(attached))
+	if rows == 0 {
+		rows = 1
+	}
+	h := fieldH(rows) + fieldH(1) + 8 + 24 +
+		fieldH(len(wrapShortcuts(whatWeGet(&cfg))))
+	return h + 4*spacing + buttons + margins
+}
 
 func fieldH(n int) int {
 	if n < 1 {

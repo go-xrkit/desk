@@ -102,11 +102,13 @@ func TestTheRenderDirectoryRefusesAWorkTree(t *testing.T) {
 
 // TestRenderTheSettingsWindow draws it and writes it out.
 func TestRenderTheSettingsWindow(t *testing.T) {
-	const w, h = settingsW, settingsH
+	cfg := &Config{}
+	attached := []glasses.USB{oneS, luma}
+	w, h := settingsW, settingsH(*cfg, attached)
 	buf := make([]byte, w*h*4)
 	p := painter.NewPixelPainter(buf, w, h)
 	theme := toolkit.DefaultDark()
-	root, _ := settingsRoot(&Config{}, []glasses.USB{oneS, luma}, nil, func() {})
+	root, _ := settingsRoot(cfg, attached, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 	p.FillRect(painter.Rect{X: 0, Y: 0, W: w, H: h}, theme.Background)
 	root.Draw(p, theme)

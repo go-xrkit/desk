@@ -15,7 +15,9 @@ import (
 )
 
 // The window the settings open at.
-const settingsW, settingsH = 520, 400
+var settingsW = SettingsWidth
+
+func settingsH(cfg Config, attached []glasses.USB) int { return settingsHeight(cfg, attached) }
 
 // arranged builds the settings tree, gives it a window's worth of space, and
 // returns every leaf's rectangle with a name for it.
@@ -24,10 +26,10 @@ const settingsW, settingsH = 520, 400
 // bounds are the layout's whole output, and they are computed with no display,
 // no window server and no pixels — so the thing that decides whether a window
 // reads as a form or as a row of slivers is a pure function this can call.
-func arranged(t *testing.T, cfg *Config, attached []glasses.USB) []toolkit.Rect {
+func arranged(t *testing.T, cfg *Config, attached []glasses.USB) ([]toolkit.Rect, int) {
 	t.Helper()
 	root, _ := settingsRoot(cfg, attached, nil, func() {})
-	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH})
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, attached)})
 	// Past the margin: the root is the padding, and the rows are in the column
 	// it holds. Reading the padding's own children would report four empty
 	// spacers and one very large box, which is true and says nothing.
@@ -35,14 +37,30 @@ func arranged(t *testing.T, cfg *Config, attached []glasses.USB) []toolkit.Rect 
 	if !ok {
 		t.Fatalf("the root is a %T, not a container", root)
 	}
+	// Down to the column of fields: the root is the margin, which holds the
+	// frame, which holds a scroll view and the buttons.
 	var column *toolkit.Container
-	for _, w := range c.Children() {
-		if inner, ok := w.(*toolkit.Container); ok && len(inner.Children()) > 1 {
-			column = inner
+	var walk func(toolkit.Widget)
+	walk = func(w toolkit.Widget) {
+		if inner, ok := w.(*toolkit.Container); ok {
+			for _, kid := range inner.Children() {
+				if _, isField := kid.(*toolkit.FormField); isField {
+					column = inner
+					return
+				}
+			}
+		}
+		if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
+			for _, kid := range p.Children() {
+				if column == nil {
+					walk(kid)
+				}
+			}
 		}
 	}
+	walk(c)
 	if column == nil {
-		t.Fatal("the padding holds no column")
+		t.Fatal("the window holds no column of fields")
 	}
 	// The spacer that keeps the buttons at the bottom is not a control and has
 	// nothing to read; it holds whatever height is left over, which is exactly
@@ -54,7 +72,7 @@ func arranged(t *testing.T, cfg *Config, attached []glasses.USB) []toolkit.Rect 
 		}
 		out = append(out, w.Bounds())
 	}
-	return out
+	return out, settingsH(*cfg, attached)
 }
 
 // TestTheSettingsAreAColumnAndNotARow.
@@ -69,17 +87,17 @@ func arranged(t *testing.T, cfg *Config, attached []glasses.USB) []toolkit.Rect 
 // every one of them is inside the window.
 func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 	cfg := &Config{}
-	rects := arranged(t, cfg, []glasses.USB{oneS, luma})
-	if len(rects) < 5 {
-		t.Fatalf("the window has %d rows; it should have a control for the glasses, "+
-			"the screen count, the menu bar, the shortcuts and the buttons", len(rects))
+	rects, height := arranged(t, cfg, []glasses.USB{oneS, luma})
+	if len(rects) < 4 {
+		t.Fatalf("the column has %d rows; it should have the glasses, the screen "+
+			"count, the menu bar and the shortcuts", len(rects))
 	}
 	for i, r := range rects {
 		if r.W <= 0 || r.H <= 0 {
 			t.Errorf("row %d has no size: %+v", i, r)
 			continue
 		}
-		if r.X < 0 || r.Y < 0 || r.X+r.W > settingsW || r.Y+r.H > settingsH {
+		if r.X < 0 || r.Y < 0 || r.X+r.W > settingsW || r.Y+r.H > height {
 			t.Errorf("row %d is outside the window: %+v", i, r)
 		}
 		// And inside the margin, not flush against the frame: text starting at a
@@ -111,8 +129,8 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 // label stranded at the top. Everything else here is a control of a known
 // height.
 func TestTheGlassesRowIsSizedToItsHeadsets(t *testing.T) {
-	two := arranged(t, &Config{}, []glasses.USB{oneS, luma})
-	none := arranged(t, &Config{}, nil)
+	two, _ := arranged(t, &Config{}, []glasses.USB{oneS, luma})
+	none, _ := arranged(t, &Config{}, nil)
 	if len(two) != len(none) {
 		t.Fatalf("%d rows with glasses, %d without", len(two), len(none))
 	}
@@ -140,7 +158,7 @@ func TestTheGlassesRowIsSizedToItsHeadsets(t *testing.T) {
 func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	cfg := &Config{}
 	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
-	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH})
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 
 	// Pick the second headset, the third screen count, and turn the menu bar
 	// covering off — through the widgets, the way a person would.
@@ -218,7 +236,7 @@ func TestTheSettingsWindowOpensOnWhatIsAlreadyChosen(t *testing.T) {
 		Glasses: &ConfigGlasses{Model: ptr("VITURE Luma Ultra")},
 	}
 	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
-	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH})
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	// Read straight back without touching anything: what was there is what
 	// comes out.
 	read()
@@ -239,7 +257,7 @@ func TestSaveAndCloseAreWiredUp(t *testing.T) {
 	closed := 0
 	cfg := &Config{}
 	root, _ := settingsRoot(cfg, []glasses.USB{luma}, nil, func() { closed++ })
-	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH})
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	b := buttonsOf(root)
 	if b["Save"] == nil || b["Close"] == nil {
 		t.Fatalf("the window has buttons %v", b)
@@ -273,10 +291,11 @@ func TestSaveSaysSoWhenItCannot(t *testing.T) {
 
 	closed := 0
 	var said []string
-	root, _ := settingsRoot(&Config{}, nil, func(f string, a ...any) {
+	cfg := &Config{}
+	root, _ := settingsRoot(cfg, nil, func(f string, a ...any) {
 		said = append(said, fmt.Sprintf(f, a...))
 	}, func() { closed++ })
-	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH})
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 
 	buttonsOf(root)["Save"].OnClick()
 	if closed != 0 {
@@ -294,5 +313,50 @@ func TestOnlyModelsAreOfferedAsGlasses(t *testing.T) {
 	got := headsetNames([]glasses.USB{brandOnly, luma})
 	if len(got) != 1 || got[0] != "VITURE Luma Ultra" {
 		t.Errorf("headsetNames = %v, want only the one a product id names", got)
+	}
+}
+
+// TestTheWindowIsTallEnoughForWhateverItHasToSay.
+//
+// How much this window has to say depends on the machine. One that grants no
+// global shortcut at all reports three long refusals instead of three short
+// grants, and a window sized for the short version puts its Save button below
+// the frame — which is what CI found on Linux, where nothing can be claimed.
+func TestTheWindowIsTallEnoughForWhateverItHasToSay(t *testing.T) {
+	for name, attached := range map[string][]glasses.USB{
+		"two headsets": {oneS, luma},
+		"none":         nil,
+	} {
+		cfg := &Config{}
+		h := settingsH(*cfg, attached)
+		root, _ := settingsRoot(cfg, attached, nil, func() {})
+		root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: h})
+
+		// Every leaf inside the frame, buttons included.
+		var deepest int
+		var walk func(toolkit.Widget)
+		walk = func(w toolkit.Widget) {
+			if b := w.Bounds(); b.Y+b.H > deepest {
+				deepest = b.Y + b.H
+			}
+			if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
+				for _, kid := range p.Children() {
+					walk(kid)
+				}
+			}
+		}
+		walk(root)
+		if deepest > h {
+			t.Errorf("%s: the window is %d tall and something reaches %d",
+				name, h, deepest)
+		}
+		// And the buttons really are in it.
+		b := buttonsOf(root)
+		for _, label := range []string{"Save", "Close"} {
+			r := b[label].Bounds()
+			if r.H <= 0 || r.Y+r.H > h {
+				t.Errorf("%s: %s is at %+v in a window %d tall", name, label, r, h)
+			}
+		}
 	}
 }
