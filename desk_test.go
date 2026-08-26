@@ -104,8 +104,9 @@ func TestAsManyScreensAsAPersonWants(t *testing.T) {
 	}
 }
 
-// TestRenderPutsEachScreenWhereTheRibbonSaysAndNowhereElse.
-func TestRenderPutsEachScreensPixelsInThePanorama(t *testing.T) {
+// TestRenderPutsEachScreensPixelsInThePicture: where the band says, and
+// nowhere else.
+func TestRenderPutsEachScreensPixelsInThePicture(t *testing.T) {
 	p := testPlan(t)
 	feeds := feedsFor(p)
 	d, err := New(p, feeds)

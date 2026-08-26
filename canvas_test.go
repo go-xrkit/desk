@@ -111,8 +111,8 @@ func TestRunsAgreeWithGatheringOnePixelAtATime(t *testing.T) {
 			SrcX: tc.start, SrcXStep: tc.step, SrcY: rows,
 		}
 
-		fast := NewCanvas(ribbon.Pano{W: w, H: h})
-		slow := NewCanvas(ribbon.Pano{W: w, H: h})
+		fast := NewCanvas(w, h)
+		slow := NewCanvas(w, h)
 		fast.Blit(b, src)
 		naiveBlit(slow, b, src)
 
@@ -138,7 +138,7 @@ func TestRunsAgreeWithGatheringOnePixelAtATime(t *testing.T) {
 // ever makes the decomposition produce a run per pixel it will still be
 // correct — and thirteen times slower, with no test failing to say so.
 func TestRunsAreLongWhenTheStepIsNearOne(t *testing.T) {
-	c := NewCanvas(ribbon.Pano{W: 2000, H: 4})
+	c := NewCanvas(2000, 4)
 	b := ribbon.Blit{
 		Dst:  stereo.Rect{W: 1250, H: 4},
 		SrcX: 0, SrcXStep: 4294204894, // the real panorama's step
@@ -166,7 +166,7 @@ func TestPaddedStrideDoesNotShear(t *testing.T) {
 	const w, h = 37, 21
 	for _, pad := range []int{0, 4, 64, 1264} {
 		src := makeSource(w, h, pad)
-		c := NewCanvas(ribbon.Pano{W: w, H: h})
+		c := NewCanvas(w, h)
 		c.Blit(identityBlit(w, h), src)
 		for y := 0; y < h; y++ {
 			for x := 0; x < w; x++ {
@@ -185,7 +185,7 @@ func TestPaddedStrideDoesNotShear(t *testing.T) {
 
 func TestFill(t *testing.T) {
 	for _, n := range []int{1, 2, 3, 7, 16, 100} {
-		c := NewCanvas(ribbon.Pano{W: n, H: 3})
+		c := NewCanvas(n, 3)
 		c.Fill([4]byte{9, 8, 7, 255})
 		for i := 0; i+4 <= len(c.Pix); i += 4 {
 			if c.Pix[i] != 9 || c.Pix[i+1] != 8 || c.Pix[i+2] != 7 || c.Pix[i+3] != 255 {
@@ -214,7 +214,7 @@ func TestBlitRefusesToWriteOutsideItself(t *testing.T) {
 		{"no width", stereo.Rect{X: 0, Y: 0, W: 0, H: 8}},
 		{"no height", stereo.Rect{X: 0, Y: 0, W: 8, H: 0}},
 	} {
-		c := NewCanvas(ribbon.Pano{W: 8, H: 8})
+		c := NewCanvas(8, 8)
 		b := base
 		b.Dst = tc.dst
 		c.Blit(b, src)
@@ -225,7 +225,7 @@ func TestBlitRefusesToWriteOutsideItself(t *testing.T) {
 
 	// A rectangle whose every column falls outside the source draws nothing at
 	// all, rather than a stripe of whatever the decomposition happened to leave.
-	c0 := NewCanvas(ribbon.Pano{W: 8, H: 8})
+	c0 := NewCanvas(8, 8)
 	bFar := base
 	bFar.SrcX = -200 * one
 	c0.Blit(bFar, src)
@@ -234,7 +234,7 @@ func TestBlitRefusesToWriteOutsideItself(t *testing.T) {
 	}
 
 	// An empty source draws nothing rather than reading from nowhere.
-	c := NewCanvas(ribbon.Pano{W: 8, H: 8})
+	c := NewCanvas(8, 8)
 	c.Blit(base, Source{})
 	if !bytes.Equal(c.Pix, make([]byte, len(c.Pix))) {
 		t.Error("an empty source drew something")
@@ -245,7 +245,7 @@ func TestBlitRefusesToWriteOutsideItself(t *testing.T) {
 // a caller got something wrong; neither may take the process down.
 func TestBlitSurvivesAShortRowTable(t *testing.T) {
 	src := makeSource(8, 8, 0)
-	c := NewCanvas(ribbon.Pano{W: 8, H: 8})
+	c := NewCanvas(8, 8)
 	b := identityBlit(8, 8)
 	b.SrcY = b.SrcY[:3] // fewer rows than the rectangle is tall
 	c.Blit(b, src)
@@ -259,7 +259,7 @@ func TestBlitSurvivesAShortRowTable(t *testing.T) {
 	}
 
 	// A row index outside the source is skipped, not read.
-	c = NewCanvas(ribbon.Pano{W: 8, H: 8})
+	c = NewCanvas(8, 8)
 	b = identityBlit(8, 8)
 	b.SrcY[4] = 99
 	c.Blit(b, src)
@@ -270,14 +270,14 @@ func TestBlitSurvivesAShortRowTable(t *testing.T) {
 	}
 
 	// A stride too short to hold the pixels is refused rather than read.
-	c = NewCanvas(ribbon.Pano{W: 8, H: 8})
+	c = NewCanvas(8, 8)
 	c.Blit(identityBlit(8, 8), Source{Pix: make([]byte, 8*8*4), W: 8, H: 8, Stride: 4})
 	if !bytes.Equal(c.Pix, make([]byte, len(c.Pix))) {
 		t.Error("a source with an impossible stride was drawn")
 	}
 
 	// A buffer shorter than the stride says it is.
-	c = NewCanvas(ribbon.Pano{W: 8, H: 8})
+	c = NewCanvas(8, 8)
 	c.Blit(identityBlit(8, 8), Source{Pix: make([]byte, 8), W: 8, H: 8, Stride: 32})
 	if !bytes.Equal(c.Pix, make([]byte, len(c.Pix))) {
 		t.Error("a truncated source was drawn")
@@ -289,7 +289,7 @@ func TestBlitSurvivesAShortRowTable(t *testing.T) {
 // does.
 func TestGeneralPathSkipsColumnsOutsideTheSource(t *testing.T) {
 	src := makeSource(4, 4, 0)
-	c := NewCanvas(ribbon.Pano{W: 8, H: 4})
+	c := NewCanvas(8, 4)
 	b := identityBlit(8, 4)
 	b.SrcX = -2*one + 1 // starts before the source, and takes the general path
 	c.Blit(b, src)
@@ -306,7 +306,7 @@ func TestGeneralPathSkipsColumnsOutsideTheSource(t *testing.T) {
 
 func TestComposeLeavesAScreenWithNoSourceAsBackground(t *testing.T) {
 	src := makeSource(4, 4, 0)
-	c := NewCanvas(ribbon.Pano{W: 8, H: 4})
+	c := NewCanvas(8, 4)
 
 	b0 := identityBlit(4, 4)
 	b1 := identityBlit(4, 4)
@@ -333,12 +333,13 @@ func TestComposeLeavesAScreenWithNoSourceAsBackground(t *testing.T) {
 }
 
 func BenchmarkComposeBeastRibbon(b *testing.B) {
-	// The real shape: a Beast's panorama, with two screens in view.
+	// The real shape: a Beast's view, with a screen and a piece of its
+	// neighbour in it.
 	plan, err := planForBench()
 	if err != nil {
 		b.Fatal(err)
 	}
-	c := NewCanvas(plan.Pano)
+	c := NewCanvas(plan.ScreenW, plan.ScreenH)
 	src := makeSource(plan.ScreenW, plan.ScreenH, 0)
 	sources := make([]Source, plan.Count())
 	for i := range sources {
@@ -348,11 +349,14 @@ func BenchmarkComposeBeastRibbon(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	comp, err := ribbon.NewCompositor(r, plan.Pano)
+	strip, err := NewStrip(placedOf(r), plan.Count()*(plan.ScreenW+DefaultGapPx),
+		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {
 		b.Fatal(err)
 	}
-	blits := comp.Frame(make([]ribbon.Blit, 0, 8), 0)
+	// Half a screen along, so the frame carries two blits and a seam between
+	// them — the shape a turning band actually composes.
+	blits := strip.Frame(make([]ribbon.Blit, 0, 8), plan.ScreenW/2)
 	bg := [4]byte{12, 14, 18, 255}
 
 	b.ReportAllocs()

@@ -12,20 +12,13 @@ import (
 	"math"
 
 	"github.com/go-xrkit/xrkit/glasses"
-	"github.com/go-xrkit/xrkit/projection"
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
 // Errors a plan can refuse with.
 var (
-	// ErrUnknownOptics means the headset was recognised but its field of view is
-	// not in the catalogue. Guessing one is not an option: a wrong field of view
-	// renders everything, in the wrong place, without any symptom.
-	ErrUnknownOptics = errors.New("desk: the field of view of these glasses is not known")
 	// ErrScreens means the requested number of screens is not usable.
 	ErrScreens = errors.New("desk: unusable number of screens")
-	// ErrMargin means the requested margin is not usable.
-	ErrMargin = errors.New("desk: unusable margin")
 	// ErrFOV means the field of view given is not one.
 	ErrFOV = errors.New("desk: unusable field of view")
 )
@@ -51,11 +44,6 @@ type Options struct {
 	// that does. On these very glasses the bus says "XREAL 1S" while the
 	// display is not up at all.
 	USB *glasses.USB
-
-	// MarginDeg is how much wider than the view the panorama is kept, so that a
-	// scroll in progress has pixels to reveal rather than an edge. It is spent
-	// on both sides.
-	MarginDeg float64
 }
 
 // DefaultScreens is how many virtual screens a desk gets when nobody says.
@@ -65,10 +53,6 @@ type Options struct {
 // many as fit round the circle", which was a real limit when the screens were
 // curved and is a fiction now that they are flat.
 const DefaultScreens = 6
-
-// DefaultMarginDeg is a margin wide enough that a scroll never reaches the edge
-// of the panorama between two frames at any speed the navigator will produce.
-const DefaultMarginDeg = 12
 
 // Plan is everything the renderer needs, worked out from the headset itself.
 //
@@ -99,20 +83,21 @@ type Plan struct {
 	// eye's own shape spans exactly HFOVDeg.
 	Layout ribbon.Layout
 
-	// Pano is the panorama buffer the screens are composited into, sized so that
-	// a screen at rest reads one source pixel per destination pixel.
-	Pano ribbon.Pano
-
 	// count is how many screens the ribbon carries.
 	count int
 }
 
 // String renders the plan the way a person would want it logged.
+//
+// A field of view of zero is not printed as "0.00°": it means NOT KNOWN, and a
+// number is a claim.
 func (p Plan) String() string {
-	return fmt.Sprintf("%s: %d screens of %dx%d, %.2f°x%.2f° each, panorama %dx%d over %.0f°x%.0f°",
-		p.Model, p.count, p.ScreenW, p.ScreenH,
-		p.HFOVDeg, p.VFOVDeg, p.Pano.W, p.Pano.H,
-		p.Pano.Window.HSpanDeg, p.Pano.Window.VSpanDeg)
+	optics := "field of view not known"
+	if p.HFOVDeg > 0 {
+		optics = fmt.Sprintf("%.2f°x%.2f° each", p.HFOVDeg, p.VFOVDeg)
+	}
+	return fmt.Sprintf("%s: %d screens of %dx%d, %s",
+		p.Model, p.count, p.ScreenW, p.ScreenH, optics)
 }
 
 // Screens is the ribbon's screens, all identical because each one is a whole
@@ -127,13 +112,6 @@ func (p Plan) Screens() []ribbon.Screen {
 
 // NewPlan works out how to fill these glasses.
 func NewPlan(d glasses.Display, opts Options) (Plan, error) {
-	if opts.MarginDeg < 0 || opts.MarginDeg >= 90 {
-		return Plan{}, fmt.Errorf("%w: %g°", ErrMargin, opts.MarginDeg)
-	}
-	margin := opts.MarginDeg
-	if margin == 0 {
-		margin = DefaultMarginDeg
-	}
 	if opts.Screens < 0 {
 		return Plan{}, fmt.Errorf("%w: %d", ErrScreens, opts.Screens)
 	}
@@ -144,6 +122,20 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	}
 	aspect := float64(eyeW) / float64(eyeH)
 
+	// The field of view is REPORTED, not required.
+	//
+	// It used to decide the layout: a screen was given the arc the eye could
+	// see, so a headset whose optics nobody had measured could not be planned
+	// for at all, and this refused rather than guess. Flat, the arc is a scroll
+	// coordinate and what makes a screen fill the glasses is that it is drawn at
+	// one source pixel per panel pixel — which needs the panel's RESOLUTION and
+	// nothing else. So an unknown headset is now a headset with an unknown
+	// field of view, and it works.
+	//
+	// The catalogue still earns its place: it names the model, which is what a
+	// person needs to see to know the right thing is being driven, and the
+	// figure is worth printing where it is known. It simply no longer decides
+	// whether the application runs.
 	model := d.Name
 	var h, v float64
 	p, how := glasses.IdentifyDevice(d.Name, opts.USB)
@@ -164,11 +156,7 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 		model = p.Model
 		h, v, _ = p.FOV(aspect)
 	case ok:
-		return Plan{}, fmt.Errorf("%w: %s — pass a field of view to say what it is",
-			ErrUnknownOptics, p.Model)
-	default:
-		return Plan{}, fmt.Errorf("%w: %s is not a headset this knows — pass a field of view",
-			ErrUnknownOptics, d)
+		model = p.Model
 	}
 
 	plan := Plan{
@@ -214,22 +202,9 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 		Arrangement:  ribbon.Packed,
 	}
 
-	// The panorama covers the view plus a margin on each side, and carries
-	// enough pixels that a screen at rest is neither stretched nor shrunk.
-	// The horizontal window needs no clamp: a field of view is under 180° and a
-	// margin under 90°, so the span cannot reach a full circle. The vertical one
-	// does, because a tall field of view plus a generous margin can exceed the
-	// half-turn from pole to pole, and a window past the poles has no meaning.
-	hSpan := h + 2*margin
-	vSpan := v + 2*margin
-	if vSpan > 180 {
-		vSpan = 180
-	}
-	plan.Pano = ribbon.Pano{
-		W:      int(math.Ceil(float64(eyeW) * hSpan / h)),
-		H:      int(math.Ceil(float64(eyeH) * vSpan / v)),
-		Window: projection.Projection{Kind: projection.Equirect, HSpanDeg: hSpan, VSpanDeg: vSpan},
-	}
+	// There is no panorama any more, and so nothing here to size. The screens
+	// are composited straight into the view: the buffer they go into is the
+	// picture, and the picture is one screen.
 	return plan, nil
 }
 

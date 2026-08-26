@@ -5,7 +5,6 @@
 package desk
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/go-xrkit/xrkit/glasses"
@@ -31,16 +30,28 @@ func TestTheBusDoesNotLendItsOpticsToAMonitor(t *testing.T) {
 	if got := EvidenceFor(monitor, false, bus); got != nil {
 		t.Error("the bus lent its optics to a monitor nobody said was the glasses")
 	}
-	if got := EvidenceFor(monitor, true, bus); got == nil || *got != oneS {
-		t.Error("the bus was refused for a display the person named")
+	// Not even when the person named that display by hand. The shortcut that
+	// allowed it earned its keep while a field of view decided the geometry;
+	// what is left of it is a guess at a name, printed as a model and a figure,
+	// as fact.
+	if got := EvidenceFor(monitor, true, bus); got != nil {
+		t.Errorf("naming the display by hand handed it %v", got)
 	}
 	if got := EvidenceFor(glasses.Display{Name: "XREAL 1S"}, true, nil); got != nil {
 		t.Error("EvidenceFor invented evidence")
 	}
 	// End to end: the monitor is refused rather than planned with somebody
 	// else's optics.
-	if _, err := NewPlan(monitor, Options{USB: EvidenceFor(monitor, false, bus)}); !errors.Is(err, ErrUnknownOptics) {
-		t.Errorf("planning the monitor gave %v, want %v", err, ErrUnknownOptics)
+	// End to end: the monitor is planned as ITSELF, with no figure, rather than
+	// with a headset's optics. That mattered more when a field of view decided
+	// the geometry; it still matters, because the model is what a person reads
+	// to know the right thing is being driven.
+	q, err := NewPlan(monitor, Options{USB: EvidenceFor(monitor, false, bus)})
+	if err != nil {
+		t.Fatalf("planning the monitor: %v", err)
+	}
+	if q.Model != "Odyssey G95NC" || q.HFOVDeg != 0 {
+		t.Errorf("the monitor was planned as %q at %g°", q.Model, q.HFOVDeg)
 	}
 }
 
@@ -86,6 +97,10 @@ func TestTwoHeadsetsOnOneDesk(t *testing.T) {
 	if got := EvidenceFor(glasses.Display{Name: "DisplayPort"}, true, both); got != nil {
 		t.Errorf("with two headsets attached the bus still picked %v", got)
 	}
+	if got := EvidenceFor(glasses.Display{Name: "DisplayPort"}, true, both[:1]); got != nil {
+		t.Errorf("with one headset attached the bus guessed %v for a display that "+
+			"names nothing", got)
+	}
 }
 
 // TestPeripheralsOnlyEverNamesAModel reads the REAL bus. On a machine with no
@@ -120,8 +135,12 @@ func TestTheBusRefinesABrandIntoAModel(t *testing.T) {
 		t.Fatalf("%q identifies as %q known=%v; the premise of this test is wrong",
 			brandOnly.Name, p.Model, p.Known())
 	}
-	if _, err := NewPlan(brandOnly, Options{}); !errors.Is(err, ErrUnknownOptics) {
-		t.Fatalf("a brand-only display was planned without the bus")
+	bare, err := NewPlan(brandOnly, Options{})
+	if err != nil {
+		t.Fatalf("a brand-only display: %v", err)
+	}
+	if bare.HFOVDeg != 0 {
+		t.Errorf("a brand gave a field of view of %g°", bare.HFOVDeg)
 	}
 
 	got := EvidenceFor(brandOnly, false, []glasses.USB{oneS, luma})
