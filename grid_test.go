@@ -201,3 +201,66 @@ func TestAShapeThatWouldLeaveNoCellIsPassedOver(t *testing.T) {
 		t.Errorf("the chosen cell is %dx%d", g.cellW, g.cellH)
 	}
 }
+
+// TestAScreenKeepsItsPlaceAsTheDeskGrows is what a fixed width is FOR.
+//
+// Three, six and nine screens are the counts a desk is usually built from, and
+// in three columns each of them is the one before it with a row added. A screen
+// that moved when another was created would cost the viewer the map they had
+// built of where things are.
+func TestAScreenKeepsItsPlaceAsTheDeskGrows(t *testing.T) {
+	var was []int
+	for _, n := range []int{3, 6, 9} {
+		g := testGrid(t, n)
+		cols, rows := g.Shape()
+		if cols != 3 || rows != n/3 {
+			t.Errorf("%d screens fold into %dx%d, want 3x%d", n, cols, rows, n/3)
+		}
+		// The COLUMN a screen is in, not its pixel position: the cells shrink as
+		// rows are added, so everything shifts a little, but screen 4 is under
+		// screen 1 whether the desk has six screens or nine.
+		var xs []int
+		for i := 0; i < n; i++ {
+			xs = append(xs, i%3)
+		}
+		if was != nil {
+			for i := range was {
+				if xs[i] != was[i] {
+					t.Errorf("%d screens: screen %d moved from column %d to column %d",
+						n, i, was[i], xs[i])
+				}
+			}
+		}
+		was = xs
+	}
+}
+
+// TestAWidthThatDoesNotFitIsAPreferenceAndNotARefusal.
+func TestAWidthThatDoesNotFitIsAPreferenceAndNotARefusal(t *testing.T) {
+	// Eight columns of a 300-pixel view, with a 48-pixel gap between each pair,
+	// wants more gap than there is view.
+	g, err := NewGridCols(8, 1920, 1200, 300, 300, DefaultGapPx, 8)
+	if err != nil {
+		t.Fatalf("NewGridCols = %v", err)
+	}
+	if cols, _ := g.Shape(); cols == 8 {
+		t.Error("eight columns were used in a view too narrow for them")
+	}
+	if g.cellW <= 0 || g.cellH <= 0 {
+		t.Errorf("the chosen cell is %dx%d", g.cellW, g.cellH)
+	}
+	// And asking for more columns than there are screens is simply choosing.
+	if _, err := NewGridCols(2, 1920, 1200, 1920, 1200, 0, 9); err != nil {
+		t.Errorf("NewGridCols with more columns than screens = %v", err)
+	}
+}
+
+// TestPastNineTheShapeIsChosen: a fixed three columns stops paying when it
+// would make fourteen rows of them.
+func TestPastNineTheShapeIsChosen(t *testing.T) {
+	g := testGrid(t, 12)
+	if cols, _ := g.Shape(); cols == 3 {
+		t.Error("twelve screens were folded into three columns; past nine the " +
+			"shape should be chosen by what leaves the screens biggest")
+	}
+}
