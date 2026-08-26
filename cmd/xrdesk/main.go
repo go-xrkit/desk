@@ -50,6 +50,8 @@ func run() int {
 	quiet := flag.Bool("quiet", false, "say less")
 	noGlobal := flag.Bool("no-global", false,
 		"do not claim the system-wide shortcuts (\u2325\u2318\u2190/\u2192 and \u2325\u2318Space)")
+	settingsWin := flag.Bool("settings", false,
+		"open the settings window instead of the desk")
 	snap := flag.Bool("snapshot", false, "write the first frame shown, so it can be looked at afterwards")
 	flag.Parse()
 
@@ -65,6 +67,13 @@ func run() int {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
+	}
+	if *settingsWin {
+		if err := desk.RunSettings(desk.SettingsOptions{Logf: logf}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		return 0
 	}
 	if *count == 0 {
 		*count = settings.Screens()
