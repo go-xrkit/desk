@@ -31,6 +31,28 @@ type Screens struct {
 	virtual []*virtualdisplay.Display
 }
 
+// Add creates one more virtual display and appends it, returning its id.
+//
+// It refuses when these screens are not ours: a desk that fell back to the real
+// displays attached to the machine cannot add one, and inventing a seventh
+// monitor is not something to attempt on somebody's behalf.
+func (s *Screens) Add(w, h int) (uint64, error) {
+	if !s.Virtual {
+		return 0, fmt.Errorf("desk: these are real displays (%s), so one cannot be added", s.Why)
+	}
+	d, err := virtualdisplay.Open(virtualdisplay.Spec{
+		Name:   fmt.Sprintf("XR desk %d", len(s.virtual)+1),
+		Width:  uint32(w),
+		Height: uint32(h),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("desk: another virtual display was refused: %w", err)
+	}
+	s.virtual = append(s.virtual, d)
+	s.IDs = append(s.IDs, uint64(d.ID()))
+	return uint64(d.ID()), nil
+}
+
 // Close removes any display this created, and is safe to call twice.
 //
 // It matters more than most Close methods: a virtual display that outlives its
@@ -176,6 +198,10 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 // arbitrary so that the same display keeps the same identity across a restart,
 // which is what lets an arrangement be written down and restored.
 func offerID(id uint32) string { return fmt.Sprintf("display-%d", id) }
+
+// DisplayOfferID is the [Offer] id for a display, for a caller that has just
+// created one and wants it opened.
+func DisplayOfferID(id uint64) string { return offerID(uint32(id)) }
 
 // Sources lists everything on this machine that a ribbon position could show.
 //

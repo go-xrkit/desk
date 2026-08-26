@@ -173,34 +173,7 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	if n == 0 {
 		n = DefaultScreens
 	}
-	plan.count = n
-
-	// The screens are FLAT, so the angles are a scroll coordinate and nothing
-	// more — which is what lets there be as many of them as a person wants.
-	//
-	// A curved band had to fit in 360°, and at one screen per view that is seven
-	// of them and no more. Flat, the circle is a fiction: the yaw says how far
-	// along the band the viewer is, and the band is however long it needs to be.
-	// So n screens are spread over the full turn whatever n is, and three, six or
-	// nine of them fold into a gallery a person can actually keep a map of.
-	// A hair under the full turn. The screens and their gaps must SUM to less
-	// than 360°, and n pitches of exactly 360/n sum to exactly 360 — which the
-	// placement refuses, correctly, for a band that is meant to close. A
-	// millionth of a degree of slack is 0.00003 pixels across an eleven-thousand
-	// pixel band: it settles the comparison and is not a position anyone could
-	// measure.
-	const turnDeg = 360 - 1e-6
-	pitchDeg := turnDeg / float64(n)
-	gapDeg := pitchDeg * DefaultGapPx / float64(eyeW+DefaultGapPx)
-	plan.Layout = ribbon.Layout{
-		// DensityDeg is the arc for one width of a SQUARE screen, and a wider
-		// screen gets proportionally more, so dividing by the aspect is what
-		// makes a screen of the eye's own shape span the whole pitch bar the gap.
-		DensityDeg:   (pitchDeg - gapDeg) / aspect,
-		GapDeg:       gapDeg,
-		FullWidthDeg: pitchDeg - gapDeg,
-		Arrangement:  ribbon.Packed,
-	}
+	plan = plan.WithScreens(n)
 
 	// There is no panorama any more, and so nothing here to size. The screens
 	// are composited straight into the view: the buffer they go into is the
@@ -213,3 +186,41 @@ func deg(r float64) float64 { return r * 180 / math.Pi }
 
 // Count is how many screens the ribbon carries.
 func (p Plan) Count() int { return p.count }
+
+// WithScreens is this plan with a different number of screens on the band.
+//
+// The screens are FLAT, so the angles are a scroll coordinate and nothing more
+// — which is what lets there be as many of them as a person wants, and what
+// lets one be added while the desk is running.
+//
+// A curved band had to fit in 360°, and at one screen per view that was seven
+// of them and no more. Flat, the circle is a fiction: the yaw says how far
+// along the band the viewer is, and the band is however long it needs to be. So
+// n screens are spread over the full turn whatever n is.
+func (p Plan) WithScreens(n int) Plan {
+	if n < 1 {
+		n = 1
+	}
+	p.count = n
+	aspect := float64(p.ScreenW) / float64(p.ScreenH)
+
+	// A hair under the full turn. The screens and their gaps must SUM to less
+	// than 360°, and n pitches of exactly 360/n sum to exactly 360 — which the
+	// placement refuses, correctly, for a band that is meant to close. A
+	// millionth of a degree of slack is 0.00003 pixels across an eleven-thousand
+	// pixel band: it settles the comparison and is not a position anyone could
+	// measure.
+	const turnDeg = 360 - 1e-6
+	pitchDeg := turnDeg / float64(n)
+	gapDeg := pitchDeg * DefaultGapPx / float64(p.ScreenW+DefaultGapPx)
+	p.Layout = ribbon.Layout{
+		// DensityDeg is the arc for one width of a SQUARE screen, and a wider
+		// screen gets proportionally more, so dividing by the aspect is what
+		// makes a screen of the eye's own shape span the whole pitch bar the gap.
+		DensityDeg:   (pitchDeg - gapDeg) / aspect,
+		GapDeg:       gapDeg,
+		FullWidthDeg: pitchDeg - gapDeg,
+		Arrangement:  ribbon.Packed,
+	}
+	return p
+}

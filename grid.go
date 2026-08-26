@@ -41,6 +41,10 @@ type Grid struct {
 	srcW, srcH int
 	srcY       []int32
 	sel        int
+	// screens is how many of the cells are screens. The rest — one — is where a
+	// screen is added. It is zero for a grid built through NewGridCols, which
+	// means every cell is a screen.
+	screens int
 }
 
 // DefaultColumns is how wide the gallery is when nobody says.
@@ -56,12 +60,31 @@ const DefaultColumns = 3
 // NewGrid folds n screens of srcW x srcH into a view of viewW x viewH, in
 // [DefaultColumns] where that holds them and in whatever leaves them biggest
 // otherwise.
+//
+// It lays out ONE MORE cell than there are screens: the last one is where a
+// screen is added. A gallery is where somebody looks at the desk they have, so
+// it is where they will want another one — and the alternative is a settings
+// file, which is not where anybody is when they run out of room.
 func NewGrid(n, srcW, srcH, viewW, viewH, gap int) (*Grid, error) {
+	if n <= 0 {
+		return nil, fmt.Errorf("%w: %d screens", ErrNoScreens, n)
+	}
+	cells := n + 1 // the last one is the "add a screen" cell
+	// The column count is chosen from the SCREENS, not the cells. Three, six or
+	// nine screens keep three columns whether or not the adder pushes them into
+	// another row — a screen holding its COLUMN is what the fixed width is for,
+	// and it would be lost if adding one cell could turn nine screens from three
+	// columns into four.
 	cols := 0
 	if n <= DefaultColumns*DefaultColumns {
 		cols = min(n, DefaultColumns)
 	}
-	return NewGridCols(n, srcW, srcH, viewW, viewH, gap, cols)
+	g, err := NewGridCols(cells, srcW, srcH, viewW, viewH, gap, cols)
+	if err != nil {
+		return nil, err
+	}
+	g.screens = n
+	return g, nil
 }
 
 // NewGridCols folds the screens into exactly cols columns. A cols of zero or
@@ -196,7 +219,13 @@ func (g *Grid) Move(d ribbon.Direction) error {
 // Len is how many screens the grid holds. It is what makes a Grid a
 // [ribbon.Selectable], so the navigator drives it without knowing that these
 // screens are flat.
-func (g *Grid) Len() int { return g.n }
+// Len is how many SCREENS this gallery is of, which is what a navigator needs
+// of it — not how many cells it draws. The cell that adds a screen is this
+// type's own furniture and is none of the navigator's business.
+func (g *Grid) Len() int { return g.Screens() }
+
+// Cells is how many cells it draws, screens plus the one that adds one.
+func (g *Grid) Cells() int { return g.n }
 
 // Shape is the grid's columns and rows, for a caller that wants to describe it.
 func (g *Grid) Shape() (cols, rows int) { return g.cols, g.rows }
@@ -214,4 +243,27 @@ func (g *Grid) At(x, y int) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// Screens is how many of the cells are screens.
+func (g *Grid) Screens() int {
+	if g.screens > 0 {
+		return g.screens
+	}
+	return g.n
+}
+
+// Adder is the index of the cell that adds a screen, and false when this grid
+// has none.
+func (g *Grid) Adder() (int, bool) {
+	if g.screens <= 0 || g.screens >= g.n {
+		return 0, false
+	}
+	return g.n - 1, true
+}
+
+// IsAdder reports whether i is the cell that adds a screen.
+func (g *Grid) IsAdder(i int) bool {
+	a, ok := g.Adder()
+	return ok && i == a
 }

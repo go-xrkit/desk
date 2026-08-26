@@ -25,8 +25,9 @@ func TestEveryScreenIsInTheGridAndInsideTheView(t *testing.T) {
 	for n := 1; n <= 12; n++ {
 		g := testGrid(t, n)
 		blits := g.Frame(nil)
-		if len(blits) != n {
-			t.Errorf("%d screens gave %d cells", n, len(blits))
+		// One more than the screens: the last cell is where a screen is added.
+		if len(blits) != n+1 {
+			t.Errorf("%d screens gave %d cells, want %d", n, len(blits), n+1)
 		}
 		seen := map[int]bool{}
 		for _, b := range blits {
@@ -36,8 +37,8 @@ func TestEveryScreenIsInTheGridAndInsideTheView(t *testing.T) {
 				t.Errorf("%d screens: cell %d is at %+v, outside the view", n, b.Screen, b.Dst)
 			}
 		}
-		if len(seen) != n {
-			t.Errorf("%d screens: only %d of them are drawn", n, len(seen))
+		if len(seen) != n+1 {
+			t.Errorf("%d screens: %d cells are drawn, want %d", n, len(seen), n+1)
 		}
 	}
 }
@@ -78,8 +79,10 @@ func TestCellsDoNotOverlap(t *testing.T) {
 // band is a circle, so its ends really are next to each other; the fold into
 // rows is this type's own invention and has no seam to walk through.
 func TestLeftAndRightWrapAndUpAndDownClamp(t *testing.T) {
-	g := testGrid(t, 6) // 3x2 on this view
+	// Six screens and the cell that adds one: seven cells, 3x3.
+	g := testGrid(t, 6)
 	cols, _ := g.Shape()
+	last := g.Cells() - 1
 
 	if err := g.Select(0); err != nil {
 		t.Fatal(err)
@@ -87,8 +90,8 @@ func TestLeftAndRightWrapAndUpAndDownClamp(t *testing.T) {
 	if err := g.Move(ribbon.Left); err != nil {
 		t.Fatal(err)
 	}
-	if got := g.Selected(); got != 5 {
-		t.Errorf("left from the first is %d, want the last", got)
+	if got := g.Selected(); got != last {
+		t.Errorf("left from the first is %d, want the last cell %d", got, last)
 	}
 	if err := g.Move(ribbon.Right); err != nil {
 		t.Fatal(err)
@@ -111,10 +114,18 @@ func TestLeftAndRightWrapAndUpAndDownClamp(t *testing.T) {
 	if got := g.Selected(); got != cols {
 		t.Errorf("down from the top row is %d, want %d", got, cols)
 	}
+	// Down again reaches the third row, which is where the cell that adds a
+	// screen lives when there are six.
 	if err := g.Move(ribbon.Down); err != nil {
 		t.Fatal(err)
 	}
-	if got := g.Selected(); got != cols {
+	if got := g.Selected(); got != last {
+		t.Errorf("down from the middle row is %d, want the adder %d", got, last)
+	}
+	if err := g.Move(ribbon.Down); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.Selected(); got != last {
 		t.Errorf("down from the bottom row moved to %d", got)
 	}
 
@@ -123,28 +134,29 @@ func TestLeftAndRightWrapAndUpAndDownClamp(t *testing.T) {
 	if err := g.Move(ribbon.Up); err != nil {
 		t.Fatal(err)
 	}
-	if got := g.Selected(); got != 0 {
-		t.Errorf("up from the second row is %d, want 0", got)
+	if got := g.Selected(); got != cols {
+		t.Errorf("up from the adder is %d, want %d", got, cols)
 	}
 
 	// A ragged last row: down from a column the last row does not have lands on
-	// the nearest screen it does, rather than off the end.
-	r := testGrid(t, 5) // 3x2, with one screen in the last row
+	// the nearest cell it does, rather than off the end.
+	r := testGrid(t, 5) // five screens and an adder: 3x2
 	if err := r.Select(2); err != nil {
 		t.Fatal(err)
 	}
 	if err := r.Move(ribbon.Down); err != nil {
 		t.Fatal(err)
 	}
-	if got := r.Selected(); got != 4 {
-		t.Errorf("down from the ragged column is %d, want the last screen 4", got)
+	if got, want := r.Selected(), r.Cells()-1; got != want {
+		t.Errorf("down from the ragged column is %d, want the last cell %d", got, want)
 	}
 }
 
 func TestGridRefusals(t *testing.T) {
 	g := testGrid(t, 4)
-	if err := g.Select(4); !errors.Is(err, ErrScreens) {
-		t.Errorf("Select(4) = %v, want an ErrScreens", err)
+	past := g.Cells() // one past the last cell, adder included
+	if err := g.Select(past); !errors.Is(err, ErrScreens) {
+		t.Errorf("Select(%d) = %v, want an ErrScreens", past, err)
 	}
 	if err := g.Select(-1); !errors.Is(err, ErrScreens) {
 		t.Errorf("Select(-1) = %v, want an ErrScreens", err)
@@ -152,8 +164,8 @@ func TestGridRefusals(t *testing.T) {
 	if err := g.Move(ribbon.Direction(99)); !errors.Is(err, ErrScreens) {
 		t.Errorf("Move(99) = %v, want an ErrScreens", err)
 	}
-	if _, _, _, _, ok := g.Cell(4); ok {
-		t.Error("Cell(4) answered for a screen there is not")
+	if _, _, _, _, ok := g.Cell(past); ok {
+		t.Errorf("Cell(%d) answered for a cell there is not", past)
 	}
 	if _, _, _, _, ok := g.Cell(-1); ok {
 		t.Error("Cell(-1) answered")
@@ -212,9 +224,12 @@ func TestAScreenKeepsItsPlaceAsTheDeskGrows(t *testing.T) {
 	var was []int
 	for _, n := range []int{3, 6, 9} {
 		g := testGrid(t, n)
+		// Three columns at every one of these counts. The ROWS grow, and the
+		// cell that adds a screen takes one more slot, but the column a screen
+		// is in is what a person remembers.
 		cols, rows := g.Shape()
-		if cols != 3 || rows != n/3 {
-			t.Errorf("%d screens fold into %dx%d, want 3x%d", n, cols, rows, n/3)
+		if cols != 3 {
+			t.Errorf("%d screens fold into %dx%d, want three columns", n, cols, rows)
 		}
 		// The COLUMN a screen is in, not its pixel position: the cells shrink as
 		// rows are added, so everything shifts a little, but screen 4 is under
