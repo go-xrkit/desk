@@ -102,10 +102,12 @@ func (a Action) String() string {
 type Desk struct {
 	plan Plan
 	nav  *ribbon.Nav
-	comp *ribbon.Compositor
-	gal  *ribbon.Gallery
-	// galErr is why there is no gallery, when there is none.
-	galErr error
+
+	// strip is the band, flat, and grid is every screen at once. Both are in
+	// VIEW coordinates: the canvas is the picture rather than a panorama it is
+	// then a projection of.
+	strip *Strip
+	grid  *Grid
 
 	canvas  *Canvas
 	feeds   []Feed
@@ -155,30 +157,30 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desk: placing screens: %w", err)
 	}
-	comp, err := ribbon.NewCompositor(r, plan.Pano)
-	if err != nil {
-		return nil, fmt.Errorf("desk: preparing the panorama: %w", err)
+	// The band, flat. One screen is one full view, so the view is a screen and
+	// a screen at rest fills it exactly.
+	placed := make([]ribbon.Placed, r.Len())
+	for i := range placed {
+		placed[i] = r.At(i)
 	}
-	// The gallery is built once, with the eye's own field of view: it is
-	// head-locked, so unlike the ribbon it has no yaw to follow and nothing to
-	// rebuild when the viewer turns.
-	//
-	// A failure here is NOT a failure to start. Enough screens will not fit in
-	// one view at any gap, and a desk of forty screens is exactly the desk that
-	// most wants the ribbon: refusing to open at all would cost the viewer the
-	// whole application to spare them one key. The error is kept and handed back
-	// when that key is actually pressed.
-	gal, galErr := ribbon.NewGallery(comp, ribbon.View{HDeg: plan.HFOVDeg, VDeg: plan.VFOVDeg})
-	if galErr != nil {
-		gal, galErr = nil, fmt.Errorf("desk: no gallery for this desk: %w", galErr)
+	strip, err := NewStrip(placed, rad(plan.HFOVDeg),
+		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
+	if err != nil {
+		return nil, fmt.Errorf("desk: laying out the band: %w", err)
+	}
+	// Every screen at once, folded into the same view. It is head-locked, so
+	// unlike the band it has no offset to follow and nothing to rebuild.
+	grid, err := NewGrid(plan.Count(), plan.ScreenW, plan.ScreenH,
+		plan.ScreenW, plan.ScreenH, DefaultGapPx)
+	if err != nil {
+		return nil, fmt.Errorf("desk: folding the gallery: %w", err)
 	}
 	return &Desk{
 		plan:       plan,
 		nav:        ribbon.NewNav(r),
-		comp:       comp,
-		gal:        gal,
-		galErr:     galErr,
-		canvas:     NewCanvas(plan.Pano),
+		strip:      strip,
+		grid:       grid,
+		canvas:     NewCanvas(ribbon.Pano{W: plan.ScreenW, H: plan.ScreenH}),
 		feeds:      feeds,
 		sources:    make([]Source, len(feeds)),
 		blits:      make([]ribbon.Blit, 0, len(feeds)+2),
@@ -194,14 +196,6 @@ func (d *Desk) Nav() *ribbon.Nav { return d.nav }
 
 // Canvas is the panorama, for the warp to read.
 func (d *Desk) Canvas() *Canvas { return d.canvas }
-
-// toggleGallery opens or closes the gallery, or says why there is not one.
-func (d *Desk) toggleGallery() error {
-	if d.gal == nil {
-		return d.galErr
-	}
-	return d.nav.ToggleGallery(d.gal)
-}
 
 // Err reports what the last action returned, or nil. The gallery can refuse —
 // a direction it has no cell for — and a refusal nobody can see is a key that
@@ -229,17 +223,17 @@ func (d *Desk) Do(a Action) {
 	if d.nav.Mode() == ribbon.ModeGallery {
 		switch a {
 		case ActionPrev:
-			d.err = d.gal.Move(ribbon.Left)
+			d.err = d.grid.Move(ribbon.Left)
 		case ActionNext:
-			d.err = d.gal.Move(ribbon.Right)
+			d.err = d.grid.Move(ribbon.Right)
 		case ActionUp:
-			d.err = d.gal.Move(ribbon.Up)
+			d.err = d.grid.Move(ribbon.Up)
 		case ActionDown:
-			d.err = d.gal.Move(ribbon.Down)
+			d.err = d.grid.Move(ribbon.Down)
 		case ActionChoose:
 			d.err = d.nav.Choose()
 		case ActionGallery:
-			d.err = d.toggleGallery()
+			d.err = d.nav.ToggleGallery(d.grid)
 		case ActionQuit:
 			d.quit = true
 		}
@@ -253,7 +247,7 @@ func (d *Desk) Do(a Action) {
 	case ActionPrev:
 		d.nav.Prev()
 	case ActionGallery:
-		d.err = d.toggleGallery()
+		d.err = d.nav.ToggleGallery(d.grid)
 	case ActionFullscreen:
 		d.nav.ToggleFullscreen()
 	case ActionCycle:
@@ -293,19 +287,20 @@ func (d *Desk) Render() *Canvas {
 	}
 
 	d.blits = d.blits[:0]
-	if d.nav.Mode() == ribbon.ModeGallery {
-		// Head-locked: no yaw, because the grid is in front of the viewer rather
-		// than out on the band.
-		d.blits = d.gal.Frame(d.blits)
-	} else if d.nav.Mode() == ribbon.ModeFullscreen {
+	switch d.nav.Mode() {
+	case ribbon.ModeGallery:
+		// Head-locked: no offset, because the grid is in front of the viewer
+		// rather than out on the band.
+		d.blits = d.grid.Frame(d.blits)
+	case ribbon.ModeFullscreen:
 		// The only error Fullscreen can return is an out-of-range screen, and
-		// the navigator's focus is always a screen on this very ribbon — so it
+		// the navigator's focus is always a screen on this very band — so it
 		// cannot happen here. TestPromotingAnyScreenAlwaysWorks pins that
 		// assumption down, rather than leaving a branch that can never be taken
 		// and therefore never be tested.
-		d.blits, _ = d.comp.Fullscreen(d.blits, d.nav.Focus())
-	} else {
-		d.blits = d.comp.Frame(d.blits, d.nav.Yaw())
+		d.blits, _ = d.strip.Fullscreen(d.blits, d.nav.Focus())
+	default:
+		d.blits = d.strip.Frame(d.blits, d.strip.Offset(d.nav.Yaw()))
 	}
 
 	d.canvas.Compose(d.blits, d.sources, d.Background)

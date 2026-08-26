@@ -11,6 +11,14 @@ import (
 	"github.com/go-xrkit/xrkit/stereo"
 )
 
+// DefaultGapPx is the band the gallery leaves between two cells, in pixels.
+//
+// The ribbon needs no such number — the space between two screens is whatever
+// the ribbon left there — but a grid is a fold this package invents, so the
+// space in it is this package's to choose. Wide enough that two cells read as
+// two screens rather than as one wide one.
+const DefaultGapPx = 48
+
 // A Grid is every screen at once, in front of the viewer.
 //
 // It is the flat counterpart of the ribbon's gallery, and it is head-locked on
@@ -150,6 +158,11 @@ func (g *Grid) Move(d ribbon.Direction) error {
 	}
 	return nil
 }
+
+// Len is how many screens the grid holds. It is what makes a Grid a
+// [ribbon.Selectable], so the navigator drives it without knowing that these
+// screens are flat.
+func (g *Grid) Len() int { return g.n }
 
 // Shape is the grid's columns and rows, for a caller that wants to describe it.
 func (g *Grid) Shape() (cols, rows int) { return g.cols, g.rows }

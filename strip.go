@@ -17,39 +17,42 @@ import (
 // The curved ribbon puts each screen on the surface of a cylinder, which is
 // geometrically honest and, worn, buys nothing: a screen the viewer is looking
 // straight at is drawn with a bow in it, and the bow argues with the depth the
-// glasses are already presenting. Worse, the curve costs a projection — an
-// equirectangular panorama and a per-pixel warp, 2.8 ms of a 16.6 ms frame —
-// to produce a picture whose whole purpose is to look like a flat screen.
+// glasses are already presenting. It also costs a projection — an
+// equirectangular panorama and a per-pixel warp, 2.8 ms of a 16.6 ms frame — to
+// produce a picture whose whole purpose is to look like a flat screen.
 //
-// So the screens are laid side by side on a flat band and the band slides. One
-// screen is one full view, so a screen at rest fills the viewport exactly, at
-// one source pixel per output pixel, with no resampling in either axis and no
-// distortion anywhere. Turning the ribbon moves the window along the band.
+// So the screens are laid side by side on a flat band and the band slides.
 //
-// The band still closes on itself: walking right past the last screen arrives
-// at the first, and a screen straddling that seam is drawn as two pieces, one
-// against each edge — which is the same thing the panorama did at its own seam.
+// The scale is the only thing that has to be decided, and the plan decides it:
+// ONE VIEW IS ONE FIELD OF VIEW. Everything else follows from the ribbon's own
+// placement — where each screen sits, how wide it is, and therefore how much
+// space is left between two of them. There is no separate gap to set and get
+// wrong, because the gap is not this type's to invent.
+//
+// The band closes on itself: walking right past the last screen arrives at the
+// first, and a screen straddling that join is drawn as two pieces, one against
+// each edge.
 type Strip struct {
-	n          int
-	viewW      int
-	viewH      int
-	gap        int
-	pitch      int
-	total      int
-	srcW, srcH int
-	srcY       []int32
-	fullscreen bool
+	n int
+	// centre and width place each screen along the band, in pixels, from the
+	// ribbon's own arrangement rather than from an assumption that the screens
+	// are evenly spread and all one size. Guessing put the band half a screen
+	// out of step with the navigator, which is invisible until you wear it.
+	centre []int
+	width  []int
+
+	viewW, viewH int
+	total        int
+	srcW, srcH   int
+	srcY         []int32
 }
 
-// DefaultGapPx is the band between two screens, in pixels of the view.
+// NewStrip lays the ribbon's screens out flat for a view of viewW x viewH.
 //
-// Wide enough that two screens read as two screens rather than as one very
-// wide one, and narrow enough that turning the ribbon never shows a gap and
-// nothing else.
-const DefaultGapPx = 48
-
-// NewStrip lays out n screens of srcW x srcH for a view of viewW x viewH.
-func NewStrip(n, srcW, srcH, viewW, viewH, gap int) (*Strip, error) {
+// hfov is what the view spans, in radians: one view is one field of view, and
+// that single number sets the scale for the whole band.
+func NewStrip(placed []ribbon.Placed, hfov float64, srcW, srcH, viewW, viewH int) (*Strip, error) {
+	n := len(placed)
 	switch {
 	case n <= 0:
 		return nil, fmt.Errorf("%w: %d screens", ErrNoScreens, n)
@@ -57,15 +60,25 @@ func NewStrip(n, srcW, srcH, viewW, viewH, gap int) (*Strip, error) {
 		return nil, fmt.Errorf("%w: screens of %dx%d", ErrScreens, srcW, srcH)
 	case viewW <= 0 || viewH <= 0:
 		return nil, fmt.Errorf("%w: a view of %dx%d", ErrScreens, viewW, viewH)
-	case gap < 0:
-		return nil, fmt.Errorf("%w: a gap of %d", ErrScreens, gap)
+	case !(hfov > 0) || hfov >= 2*math.Pi:
+		return nil, fmt.Errorf("%w: a view spanning %g radians", ErrFOV, hfov)
 	}
-	s := &Strip{
-		n: n, viewW: viewW, viewH: viewH, gap: gap,
-		srcW: srcW, srcH: srcH,
-		pitch: viewW + gap,
+	s := &Strip{n: n, viewW: viewW, viewH: viewH, srcW: srcW, srcH: srcH}
+
+	pxPerRad := float64(viewW) / hfov
+	s.total = int(math.Round(2 * math.Pi * pxPerRad))
+	s.centre = make([]int, n)
+	s.width = make([]int, n)
+	for i, p := range placed {
+		frac := p.Centre / (2 * math.Pi)
+		frac -= math.Floor(frac)
+		s.centre[i] = int(math.Round(frac * float64(s.total)))
+		s.width[i] = int(math.Round(p.Span() * pxPerRad))
+		if s.width[i] <= 0 {
+			return nil, fmt.Errorf("%w: screen %d spans %g radians, which is no pixels at all",
+				ErrScreens, i, p.Span())
+		}
 	}
-	s.total = s.pitch * n
 	// The vertical mapping never changes: the band only ever slides sideways.
 	// So it is built once, and a frame does horizontal work only.
 	s.srcY = make([]int32, viewH)
@@ -75,7 +88,7 @@ func NewStrip(n, srcW, srcH, viewW, viewH, gap int) (*Strip, error) {
 	return s, nil
 }
 
-// Offset turns a yaw in radians into a position along the band.
+// Offset turns a yaw in radians into the point on the band the viewer faces.
 //
 // The navigator thinks in angles because a ribbon is a circle, and it keeps
 // working — the gallery, the focus, the shortest way round — without knowing
@@ -92,18 +105,18 @@ func (s *Strip) Offset(yaw float64) int {
 //
 // The destination rectangles are in VIEW coordinates and already clipped, so
 // the canvas a caller composes into is the size of the picture rather than of
-// a panorama.
+// a panorama it would then have to be a projection of.
 func (s *Strip) Frame(dst []ribbon.Blit, offset int) []ribbon.Blit {
 	offset = ((offset % s.total) + s.total) % s.total
 	for i := 0; i < s.n; i++ {
 		// Each screen is considered at its own place and one band-width either
-		// side of it. That is the whole of the seam: a screen near the end of
-		// the band is also just before the beginning, and writing it out this
-		// way needs no case analysis about which side of the join we are on.
-		base := i*s.pitch - offset
+		// side of it. That is the whole of the join: a screen near the end of
+		// the band is also just before the beginning, and writing it this way
+		// needs no case analysis about which side of it we are on.
+		base := s.centre[i] - s.width[i]/2 - offset + s.viewW/2
 		for _, left := range [3]int{base, base + s.total, base - s.total} {
-			if left < s.viewW && left+s.viewW > 0 {
-				dst = s.append(dst, i, left)
+			if left < s.viewW && left+s.width[i] > 0 {
+				dst = s.append(dst, i, left, s.width[i])
 			}
 		}
 	}
@@ -111,20 +124,27 @@ func (s *Strip) Frame(dst []ribbon.Blit, offset int) []ribbon.Blit {
 }
 
 // Fullscreen appends the blit for one screen filling the whole view.
+//
+// It is a real promotion only when the screen is narrower than the view. At one
+// screen per view it changes nothing, which is the right answer rather than a
+// missing feature: there is nowhere for a screen already filling the glasses to
+// grow to.
 func (s *Strip) Fullscreen(dst []ribbon.Blit, i int) ([]ribbon.Blit, error) {
 	if i < 0 || i >= s.n {
 		return dst, fmt.Errorf("%w: screen %d of %d", ErrScreens, i, s.n)
 	}
-	return s.append(dst, i, 0), nil
+	return s.append(dst, i, 0, s.viewW), nil
 }
 
-// append emits the clipped blit for screen i whose left edge is at left.
+// append emits the clipped blit for screen i, w pixels wide with its left edge
+// at left.
 //
 // It is only ever called with a left edge that leaves something to draw —
-// [Strip.Frame] has already established that, and [Strip.Fullscreen] draws at
-// zero — so there is no empty case here to guard, and none to leave untested.
-func (s *Strip) append(dst []ribbon.Blit, i, left int) []ribbon.Blit {
-	x0, x1 := left, left+s.viewW
+// [Strip.Frame] has already established that, and [Strip.Fullscreen] draws the
+// whole view — so there is no empty case here to guard, and none to leave
+// untested.
+func (s *Strip) append(dst []ribbon.Blit, i, left, w int) []ribbon.Blit {
+	x0, x1 := left, left+w
 	skip := 0
 	if x0 < 0 {
 		skip, x0 = -x0, 0
@@ -133,13 +153,10 @@ func (s *Strip) append(dst []ribbon.Blit, i, left int) []ribbon.Blit {
 		x1 = s.viewW
 	}
 	return append(dst, ribbon.Blit{
-		Screen: i,
-		Dst:    stereo.Rect{X: x0, Y: 0, W: x1 - x0, H: s.viewH},
-		// One source column per destination column: a screen is exactly as wide
-		// as the view, so there is no resampling to do and no error to
-		// accumulate across two thousand columns.
-		SrcX:     int64(int64(skip)*int64(s.srcW)/int64(s.viewW)) << fracBits,
-		SrcXStep: int64(s.srcW) << fracBits / int64(s.viewW),
+		Screen:   i,
+		Dst:      stereo.Rect{X: x0, Y: 0, W: x1 - x0, H: s.viewH},
+		SrcX:     int64(skip) * int64(s.srcW) << fracBits / int64(w),
+		SrcXStep: int64(s.srcW) << fracBits / int64(w),
 		SrcY:     s.srcY,
 	})
 }
