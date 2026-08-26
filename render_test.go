@@ -230,3 +230,57 @@ func TestNewViewRefusesAPlanItCannotCopyFrom(t *testing.T) {
 		t.Error("a one-pixel side-by-side framebuffer was accepted")
 	}
 }
+
+// TestAClickLandsWhereItsPixelCameFrom.
+//
+// canvasAt is the inverse of draw, read from the same two tables. If they ever
+// disagree, a click in the gallery selects a tile the viewer was not pointing
+// at — and by a margin that grows toward the edges, so it would work in the
+// middle and fail where it matters.
+func TestAClickLandsWhereItsPixelCameFrom(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		d        glasses.Display
+		fbW, fbH int
+	}{
+		{"one eye, exactly the plan's size", glasses.Display{Name: "VITURE Beast", Width: 1920, Height: 1200}, 1920, 1200},
+		{"one eye, a smaller framebuffer", glasses.Display{Name: "VITURE Beast", Width: 1920, Height: 1200}, 960, 600},
+		{"side by side", glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}, 3840, 1080},
+	} {
+		p, err := NewPlan(tc.d, Options{Screens: 6})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		v, err := newView(p, tc.fbW, tc.fbH)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		for _, e := range v.eyes {
+			for _, fx := range []int{e.x, e.x + e.w/2, e.x + e.w - 1} {
+				for _, fy := range []int{0, tc.fbH / 2, tc.fbH - 1} {
+					cx, cy, ok := v.canvasAt(fx, fy)
+					if !ok {
+						t.Errorf("%s: (%d,%d) is in no eye", tc.name, fx, fy)
+						continue
+					}
+					// The very same tables draw uses.
+					wantX, wantY := int(v.cols[fx-e.x]), int(v.rows[fy])
+					if cx != wantX || cy != wantY {
+						t.Errorf("%s: (%d,%d) -> (%d,%d), want (%d,%d)",
+							tc.name, fx, fy, cx, cy, wantX, wantY)
+					}
+					if cx < 0 || cx >= p.ScreenW || cy < 0 || cy >= p.ScreenH {
+						t.Errorf("%s: (%d,%d) -> (%d,%d), outside a %dx%d picture",
+							tc.name, fx, fy, cx, cy, p.ScreenW, p.ScreenH)
+					}
+				}
+			}
+		}
+		// Off the picture in either direction is in no eye.
+		for _, pt := range [][2]int{{-1, 0}, {0, -1}, {tc.fbW, 0}, {0, tc.fbH}} {
+			if _, _, ok := v.canvasAt(pt[0], pt[1]); ok {
+				t.Errorf("%s: (%d,%d) was mapped into the picture", tc.name, pt[0], pt[1])
+			}
+		}
+	}
+}

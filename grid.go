@@ -200,3 +200,18 @@ func (g *Grid) Len() int { return g.n }
 
 // Shape is the grid's columns and rows, for a caller that wants to describe it.
 func (g *Grid) Shape() (cols, rows int) { return g.cols, g.rows }
+
+// At is the screen whose cell contains the point, in view coordinates.
+//
+// It is how a mouse chooses a screen. The gaps between cells and the margin
+// round the grid belong to nothing: a click there is a click on the background,
+// which is a click that should do nothing rather than the nearest thing.
+func (g *Grid) At(x, y int) (int, bool) {
+	for i := 0; i < g.n; i++ {
+		cx, cy, w, h, _ := g.Cell(i)
+		if x >= cx && x < cx+w && y >= cy && y < cy+h {
+			return i, true
+		}
+	}
+	return 0, false
+}

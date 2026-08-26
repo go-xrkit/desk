@@ -129,11 +129,18 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {
-		if ev.Kind != toolkit.EventKeyDown {
-			return
-		}
-		if a := KeyAction(ev.Code); a != ActionNone {
-			d.Do(a)
+		switch ev.Kind {
+		case toolkit.EventKeyDown:
+			if a := KeyAction(ev.Code); a != ActionNone {
+				d.Do(a)
+			}
+		case toolkit.EventClick:
+			// Through the same two tables the picture was drawn with, so a
+			// click cannot land somewhere the pixel under it did not come
+			// from.
+			if cx, cy, ok := v.canvasAt(ev.X, ev.Y); ok {
+				d.Click(cx, cy)
+			}
 		}
 	}
 

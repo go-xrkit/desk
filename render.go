@@ -161,3 +161,27 @@ func asBytes(w []uint32) []byte {
 func swapRB(p uint32) uint32 {
 	return p&0xff00ff00 | (p&0x00ff0000)>>16 | (p&0x000000ff)<<16
 }
+
+// canvasAt turns a point in the framebuffer into a point in the picture, or
+// reports that it is in neither eye.
+//
+// It is the inverse of what draw does, read from the same two tables, so a
+// click cannot land somewhere the pixel under it did not come from. In a
+// side-by-side mode the two eyes show the same picture, so a click in either
+// one means the same thing.
+func (v *view) canvasAt(x, y int) (int, int, bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if y < 0 || y >= len(v.rows) {
+		return 0, 0, false
+	}
+	for _, e := range v.eyes {
+		if x < e.x || x >= e.x+e.w {
+			continue
+		}
+		if i := x - e.x; i < len(v.cols) {
+			return int(v.cols[i]), int(v.rows[y]), true
+		}
+	}
+	return 0, 0, false
+}
