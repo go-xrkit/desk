@@ -2,10 +2,10 @@
 
 # go-xrkit/desk
 
-[![ci](https://github.com/go-xrkit/desk/actions/workflows/ci.yml/badge.svg)](https://github.com/go-xrkit/desk/actions/workflows/ci.yml)
+[![CI](https://github.com/go-xrkit/desk/actions/workflows/ci.yml/badge.svg)](https://github.com/go-xrkit/desk/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/go-xrkit/desk.svg)](https://pkg.go.dev/github.com/go-xrkit/desk)
-[![Coverage](https://img.shields.io/badge/coverage-100%25%20portable%20logic-1a7f37)](#tests)
-[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
+[![coverage](https://img.shields.io/badge/coverage-100%25%20portable%20logic-brightgreen)](https://github.com/go-xrkit/desk/actions/workflows/ci.yml)
+[![license](https://img.shields.io/badge/license-BSD--3--Clause-blue)](LICENSE)
 
 Several computer screens, floating on a 360° ribbon inside AR glasses, scrolled
 from the keyboard.
