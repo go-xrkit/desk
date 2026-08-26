@@ -47,6 +47,13 @@ func DefaultShortcuts() []Shortcut {
 		// direction the grid is in relative to the band.
 		{hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods | hotkey.Control}, ActionGalleryOpen},
 		{hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods | hotkey.Control}, ActionGalleryClose},
+		// And choosing, system-wide with the rest.
+		//
+		// Enter alone is a key in the window, which is no use to somebody who
+		// opened the gallery from another application: they could move the
+		// selection with the global arrows and then have nothing to confirm it
+		// with, because Enter would go wherever the keyboard was pointing.
+		{hotkey.Combo{Key: hotkey.KeyReturn, Mods: mods | hotkey.Control}, ActionChoose},
 	}
 }
 
