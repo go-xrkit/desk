@@ -16,8 +16,8 @@ github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43Enduj
 github.com/go-iconoir/iconoir v0.2.0/go.mod h1:BrOQ68YO5BMsF7y+/nht4shbgjVfh9CxBoQF35eNosw=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 h1:nU+MGeyJzidGvCtx+HLZgHKG9GpUUomkQvB5nXLRWoc=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734/go.mod h1:ObuOBKDEidGX0LqLKY/5nqj7JVN/hsCzHMAJd0TNc0k=
-github.com/go-macos/hotkey v0.1.0 h1:4PD9+XZNTw3AGvVgf66iKQy8PNEbykES4pz/z5SKPHQ=
-github.com/go-macos/hotkey v0.1.0/go.mod h1:f2hW8saXMK7f/JhWQThMLHwki+TJwliB2IuOalp0RbQ=
+github.com/go-macos/hotkey v0.2.0 h1:bLJ0WfCAKkugEiraCSGZ5NOYqnFsAbl+MyPJtt02EmI=
+github.com/go-macos/hotkey v0.2.0/go.mod h1:f2hW8saXMK7f/JhWQThMLHwki+TJwliB2IuOalp0RbQ=
 github.com/go-macos/iokit v0.1.0 h1:noPIXSMxCqC+sBT07i7arGkqYwzFBYSwocnbfFxGY5c=
 github.com/go-macos/iokit v0.1.0/go.mod h1:UjYu90FvAQ/cLIyt+GXTdlebs0ig9pPIqram+36oKYA=
 github.com/go-macos/objc v0.3.0 h1:/fMCYYDxkYE2wUoM0xSZj7nms0p2di+JArxSFA5WjPs=
@@ -48,8 +48,8 @@ github.com/go-widgets/painter v0.11.0 h1:xsj4zTz8B43rOZnWrx7ZsaUBMgJyvgaE/Pq2Ffc
 github.com/go-widgets/painter v0.11.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.201.0 h1:hkf4BB8wYxKg7OlEwUjB0aMca2hphki3tTfBeGvwr9g=
 github.com/go-widgets/toolkit v0.201.0/go.mod h1:pNroe6a4TiuFC//n6kbsikgs/actqsvqN88vUxjwESg=
-github.com/go-widgets/window v0.51.0 h1:OfItN0JUtACUC3jYL3ikgt1C5nmqw4zqROP3RbGmSCM=
-github.com/go-widgets/window v0.51.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
+github.com/go-widgets/window v0.52.0 h1:ipEYvfOI3E6dtxs/xRKmg9ZzrGFbQ5T6c/St1BpzkuY=
+github.com/go-widgets/window v0.52.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
 github.com/go-xrkit/xrkit v0.4.0 h1:17os5aWs/7AeieuI47wmBVgUsbb75xW/7wCpqQMCakg=

@@ -4,15 +4,16 @@ go 1.26.4
 
 require (
 	github.com/go-freedesktop/screencast v0.1.0
-	github.com/go-macos/hotkey v0.1.0
+	github.com/go-macos/hotkey v0.2.0
 	github.com/go-macos/iokit v0.1.0
 	github.com/go-macos/screencapture v0.1.0
 	github.com/go-macos/virtualdisplay v0.1.0
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-widgets/toolkit v0.201.0
-	github.com/go-widgets/window v0.51.0
+	github.com/go-widgets/window v0.52.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/xrkit v0.4.0
+	github.com/hashicorp/hcl/v2 v2.24.0
 )
 
 require (
@@ -34,7 +35,6 @@ require (
 	github.com/go-widgets/painter v0.11.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/hashicorp/hcl/v2 v2.24.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0 // indirect

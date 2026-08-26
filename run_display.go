@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-macos/hotkey"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
 	"github.com/go-xrkit/xrkit/glasses"
@@ -29,6 +30,13 @@ type RunOptions struct {
 	For time.Duration
 	// Logf receives progress. A nil Logf says nothing.
 	Logf func(string, ...any)
+
+	// Shortcuts are the system-wide combinations to claim. Nil asks for
+	// [DefaultShortcuts].
+	Shortcuts []Shortcut
+	// Hotkeys is how to claim them — chiefly the fallback ladder. Nil asks for
+	// [DefaultLadder].
+	Hotkeys *hotkey.Options
 
 	// NoGlobal leaves the system-wide shortcuts unclaimed.
 	//
@@ -86,7 +94,12 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		RenderScale: window.NativeScale,
 		Screen:      screen,
 		Fullscreen:  true,
-		Theme:       toolkit.DefaultDark(),
+		// Above the menu bar and the Dock rather than under them. A full-screen
+		// window covers the DESKTOP and nothing more; on a display that carries
+		// the furniture it appears on top of the picture, which on glasses
+		// showing a captured desktop reads as two menu bars.
+		Immersive: true,
+		Theme:     toolkit.DefaultDark(),
 	})
 	if err != nil {
 		return fmt.Errorf("desk: cannot open a window on %s: %w", opt.Screen, err)
@@ -128,8 +141,11 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// keyboard, which is the difference between a desk you use and a desk you
 	// have to click on first.
 	var global <-chan Action
+	if opt.Shortcuts == nil {
+		opt.Shortcuts = DefaultShortcuts()
+	}
 	if !opt.NoGlobal {
-		hk := ClaimGlobal(DefaultShortcuts(), nil)
+		hk := ClaimGlobal(opt.Shortcuts, opt.Hotkeys)
 		defer hk.Close()
 		global = hk.C()
 		for _, line := range strings.Split(strings.TrimRight(hk.Describe(), "\n"), "\n") {
