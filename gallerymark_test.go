@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/go-macos/hotkey"
@@ -254,5 +255,271 @@ func TestOnTheBandAClickIsNotOurs(t *testing.T) {
 	}
 	if d.Nav().Mode() != ribbon.ModeRibbon {
 		t.Errorf("a click on the band changed the mode to %v", d.Nav().Mode())
+	}
+}
+
+// TestTheGalleryOffersOneMoreScreen.
+//
+// A gallery is where somebody looks at the desk they have, so it is where they
+// will want another one. The alternative is a settings file, which is not where
+// anybody is when they run out of room.
+func TestTheGalleryOffersOneMoreScreen(t *testing.T) {
+	d, _ := galleryOf(t, 6)
+	defer d.Close()
+
+	if got, want := d.grid.Cells(), 7; got != want {
+		t.Errorf("six screens give %d cells, want %d", got, want)
+	}
+	if got := d.grid.Screens(); got != 6 {
+		t.Errorf("the grid says %d screens", got)
+	}
+	a, ok := d.grid.Adder()
+	if !ok || a != 6 {
+		t.Fatalf("Adder() = %d, %v; want the last cell", a, ok)
+	}
+	// Len is what a navigator asks, and it must be the SCREENS: a gallery of
+	// seven cells on a band of six would be refused as another ribbon's.
+	if got := d.grid.Len(); got != 6 {
+		t.Errorf("Len() = %d, want the six screens", got)
+	}
+
+	// Enter on it grows the desk, through the callback the platform fills in.
+	asked := 0
+	d.OnAdd = func() (Feed, error) {
+		asked++
+		return newFakeFeed(d.Plan().ScreenW, d.Plan().ScreenH, 99), nil
+	}
+	if err := d.grid.Select(a); err != nil {
+		t.Fatal(err)
+	}
+	d.Do(ActionChoose)
+	if asked != 1 {
+		t.Fatalf("choosing the adder asked for %d screens", asked)
+	}
+	if got := d.Plan().Count(); got != 7 {
+		t.Errorf("the desk has %d screens, want 7", got)
+	}
+	if err := d.Err(); err != nil {
+		t.Errorf("growing: %v", err)
+	}
+	// And the new one is drawable: the band and the gallery were rebuilt for it.
+	d.Do(ActionGalleryOpen)
+	if got := d.grid.Cells(); got != 8 {
+		t.Errorf("after growing, the gallery has %d cells", got)
+	}
+	if c := d.Render(); c == nil {
+		t.Error("the desk stopped drawing")
+	}
+}
+
+// TestGrowingKeepsTheScreenTheViewerIsFacing.
+//
+// Adding a seventh screen must not move the band: somebody who added one to put
+// something on it would otherwise find themselves somewhere else.
+func TestGrowingKeepsTheScreenTheViewerIsFacing(t *testing.T) {
+	p, err := NewPlan(beast(), Options{Screens: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	d.Do(ActionNext)
+	d.Do(ActionNext)
+	d.Advance(10)
+	was := d.Nav().Focus()
+
+	pos, err := d.Grow(newFakeFeed(p.ScreenW, p.ScreenH, 42))
+	if err != nil {
+		t.Fatalf("Grow = %v", err)
+	}
+	if pos != 6 {
+		t.Errorf("the new screen is at %d, want the end", pos)
+	}
+	if got := d.Nav().Focus(); got != was {
+		t.Errorf("growing moved the viewer from screen %d to %d", was, got)
+	}
+	// Every screen is still exactly one view wide, the new one included.
+	for i := 0; i < 7; i++ {
+		if got := d.strip.width[i]; got != p.ScreenW {
+			t.Errorf("screen %d is %d wide, want %d", i, got, p.ScreenW)
+		}
+	}
+}
+
+// TestAddingWhatCannotBeAddedLeavesTheDeskAlone.
+func TestAddingWhatCannotBeAddedLeavesTheDeskAlone(t *testing.T) {
+	d, _ := galleryOf(t, 6)
+	defer d.Close()
+	a, _ := d.grid.Adder()
+	if err := d.grid.Select(a); err != nil {
+		t.Fatal(err)
+	}
+
+	// A platform that cannot.
+	d.OnAdd = func() (Feed, error) { return nil, errors.New("no more displays") }
+	d.Do(ActionChoose)
+	if d.Plan().Count() != 6 {
+		t.Errorf("the desk grew to %d anyway", d.Plan().Count())
+	}
+	if err := d.Err(); err == nil {
+		t.Error("a refusal was not reported")
+	}
+
+	// And no callback at all: pressing it does nothing rather than crashing.
+	d.OnAdd = nil
+	d.Do(ActionChoose)
+	if d.Plan().Count() != 6 {
+		t.Errorf("the desk grew to %d with no way to add one", d.Plan().Count())
+	}
+}
+
+// TestClickingThePlusAddsAScreen.
+func TestClickingThePlusAddsAScreen(t *testing.T) {
+	d, _ := galleryOf(t, 3)
+	defer d.Close()
+	d.OnAdd = func() (Feed, error) {
+		return newFakeFeed(d.Plan().ScreenW, d.Plan().ScreenH, 7), nil
+	}
+	a, ok := d.grid.Adder()
+	if !ok {
+		t.Fatal("no adder")
+	}
+	x, y, w, h, _ := d.grid.Cell(a)
+	if !d.Click(x+w/2, y+h/2) {
+		t.Fatalf("clicking the plus added nothing: %v", d.Err())
+	}
+	if got := d.Plan().Count(); got != 4 {
+		t.Errorf("the desk has %d screens, want 4", got)
+	}
+}
+
+// TestTheClampsAndTheEdges covers what is left: the smallest a magnified glyph
+// is allowed to get, a grid built without an adder, a plan asked for fewer than
+// one screen, and the paths a refusal takes.
+func TestTheClampsAndTheEdges(t *testing.T) {
+	// A picture too small for the number to be magnified at all still gets one.
+	if got := badgeScale(1); got != 1 {
+		t.Errorf("badgeScale(1) = %d, want 1", got)
+	}
+	if got := plusScale(1); got != 1 {
+		t.Errorf("plusScale(1) = %d, want 1", got)
+	}
+
+	// A plan cannot have fewer than one screen.
+	p, err := NewPlan(beast(), Options{Screens: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []int{0, -5} {
+		if got := p.WithScreens(n).Count(); got != 1 {
+			t.Errorf("WithScreens(%d) gave %d screens", n, got)
+		}
+	}
+
+	// A grid built through NewGridCols has no adder: every cell is a screen.
+	g, err := NewGridCols(4, 1920, 1200, 1920, 1200, DefaultGapPx, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := g.Screens(); got != 4 {
+		t.Errorf("Screens() = %d, want all four cells", got)
+	}
+	if _, ok := g.Adder(); ok {
+		t.Error("a grid built without an adder has one")
+	}
+	if g.IsAdder(3) {
+		t.Error("the last cell of an adder-less grid is an adder")
+	}
+	// And the marks draw for it without one, saying which screen is chosen.
+	m := newMarks(nil)
+	c := NewCanvas(1920, 1200)
+	m.draw(c, g, 1)
+	if want := "screen 2 of 4  (Enter to go there)"; m.says.Text != want {
+		t.Errorf("it says %q, want %q", m.says.Text, want)
+	}
+	// A selection that is no cell at all says nothing rather than something
+	// wrong.
+	m.says.Text = ""
+	m.draw(c, g, 99)
+	if m.says.Text != "" {
+		t.Errorf("a selection outside the grid said %q", m.says.Text)
+	}
+
+	// Neither constructor takes no screens at all. NewGrid guards before it
+	// adds the adder cell, and NewGridCols guards for a caller that reaches it
+	// directly.
+	if _, err := NewGrid(0, 1920, 1200, 1920, 1200, 0); !errors.Is(err, ErrNoScreens) {
+		t.Errorf("NewGrid(0) = %v, want an ErrNoScreens", err)
+	}
+	if _, err := NewGridCols(0, 1920, 1200, 1920, 1200, 0, 1); !errors.Is(err, ErrNoScreens) {
+		t.Errorf("NewGridCols(0) = %v, want an ErrNoScreens", err)
+	}
+
+	// And with the adder chosen, the words say what Enter would make rather
+	// than where it would go.
+	with, err := NewGrid(4, 1920, 1200, 1920, 1200, DefaultGapPx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, ok := with.Adder()
+	if !ok {
+		t.Fatal("a grid from NewGrid has no adder")
+	}
+	m.draw(c, with, a)
+	if want := "add a screen  (Enter)"; m.says.Text != want {
+		t.Errorf("with the adder chosen it says %q, want %q", m.says.Text, want)
+	}
+}
+
+// TestADeskThatCannotGrowSaysSo, and closes the feed it was handed: it was
+// opened for a screen that does not exist now.
+func TestADeskThatCannotGrowSaysSo(t *testing.T) {
+	// Screens so small that a gallery holds exactly three of them and no more —
+	// measured, not guessed: at ninety pixels a side, build succeeds at three
+	// and refuses at four.
+	p := testPlan(t)
+	p.ScreenW, p.ScreenH = 90, 90
+	p = p.WithScreens(3)
+	d, err := New(p, make([]Feed, 3))
+	if err != nil {
+		t.Fatalf("a desk of three 90-pixel screens will not build: %v", err)
+	}
+	defer d.Close()
+
+	f := newFakeFeed(90, 90, 1)
+	if _, err := d.Grow(f); err == nil {
+		t.Fatal("a desk that cannot fold another screen into its gallery grew")
+	}
+	if d.Plan().Count() != 3 {
+		t.Errorf("it grew to %d anyway", d.Plan().Count())
+	}
+
+	// Through the callback, the feed is closed on the way out.
+	d.OnAdd = func() (Feed, error) { return f, nil }
+	d.grow(d.OnAdd)
+	if f.closes == 0 {
+		t.Error("the feed opened for a screen that was never added was left open")
+	}
+	if d.Err() == nil {
+		t.Error("the refusal was not kept")
+	}
+}
+
+// TestClickingThePlusWithNoWayToAddIt.
+func TestClickingThePlusWithNoWayToAddIt(t *testing.T) {
+	d, _ := galleryOf(t, 3)
+	defer d.Close()
+	d.OnAdd = nil
+	a, _ := d.grid.Adder()
+	x, y, w, h, _ := d.grid.Cell(a)
+	if d.Click(x+w/2, y+h/2) {
+		t.Error("clicking the plus with no way to add one reported success")
+	}
+	if d.Plan().Count() != 3 {
+		t.Errorf("the desk grew to %d", d.Plan().Count())
 	}
 }

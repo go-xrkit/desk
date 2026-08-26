@@ -5,8 +5,8 @@
 package desk
 
 import (
-	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/go-widgets/painter"
@@ -65,7 +65,11 @@ func (b *badge) show(screen, of int) {
 		return
 	}
 	b.shownAt = screen
-	b.toast.Text = fmt.Sprintf("screen %d of %d", screen+1, of)
+	// The number and nothing else. It is drawn large enough that "screen 3 of 6"
+	// would be a banner across the whole view, and a person turning the band
+	// already knows what they are counting.
+	b.toast.Text = strconv.Itoa(screen + 1)
+	_ = of
 	b.toast.Visible = true
 	b.toast.Life = b.frames
 }
@@ -81,14 +85,56 @@ func (b *badge) tick() {
 // up reports whether the badge is currently showing.
 func (b *badge) up() bool { return b != nil && b.toast.Visible }
 
-// draw puts the badge on the picture, low and centred: at the top it would sit
-// under whatever the captured desktop has there, which is its own menu bar.
+// draw puts the number on the picture, BIG and in the middle.
+//
+// It was small and at the bottom, and it was reported as wanting to be a large
+// ephemeral overlay of the screen you are on — which is right: this is not a
+// label to be read, it is an answer to be caught out of the corner of an eye
+// while the band is still moving. So it is one glyph, in the middle of the
+// view, at a size that cannot be missed, and gone in a second and a half.
+//
+// The size comes from the toolkit's own font, scaled: SetFont with a bitmap
+// font at a large integer scale, and the Toast then sizes its own pill to it.
+// Nothing here rasterises a glyph — the type is the same type as everywhere
+// else, just bigger.
 func (b *badge) draw(c *Canvas) {
 	if !b.up() || c == nil || c.W <= 0 || c.H <= 0 {
 		return
 	}
-	b.toast.AnchorIn(toolkit.Rect{X: 0, Y: 0, W: c.W, H: c.H}, toolkit.BottomCenter, 0)
+	// Restored afterwards, and by a defer: everything else drawn into this
+	// picture — the gallery's numbers, its words — expects the font it asked
+	// for, and a font left behind would be a five-times-too-large label in the
+	// next thing that drew.
+	was := toolkit.CurrentFont()
+	toolkit.SetFont(toolkit.NewBitmapFont(badgeScale(c.H)))
+	defer toolkit.SetFont(was)
+
+	// AnchorIn is what SIZES the pill to its text, and it only docks to an edge
+	// — there is no centre corner. So it is anchored to get the size, and then
+	// moved into the middle.
+	view := toolkit.Rect{X: 0, Y: 0, W: c.W, H: c.H}
+	b.toast.AnchorIn(view, toolkit.TopCenter, 0)
+	r := b.toast.Bounds()
+	b.toast.SetBounds(toolkit.Rect{
+		X: (c.W - r.W) / 2,
+		Y: (c.H - r.H) / 2,
+		W: r.W, H: r.H,
+	})
 	b.toast.Draw(painter.NewPixelPainter(c.Pix, c.W, c.H), b.theme)
+}
+
+// badgeScale is how many times the built-in font is magnified for the number.
+//
+// From the height of the picture rather than a constant, so it is the same size
+// to look at on a 1080-row panel and on a 1600-row one. A twelfth of the view
+// is about a hand's width at the distance these glasses put a screen.
+func badgeScale(h int) int {
+	const glyph = 7 // the built-in bitmap is 7 rows tall at scale 1
+	s := h / 12 / glyph
+	if s < 1 {
+		s = 1
+	}
+	return s
 }
 
 // badgeFrames is what a duration comes to at the loop's frame rate, exported

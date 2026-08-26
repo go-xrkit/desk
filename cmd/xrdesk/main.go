@@ -186,6 +186,26 @@ func run() int {
 				logf("screen %d: %s", i+1, o.Name)
 			}
 		}
+		// The gallery's "add a screen" cell. Making a display is the platform's
+		// business, so the desk asks rather than doing it.
+		d.OnAdd = func() (desk.Feed, error) {
+			id, err := screens.Add(plan.ScreenW, plan.ScreenH)
+			if err != nil {
+				return nil, err
+			}
+			f, err := desk.OpenOffer(ctx, plan, desk.Offer{
+				ID:   desk.DisplayOfferID(id),
+				Name: fmt.Sprintf("XR screen %d", len(screens.IDs)),
+				Kind: desk.KindDisplay,
+				W:    plan.ScreenW, H: plan.ScreenH,
+			})
+			if err != nil {
+				return nil, err
+			}
+			fmt.Printf("added screen %d\n", len(screens.IDs))
+			return f, nil
+		}
+
 		d.OnCycle = func(pos int) {
 			o, ok := inv.Cycle(pos)
 			if !ok {
