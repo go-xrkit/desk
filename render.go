@@ -8,14 +8,12 @@ import (
 	"fmt"
 	"sync"
 	"unsafe"
-
-	"github.com/go-xrkit/xrkit/pose"
-	"github.com/go-xrkit/xrkit/projection"
-	"github.com/go-xrkit/xrkit/stereo"
-	"github.com/go-xrkit/xrkit/warp"
 )
 
-// view turns the panorama into the two pictures the glasses show.
+// eye is one eye's rectangle in the output.
+type eye struct{ x, w int }
+
+// view turns the picture into what the glasses show.
 //
 // There is nothing platform-specific here, and that is the point: the window,
 // the toolkit and the warp are all portable, so one render path serves macOS,
@@ -24,12 +22,16 @@ import (
 type view struct {
 	mu sync.Mutex
 
-	// eyeMaps is one lookup table per eye. For a MONO panorama the two are
-	// identical, so only one is built and both eyes share it — a build costs
-	// 56 ms and there are 16.6 in a frame.
-	eyeMaps []*warp.Map
-	// eyeOff is where each eye's picture starts in the output, in pixels.
-	eyeOff []int
+	// eyes is where each eye's picture starts in the output, in pixels, and how
+	// wide it is. Both eyes are given the SAME picture: captured screens are
+	// flat pictures with no depth of their own, so showing each eye a different
+	// one would invent a parallax that is not in the source.
+	eyes []eye
+	// cols maps an output column of one eye to a column of the picture, and
+	// rows an output row to a row. They are built once, because the band slides
+	// inside the picture rather than the picture moving inside the view.
+	cols []int32
+	rows []int32
 
 	out   []uint32
 	bytes []byte
@@ -46,15 +48,25 @@ type view struct {
 	Coverage float64
 }
 
-// newView prepares the warp for a framebuffer of the given size.
+// newView prepares the output for a framebuffer of the given size.
 //
-// The panorama is the same for both eyes. Captured screens are flat pictures
-// with no depth of their own, so showing each eye a different one would invent
-// a parallax that is not in the source — the screens are placed at infinity,
-// which is what a viewer's eyes expect of something that far away.
+// There is no projection here any more, and that is the change the glasses
+// asked for. When the screens are flat, the picture the compositor produced IS
+// what the viewer should see: a screen at rest is exactly the view, at one
+// source pixel per output pixel, with nothing to unbend. What is left is
+// putting that picture in front of each eye — a copy, and a scale only when
+// the framebuffer is not the size the plan asked for.
+//
+// Both eyes are shown the SAME picture. Captured screens are flat pictures with
+// no depth of their own, so giving each eye a different one would invent a
+// parallax that is not in the source.
 func newView(plan Plan, fbW, fbH int) (*view, error) {
 	if fbW <= 0 || fbH <= 0 {
 		return nil, fmt.Errorf("desk: the window reported a %dx%d framebuffer", fbW, fbH)
+	}
+	if plan.ScreenW <= 0 || plan.ScreenH <= 0 {
+		return nil, fmt.Errorf("desk: the plan has screens of %dx%d",
+			plan.ScreenW, plan.ScreenH)
 	}
 	v := &view{w: fbW, h: fbH, out: make([]uint32, fbW*fbH)}
 
@@ -62,44 +74,54 @@ func newView(plan Plan, fbW, fbH int) (*view, error) {
 	if plan.Stereoscopic {
 		eyeW = fbW / 2
 	}
-
-	vp := projection.Viewport{Width: eyeW, Height: eyeH, FOVyDeg: plan.VFOVDeg}
-	m := warp.Build(vp, plan.Pano.Window, pose.Identity(), warp.Source{
-		Width:  plan.Pano.W,
-		Height: plan.Pano.H,
-		Stride: plan.Pano.W,
-		Eye:    stereo.Rect{X: 0, Y: 0, W: plan.Pano.W, H: plan.Pano.H},
-	})
-
-	v.eyeMaps = []*warp.Map{m}
-	v.eyeOff = []int{0}
+	if eyeW <= 0 {
+		return nil, fmt.Errorf("desk: a %d-pixel framebuffer leaves no room for two eyes", fbW)
+	}
+	v.eyes = []eye{{x: 0, w: eyeW}}
 	if plan.Stereoscopic {
-		// The same table twice: the source rectangle is the whole panorama for
-		// both eyes, so a second Build would produce the same numbers at the
-		// same price.
-		v.eyeMaps = append(v.eyeMaps, m)
-		v.eyeOff = append(v.eyeOff, eyeW)
+		v.eyes = append(v.eyes, eye{x: eyeW, w: fbW - eyeW})
 	}
-	if n := eyeW * eyeH * len(v.eyeMaps); n > 0 {
-		v.Coverage = float64(m.Covered()*len(v.eyeMaps)) / float64(n)
+
+	v.cols = make([]int32, eyeW)
+	for x := range v.cols {
+		v.cols[x] = int32(int64(x) * int64(plan.ScreenW) / int64(eyeW))
 	}
+	v.rows = make([]int32, eyeH)
+	for y := range v.rows {
+		v.rows[y] = int32(int64(y) * int64(plan.ScreenH) / int64(eyeH))
+	}
+	// Every output pixel is covered, always: the picture is the view. The
+	// number is kept because a run that reports anything else has a plan and a
+	// framebuffer that disagree, which is invisible in a still picture.
+	v.Coverage = 1
 	return v, nil
 }
 
 // background is what an output pixel gets when the panorama does not reach it.
 const background = 0xff000000
 
-// draw warps the panorama into the output picture, one eye at a time.
+// draw copies the picture in front of each eye.
 //
-// The panorama is BGRA, because that is what every capture on every platform
-// hands over, and the toolkit wants RGBA — so the swap happens inside the
-// gather, where it is free, rather than as a pass of its own.
+// The picture is BGRA, because that is what every capture on every platform
+// hands over, and the toolkit wants RGBA — so the swap happens inside the copy,
+// where it is free, rather than as a pass of its own.
 func (v *view) draw(c *Canvas) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	src := asWords(c.Pix)
-	for i, m := range v.eyeMaps {
-		m.ApplySwapRB(src, v.out, v.w, v.eyeOff[i], background)
+	for _, e := range v.eyes {
+		for y, sy := range v.rows {
+			row := int(sy) * c.W
+			out := y*v.w + e.x
+			for x := 0; x < e.w; x++ {
+				sx := int(v.cols[x])
+				p := uint32(background)
+				if i := row + sx; sx < c.W && i < len(src) {
+					p = swapRB(src[i])
+				}
+				v.out[out+x] = p
+			}
+		}
 	}
 	if v.Snapshot != nil {
 		snap := v.Snapshot
@@ -133,4 +155,9 @@ func asBytes(w []uint32) []byte {
 		return nil
 	}
 	return unsafe.Slice((*byte)(unsafe.Pointer(&w[0])), len(w)*4)
+}
+
+// swapRB turns one BGRA pixel into RGBA, leaving alpha where it is.
+func swapRB(p uint32) uint32 {
+	return p&0xff00ff00 | (p&0x00ff0000)>>16 | (p&0x000000ff)<<16
 }

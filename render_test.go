@@ -34,20 +34,20 @@ func TestNewViewRefusesAFramebufferThatIsNotOne(t *testing.T) {
 // look at the same panorama; a second lookup table would hold the same numbers
 // and cost another 56 ms to build. The two eyes must therefore differ ONLY in
 // where they write.
-func TestBothEyesShareOneTable(t *testing.T) {
+func TestBothEyesGetTheSamePicture(t *testing.T) {
 	p := stereoPlan(t)
 	v, err := newView(p, 3840, 1080)
 	if err != nil {
 		t.Fatalf("newView = %v", err)
 	}
-	if len(v.eyeMaps) != 2 {
-		t.Fatalf("a side-by-side mode got %d eyes, want 2", len(v.eyeMaps))
+	if len(v.eyes) != 2 {
+		t.Fatalf("a side-by-side mode got %d eyes, want 2", len(v.eyes))
 	}
-	if v.eyeMaps[0] != v.eyeMaps[1] {
-		t.Error("the two eyes have different tables; one was built twice for the same numbers")
+	if v.eyes[0].x != 0 || v.eyes[1].x != 1920 {
+		t.Errorf("eyes at %v, want the second half a framebuffer along", v.eyes)
 	}
-	if v.eyeOff[0] != 0 || v.eyeOff[1] != 1920 {
-		t.Errorf("eye offsets %v, want the second eye half a framebuffer along", v.eyeOff)
+	if v.eyes[0].w != 1920 || v.eyes[1].w != 1920 {
+		t.Errorf("eyes are %v wide, want half a framebuffer each", v.eyes)
 	}
 	if v.Coverage <= 0 || v.Coverage > 1 {
 		t.Errorf("Coverage = %g, which is not a fraction", v.Coverage)
@@ -62,8 +62,8 @@ func TestBothEyesShareOneTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newView = %v", err)
 	}
-	if len(v.eyeMaps) != 1 || v.eyeOff[0] != 0 {
-		t.Errorf("a mono panel got %d eyes at %v", len(v.eyeMaps), v.eyeOff)
+	if len(v.eyes) != 1 || v.eyes[0].x != 0 || v.eyes[0].w != 1920 {
+		t.Errorf("a mono panel got %d eyes: %v", len(v.eyes), v.eyes)
 	}
 }
 
@@ -208,4 +208,25 @@ func TestDrawWithoutASnapshotIsFine(t *testing.T) {
 		t.Fatalf("newView = %v", err)
 	}
 	v.draw(NewCanvas(p.Pano))
+}
+
+// TestNewViewRefusesAPlanItCannotCopyFrom. The picture is the plan's screen, so
+// a plan with no screen has no picture to put in front of an eye.
+func TestNewViewRefusesAPlanItCannotCopyFrom(t *testing.T) {
+	p := stereoPlan(t)
+	for name, spoil := range map[string]func(*Plan){
+		"screens with no columns": func(p *Plan) { p.ScreenW = 0 },
+		"screens with no rows":    func(p *Plan) { p.ScreenH = 0 },
+	} {
+		q := p
+		spoil(&q)
+		if _, err := newView(q, 3840, 1080); err == nil {
+			t.Errorf("%s was accepted", name)
+		}
+	}
+	// A side-by-side mode in a framebuffer one pixel wide leaves nothing for
+	// the second eye — or the first.
+	if _, err := newView(p, 1, 1080); err == nil {
+		t.Error("a one-pixel side-by-side framebuffer was accepted")
+	}
 }
