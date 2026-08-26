@@ -38,6 +38,15 @@ func DefaultShortcuts() []Shortcut {
 		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods}, ActionPrev},
 		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods}, ActionNext},
 		{hotkey.Combo{Key: hotkey.KeySpace, Mods: mods}, ActionGallery},
+		// Open and leave, each on its own key.
+		//
+		// A system-wide shortcut is pressed BLIND: the viewer cannot see whether
+		// the gallery is open before deciding, so one key meaning "open" from
+		// outside and "close" from inside does the wrong thing every time they
+		// have lost track. Up goes in and down comes out, which is also the
+		// direction the grid is in relative to the band.
+		{hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods | hotkey.Control}, ActionGalleryOpen},
+		{hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods | hotkey.Control}, ActionGalleryClose},
 	}
 }
 
