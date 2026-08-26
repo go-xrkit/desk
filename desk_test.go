@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-macos/hotkey"
 	"github.com/go-xrkit/xrkit/glasses"
 	"github.com/go-xrkit/xrkit/ribbon"
 )
@@ -361,6 +362,7 @@ func TestActionString(t *testing.T) {
 		ActionNone: "none", ActionNext: "next", ActionPrev: "previous",
 		ActionFullscreen: "fullscreen", ActionCycle: "cycle", ActionQuit: "quit",
 		ActionGallery: "gallery", ActionChoose: "choose",
+		ActionGalleryOpen: "open the gallery", ActionGalleryClose: "leave the gallery",
 		ActionUp: "up", ActionDown: "down", Action(99): "none",
 	} {
 		if got := a.String(); got != want {
@@ -728,6 +730,69 @@ func TestNewRefusesAPlanItCannotDraw(t *testing.T) {
 		spoil(&p)
 		if _, err := New(p, feedsFor(p)); err == nil {
 			t.Errorf("%s was accepted", name)
+		}
+	}
+}
+
+// TestOpenAndLeaveTheGalleryAreSeparateKeys.
+//
+// A system-wide shortcut is pressed BLIND: the viewer cannot see whether the
+// gallery is open before deciding, so one key meaning "open" from outside and
+// "close" from inside does the wrong thing every time they have lost track.
+func TestOpenAndLeaveTheGalleryAreSeparateKeys(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// Leaving a gallery you are not in does nothing at all.
+	d.Do(ActionGalleryClose)
+	if d.Nav().Mode() != ribbon.ModeRibbon {
+		t.Fatalf("leaving from the band put the mode at %v", d.Nav().Mode())
+	}
+	if err := d.Err(); err != nil {
+		t.Errorf("leaving from the band complained: %v", err)
+	}
+
+	// Up goes in, and pressing it again keeps it in rather than toggling out.
+	d.Do(ActionGalleryOpen)
+	if d.Nav().Mode() != ribbon.ModeGallery {
+		t.Fatalf("opening did not open: %v, %v", d.Nav().Mode(), d.Err())
+	}
+	d.Do(ActionGalleryOpen)
+	if d.Nav().Mode() != ribbon.ModeGallery {
+		t.Error("pressing open twice left the gallery")
+	}
+
+	// Down comes out, and again does nothing.
+	d.Do(ActionGalleryClose)
+	if d.Nav().Mode() != ribbon.ModeRibbon {
+		t.Fatalf("leaving did not leave: %v", d.Nav().Mode())
+	}
+	d.Do(ActionGalleryClose)
+	if d.Nav().Mode() != ribbon.ModeRibbon {
+		t.Error("pressing leave twice went back in")
+	}
+}
+
+// TestTheGalleryKeysAreTheOnesThatWereAskedFor: control+option+command with the
+// up and down arrows, claimed system-wide.
+func TestTheGalleryKeysAreTheOnesThatWereAskedFor(t *testing.T) {
+	want := map[Action]hotkey.Combo{
+		ActionGalleryOpen: {Key: hotkey.KeyUpArrow,
+			Mods: hotkey.Control | hotkey.Option | hotkey.Command},
+		ActionGalleryClose: {Key: hotkey.KeyDownArrow,
+			Mods: hotkey.Control | hotkey.Option | hotkey.Command},
+	}
+	got := map[Action]hotkey.Combo{}
+	for _, s := range DefaultShortcuts() {
+		got[s.Does] = s.Want
+	}
+	for a, c := range want {
+		if got[a] != c {
+			t.Errorf("%v is %v, want %v", a, got[a], c)
 		}
 	}
 }

@@ -88,6 +88,10 @@ type ConfigRibbon struct {
 	// [DefaultScreens].
 	Screens *int `hcl:"screens"`
 
+	// BadgeSeconds is how long the screen's number stays up after the band
+	// moves. Nil means [DefaultBadgeSeconds]; zero turns it off.
+	BadgeSeconds *float64 `hcl:"badge_seconds"`
+
 	// Immersive covers the glasses display's own menu bar and Dock. Nil means
 	// true.
 	//
@@ -178,6 +182,9 @@ func (c Config) check() error {
 				return fmt.Errorf("%w: fallback: %w", ErrConfig, err)
 			}
 		}
+	}
+	if c.Ribbon != nil && c.Ribbon.BadgeSeconds != nil && *c.Ribbon.BadgeSeconds < 0 {
+		return fmt.Errorf("%w: badge_seconds = %g", ErrConfig, *c.Ribbon.BadgeSeconds)
 	}
 	if c.Ribbon != nil && c.Ribbon.Screens != nil && *c.Ribbon.Screens < 0 {
 		return fmt.Errorf("%w: ribbon screens = %d", ErrConfig, *c.Ribbon.Screens)
@@ -271,10 +278,12 @@ func actionNames() string {
 // here: quit and fullscreen are keys in the window, and claiming them
 // system-wide would take them from the application the viewer is using.
 var configActions = map[string]Action{
-	"previous": ActionPrev,
-	"next":     ActionNext,
-	"gallery":  ActionGallery,
-	"cycle":    ActionCycle,
+	"previous":      ActionPrev,
+	"next":          ActionNext,
+	"gallery":       ActionGallery,
+	"gallery-open":  ActionGalleryOpen,
+	"gallery-close": ActionGalleryClose,
+	"cycle":         ActionCycle,
 }
 
 func actionByName(name string) (Action, bool) {
@@ -309,4 +318,13 @@ func (c Config) Immersive() bool {
 		return true
 	}
 	return *c.Ribbon.Immersive
+}
+
+// BadgeSeconds is how long the screen's number stays up after the band moves.
+// A file that does not say asks for [DefaultBadgeSeconds]; zero turns it off.
+func (c Config) BadgeSeconds() float64 {
+	if c.Ribbon == nil || c.Ribbon.BadgeSeconds == nil {
+		return DefaultBadgeSeconds
+	}
+	return *c.Ribbon.BadgeSeconds
 }

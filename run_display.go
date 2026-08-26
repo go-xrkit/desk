@@ -38,6 +38,10 @@ type RunOptions struct {
 	// [DefaultLadder].
 	Hotkeys *hotkey.Options
 
+	// Badge is how long the screen's number stays up after the band moves, in
+	// seconds. Zero turns it off.
+	Badge float64
+
 	// Windowed leaves the glasses display's own menu bar and Dock on top of the
 	// picture instead of covering them. See [Config.Immersive].
 	Windowed bool
@@ -118,6 +122,10 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	}
 	logf("the panorama reaches %.1f%% of the view", 100*v.Coverage)
 	v.Snapshot = opt.Snapshot
+	d.Badge(opt.Badge, toolkit.DefaultDark())
+	if opt.Badge > 0 {
+		logf("the screen's number shows for %v when the band moves", BadgeDuration(opt.Badge))
+	}
 
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {
