@@ -55,3 +55,16 @@ func Sources(context.Context, *Screens) ([]Offer, error) { return nil, ErrNoPlat
 
 // OpenOffer starts capturing one source. Not on this platform.
 func OpenOffer(context.Context, Plan, Offer) (Feed, error) { return nil, ErrNoPlatform }
+
+// Add creates one more display and appends it.
+//
+// Nothing here can: creating a display is the one part of this that has no
+// portable answer, and only macOS is wired up. A person is told rather than
+// left pressing a key that does nothing.
+func (s *Screens) Add(w, h int) (uint64, error) {
+	return 0, fmt.Errorf("desk: adding a screen is not supported on this platform")
+}
+
+// DisplayOfferID is the [Offer] id for a display, for a caller that has just
+// created one and wants it opened.
+func DisplayOfferID(id uint64) string { return fmt.Sprintf("display-%d", id) }

@@ -96,3 +96,10 @@ glasses {
 #
 # It is a toolkit toast, low and centred — at the top it would sit under whatever
 # the captured desktop has there, which is its own menu bar. 0 turns it off.
+
+# There is no setting for the number of screens beyond `ribbon { screens }`
+# above, because the gallery has a cell for it: a square the size of a screen
+# with a plus in the middle. Enter on it, or click it, and another virtual
+# display is created and put at the end of the band. A gallery is where you look
+# at the desk you have, so it is where you will want another one — a settings
+# file is not where anybody is when they run out of room.

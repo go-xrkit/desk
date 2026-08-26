@@ -24,8 +24,11 @@ func TestTheBadgeSaysWhichScreenAndThenGoesAway(t *testing.T) {
 	if !b.up() {
 		t.Fatal("arriving at a screen said nothing")
 	}
-	if got, want := b.toast.Text, "screen 3 of 6"; got != want {
-		t.Errorf("the badge says %q, want %q — screens are counted from 1 for a person", got, want)
+	// The number and nothing else: it is drawn large enough that "screen 3 of 6"
+	// would be a banner across the whole view, and a person turning the band
+	// already knows what they are counting. Screens are still counted from 1.
+	if got, want := b.toast.Text, "3"; got != want {
+		t.Errorf("the badge says %q, want %q", got, want)
 	}
 
 	// It goes away on its own, and at about the time it was asked to.
@@ -94,8 +97,12 @@ func TestABadgeTurnedOffDrawsNothingAndTicksNothing(t *testing.T) {
 	}
 }
 
-// TestTheBadgeIsDrawnOnThePicture, and low: at the top it would sit under
-// whatever the captured desktop has there, which is its own menu bar.
+// TestTheBadgeIsDrawnOnThePicture, and in the MIDDLE of it.
+//
+// It was small and at the bottom, and it was asked for as a large ephemeral
+// overlay of the screen you are on — which is right: this is not a label to be
+// read, it is an answer to be caught out of the corner of an eye while the band
+// is still moving.
 func TestTheBadgeIsDrawnOnThePicture(t *testing.T) {
 	c := NewCanvas(400, 300)
 	before := append([]byte(nil), c.Pix...)
@@ -122,12 +129,18 @@ func TestTheBadgeIsDrawnOnThePicture(t *testing.T) {
 			highest = y
 		}
 	}
-	if lowest < c.H/2 {
-		t.Errorf("the badge reaches row %d of %d; it belongs in the lower half, "+
-			"clear of the captured desktop's own menu bar", lowest, c.H)
+	// Centred, and big: a number that covers a good part of the view is the
+	// point of it, and one hugging an edge would be the thing it replaced.
+	mid := (lowest + highest) / 2
+	if off := mid - c.H/2; off > c.H/10 || off < -c.H/10 {
+		t.Errorf("the badge is centred on row %d of %d", mid, c.H)
 	}
-	if highest >= c.H {
-		t.Errorf("the badge reaches row %d, past the picture", highest)
+	if highest >= c.H || lowest < 0 {
+		t.Errorf("the badge reaches rows %d..%d, outside the picture", lowest, highest)
+	}
+	if highest-lowest < c.H/20 {
+		t.Errorf("the badge is only %d rows tall in a picture %d tall",
+			highest-lowest, c.H)
 	}
 
 	// A canvas with no pixels is not a crash.

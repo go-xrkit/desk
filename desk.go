@@ -138,6 +138,15 @@ type Desk struct {
 	// Background is what the gaps between screens show.
 	Background [4]byte
 
+	// OnAdd, when set, is what the gallery's "add a screen" cell calls. It must
+	// return a feed for the new screen — which on macOS means creating another
+	// virtual display and capturing it.
+	//
+	// It is a callback and not something this package does, for the same reason
+	// the feeds are handed in rather than opened here: making a display is the
+	// platform's business and this file has no operating system in it.
+	OnAdd func() (Feed, error)
+
 	// OnCycle, when set, is called with the FOCUSED position when the viewer
 	// asks for the next source there. It is called without the desk's lock held,
 	// so a handler may call SetFeed — which is the whole point of it.
@@ -175,27 +184,9 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 		return nil, fmt.Errorf("%w: %d feeds for %d screens",
 			ErrNoScreens, len(feeds), plan.Count())
 	}
-	r, err := ribbon.Place(plan.Screens(), plan.Layout)
+	r, strip, grid, err := build(plan)
 	if err != nil {
-		return nil, fmt.Errorf("desk: placing screens: %w", err)
-	}
-	// The band, flat. One screen is one full view, so the view is a screen and
-	// a screen at rest fills it exactly.
-	placed := make([]ribbon.Placed, r.Len())
-	for i := range placed {
-		placed[i] = r.At(i)
-	}
-	strip, err := NewStrip(placed, plan.Count()*(plan.ScreenW+DefaultGapPx),
-		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
-	if err != nil {
-		return nil, fmt.Errorf("desk: laying out the band: %w", err)
-	}
-	// Every screen at once, folded into the same view. It is head-locked, so
-	// unlike the band it has no offset to follow and nothing to rebuild.
-	grid, err := NewGrid(plan.Count(), plan.ScreenW, plan.ScreenH,
-		plan.ScreenW, plan.ScreenH, DefaultGapPx)
-	if err != nil {
-		return nil, fmt.Errorf("desk: folding the gallery: %w", err)
+		return nil, err
 	}
 	return &Desk{
 		plan:       plan,
@@ -238,6 +229,7 @@ func (d *Desk) Quit() bool {
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle func(int)
+	var add func() (Feed, error)
 	pos := -1
 	d.mu.Lock()
 	// In the gallery the arrows move a selection in a grid; on the ribbon they
@@ -253,6 +245,10 @@ func (d *Desk) Do(a Action) {
 		case ActionDown:
 			d.err = d.grid.Move(ribbon.Down)
 		case ActionChoose:
+			if d.grid.IsAdder(d.grid.Selected()) {
+				add = d.OnAdd
+				break
+			}
 			d.err = d.nav.Choose()
 		case ActionGallery, ActionGalleryClose:
 			// Already open, so both of these leave it.
@@ -261,6 +257,12 @@ func (d *Desk) Do(a Action) {
 			d.quit = true
 		}
 		d.mu.Unlock()
+		if add != nil {
+			// Outside the lock: making a display and capturing it takes long
+			// enough that holding the desk shut for it would stall the frame
+			// loop, and Grow takes the lock itself.
+			d.grow(add)
+		}
 		return
 	}
 
@@ -450,18 +452,127 @@ func (d *Desk) FeedAt(i int) Feed {
 // application's to interpret — the desktop under the cursor will have its own
 // idea of what was clicked.
 func (d *Desk) Click(x, y int) bool {
+	var add func() (Feed, error)
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	if d.nav.Mode() != ribbon.ModeGallery {
+		d.mu.Unlock()
 		return false
 	}
 	i, ok := d.grid.At(x, y)
 	if !ok {
+		d.mu.Unlock()
 		return false
 	}
 	// At only ever returns a cell the grid has, so Select cannot refuse it and
 	// there is no branch here to leave untested.
 	_ = d.grid.Select(i)
+	if d.grid.IsAdder(i) {
+		add = d.OnAdd
+		d.mu.Unlock()
+		if add == nil {
+			return false
+		}
+		d.grow(add)
+		d.mu.Lock()
+		defer d.mu.Unlock()
+		return d.err == nil
+	}
 	d.err = d.nav.Choose()
+	defer d.mu.Unlock()
 	return d.err == nil
+}
+
+// Grow puts another screen on the band, at the end, and returns its position.
+//
+// Everything that was sized for the old count is rebuilt: the placement, the
+// band, the gallery. Rebuilt rather than grown, because the layout is DERIVED
+// from the count — the pitch between screens is a share of the whole turn — so
+// there is no version of this that adjusts one number and leaves the rest
+// standing.
+//
+// The viewer keeps the screen they were facing. Adding a seventh screen must
+// not move the band, or a person who added one to put something on it would
+// find themselves somewhere else.
+func (d *Desk) Grow(f Feed) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	was := d.nav.Focus()
+	plan := d.plan.WithScreens(d.plan.Count() + 1)
+	r, strip, grid, err := build(plan)
+	if err != nil {
+		return 0, err
+	}
+
+	// Nothing above this line has touched the desk, so a refusal leaves it
+	// exactly as it was rather than half grown.
+	d.plan = plan
+	d.strip, d.grid = strip, grid
+	d.nav = ribbon.NewNav(r)
+	d.feeds = append(d.feeds, f)
+	d.sources = append(d.sources, Source{})
+	d.blits = make([]ribbon.Blit, 0, plan.Count()+2)
+	_ = d.nav.GoTo(was)
+	d.nav.Advance(largeEnoughToArrive)
+	return plan.Count() - 1, nil
+}
+
+// largeEnoughToArrive is a step long enough that the navigator finishes any
+// turn in one go. Adding a screen should not start the band gliding.
+const largeEnoughToArrive = 1e6
+
+// grow asks the caller for a screen and puts it on the band.
+//
+// Whatever goes wrong is kept where a viewer can be shown it, rather than
+// logged: they pressed a key expecting a screen, and nothing appearing with no
+// explanation is the worst of the outcomes.
+func (d *Desk) grow(add func() (Feed, error)) {
+	f, err := add()
+	if err != nil {
+		d.mu.Lock()
+		d.err = fmt.Errorf("desk: cannot add a screen: %w", err)
+		d.mu.Unlock()
+		return
+	}
+	if _, err := d.Grow(f); err != nil {
+		if f != nil {
+			// The feed was opened for a screen that does not exist now.
+			_ = f.Close()
+		}
+		d.mu.Lock()
+		d.err = err
+		d.mu.Unlock()
+	}
+}
+
+// build lays a plan out: the placement, the flat band, and the gallery.
+//
+// One function, used by New and by Grow, because a desk that has grown must be
+// built exactly as one that started that size. Two copies of this would be two
+// chances for the band and the gallery to disagree about how many screens there
+// are, which is the kind of difference that shows up as a blank tile.
+func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, error) {
+	r, err := ribbon.Place(plan.Screens(), plan.Layout)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("desk: placing %d screens: %w", plan.Count(), err)
+	}
+	// The band, flat. One screen is one full view, so the view is a screen and
+	// a screen at rest fills it exactly.
+	placed := make([]ribbon.Placed, r.Len())
+	for i := range placed {
+		placed[i] = r.At(i)
+	}
+	strip, err := NewStrip(placed, plan.Count()*(plan.ScreenW+DefaultGapPx),
+		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("desk: laying out the band: %w", err)
+	}
+	// Every screen at once, folded into the same view. It is head-locked, so
+	// unlike the band it has no offset to follow and nothing to rebuild.
+	grid, err := NewGrid(plan.Count(), plan.ScreenW, plan.ScreenH,
+		plan.ScreenW, plan.ScreenH, DefaultGapPx)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("desk: folding the gallery: %w", err)
+	}
+	return r, strip, grid, nil
 }
