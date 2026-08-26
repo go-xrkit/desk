@@ -25,6 +25,7 @@ jobs:
           ./actionlint -color
 
   gofmt:
+    name: gofmt + tidy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +38,10 @@ jobs:
             echo "::error::these files are not gofmt-clean:"; echo "$unformatted"
             exit 1
           fi
+      - name: go.mod is tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
 
   darwin:
     name: darwin (the platform playback runs on)
