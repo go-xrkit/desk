@@ -22,12 +22,13 @@ import (
 // screen. A wrong field of view renders everything, in the wrong place, with no
 // symptom — which is the whole reason the catalogue refuses to guess.
 //
-// So evidence is applied only where something actually ties it to this display:
-// the display names a headset and one on the bus is that same model, or the
-// person named the display and the bus holds exactly one headset. With two
-// headsets attached and nothing to tell them apart, the answer is no evidence
-// rather than a coin toss.
-func EvidenceFor(d glasses.Display, named bool, us []glasses.USB) *glasses.USB {
+// So evidence is applied only where the DISPLAY ties it to itself: it names a
+// headset, and one on the bus is that model — or names a brand, and one on the
+// bus is of that brand. Anything else gets nothing, including a display the
+// person named by hand: with two headsets attached and nothing to tell them
+// apart, the answer is no evidence rather than a coin toss, and with one it is
+// still a guess at a name that would be printed as fact.
+func EvidenceFor(d glasses.Display, _ bool, us []glasses.USB) *glasses.USB {
 	if len(us) == 0 {
 		return nil
 	}
@@ -59,8 +60,14 @@ func EvidenceFor(d glasses.Display, named bool, us []glasses.USB) *glasses.USB {
 		}
 		return nil
 	}
-	if named && len(us) == 1 {
-		return &us[0]
-	}
+	// A display whose own name says nothing gets nothing, even when the person
+	// named it and there is exactly one headset on the bus.
+	//
+	// That shortcut used to earn its keep: the field of view decided the
+	// geometry, so pairing an unnamed display with the only headset attached was
+	// the difference between running and refusing. It no longer decides
+	// anything, and what is left of it is a GUESS at a name — which then gets
+	// printed as a model and a figure, as fact. A person who wants a particular
+	// headset named can say so in the settings.
 	return nil
 }

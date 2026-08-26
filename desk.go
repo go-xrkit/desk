@@ -180,7 +180,7 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 		nav:        ribbon.NewNav(r),
 		strip:      strip,
 		grid:       grid,
-		canvas:     NewCanvas(ribbon.Pano{W: plan.ScreenW, H: plan.ScreenH}),
+		canvas:     NewCanvas(plan.ScreenW, plan.ScreenH),
 		feeds:      feeds,
 		sources:    make([]Source, len(feeds)),
 		blits:      make([]ribbon.Blit, 0, len(feeds)+2),

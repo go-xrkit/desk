@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/go-xrkit/xrkit/glasses"
-	"github.com/go-xrkit/xrkit/projection"
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
@@ -61,65 +60,6 @@ func TestOneScreenIsOneView(t *testing.T) {
 			t.Errorf("%s: screens are %dx%d, want one eye's %dx%d",
 				d, p.ScreenW, p.ScreenH, eyeW, eyeH)
 		}
-	}
-}
-
-// TestPanoramaCarriesOnePixelPerPixel: the panorama must hold enough columns
-// that a screen at rest is neither stretched nor shrunk. Fewer and the picture
-// is softened for nothing; many more and the buffer is paid for nothing.
-func TestPanoramaCarriesOnePixelPerPixel(t *testing.T) {
-	d := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
-	p, err := NewPlan(d, Options{})
-	if err != nil {
-		t.Fatalf("NewPlan = %v", err)
-	}
-	perDeg := float64(p.Pano.W) / p.Pano.Window.HSpanDeg
-	if got := perDeg * p.HFOVDeg; math.Abs(got-float64(p.ScreenW)) > 1.5 {
-		t.Errorf("a screen's arc holds %.1f panorama columns for %d source columns",
-			got, p.ScreenW)
-	}
-	perDegV := float64(p.Pano.H) / p.Pano.Window.VSpanDeg
-	if got := perDegV * p.VFOVDeg; math.Abs(got-float64(p.ScreenH)) > 1.5 {
-		t.Errorf("a screen's arc holds %.1f panorama rows for %d source rows",
-			got, p.ScreenH)
-	}
-	if p.Pano.Window.Kind != projection.Equirect {
-		t.Error("the panorama window must be equirectangular, or yaw stops being a shift")
-	}
-}
-
-func TestPanoramaWindowIsWiderThanTheView(t *testing.T) {
-	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
-		Options{MarginDeg: 10})
-	if err != nil {
-		t.Fatalf("NewPlan = %v", err)
-	}
-	if got := p.Pano.Window.HSpanDeg - p.HFOVDeg; math.Abs(got-20) > 1e-9 {
-		t.Errorf("margin spent horizontally = %g°, want 20°", got)
-	}
-	if got := p.Pano.Window.VSpanDeg - p.VFOVDeg; math.Abs(got-20) > 1e-9 {
-		t.Errorf("margin spent vertically = %g°, want 20°", got)
-	}
-}
-
-// TestPanoramaWindowIsClampedAtThePoles covers a tall field of view with a
-// generous margin: the window would run past the poles, where a latitude has no
-// meaning left to give.
-//
-// There is deliberately no matching horizontal case. A field of view is under
-// 180° and a margin under 90°, so the horizontal span cannot reach a full
-// circle, and a clamp there would be a branch that can never be taken.
-func TestPanoramaWindowIsClampedAtThePoles(t *testing.T) {
-	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 1920, Height: 1080},
-		Options{FOVDeg: 170, MarginDeg: 89})
-	if err != nil {
-		t.Fatalf("NewPlan = %v", err)
-	}
-	if p.Pano.Window.VSpanDeg != 180 {
-		t.Errorf("vertical window = %g°, want it clamped to 180°", p.Pano.Window.VSpanDeg)
-	}
-	if p.Pano.Window.HSpanDeg >= 360 {
-		t.Errorf("horizontal window = %g°, which should be impossible", p.Pano.Window.HSpanDeg)
 	}
 }
 
@@ -209,27 +149,56 @@ func TestOverrideWins(t *testing.T) {
 	}
 }
 
-// TestRefusesToGuessOptics is the behaviour that matters most, because the
-// alternative fails silently: everything renders, in the wrong place.
-func TestRefusesToGuessOptics(t *testing.T) {
+// TestUnknownOpticsAreNoLongerAnObstacle.
+//
+// This used to be the refusal that mattered most: a wrong field of view
+// renders everything, in the wrong place, with no symptom, so a headset nobody
+// had measured could not be planned for at all.
+//
+// Flat screens took the field of view out of the geometry. What makes a screen
+// fill the glasses is that it is drawn at one source pixel per panel pixel,
+// which needs the panel's RESOLUTION and nothing else. So these now work — and
+// they say so honestly: a model where the catalogue knows one, the display's
+// own name where it does not, and no field of view either way, meaning "not
+// known" rather than "zero degrees".
+func TestUnknownOpticsAreNoLongerAnObstacle(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		d    glasses.Display
+		name      string
+		d         glasses.Display
+		wantModel string
 	}{
-		{"a headset with no published figure", glasses.Display{Name: "VITURE Pro 2", Width: 3840, Height: 1080}},
-		{"not a headset at all", glasses.Display{Name: "Odyssey G95NC", Width: 7680, Height: 2160}},
+		{"a headset with no published figure",
+			glasses.Display{Name: "VITURE Pro 2", Width: 3840, Height: 1080}, "VITURE Pro 2"},
+		{"not a headset at all",
+			glasses.Display{Name: "Odyssey G95NC", Width: 7680, Height: 2160}, "Odyssey G95NC"},
+		{"a display that names only a brand",
+			glasses.Display{Name: "VITURE", Width: 1920, Height: 1200}, "VITURE glasses"},
 	} {
-		_, err := NewPlan(tc.d, Options{})
-		if !errors.Is(err, ErrUnknownOptics) {
-			// Continue rather than fall through: the next assertion reads the
-			// error, and a nil one would take the whole run down with a panic
-			// instead of reporting the case that failed.
-			t.Errorf("%s: err = %v, want ErrUnknownOptics", tc.name, err)
+		p, err := NewPlan(tc.d, Options{})
+		if err != nil {
+			t.Errorf("%s: NewPlan = %v", tc.name, err)
 			continue
 		}
-		if !strings.Contains(err.Error(), "field of view") {
-			t.Errorf("%s: the error does not say what to do about it: %v", tc.name, err)
+		if p.Model != tc.wantModel {
+			t.Errorf("%s: model is %q, want %q", tc.name, p.Model, tc.wantModel)
 		}
+		if p.HFOVDeg != 0 {
+			t.Errorf("%s: a field of view of %g° was invented", tc.name, p.HFOVDeg)
+		}
+		// And it draws: every screen exactly one view wide, which is the rule
+		// that replaced the one the field of view used to carry.
+		d, err := New(p, feedsFor(p))
+		if err != nil {
+			t.Errorf("%s: New = %v", tc.name, err)
+			continue
+		}
+		for i := 0; i < p.Count(); i++ {
+			if got := d.strip.width[i]; got != p.ScreenW {
+				t.Errorf("%s: screen %d is %d wide, want the view's %d",
+					tc.name, i, got, p.ScreenW)
+			}
+		}
+		d.Close()
 	}
 }
 
@@ -241,8 +210,6 @@ func TestRefusesNonsense(t *testing.T) {
 		opts Options
 		want error
 	}{
-		{"negative margin", beast, Options{MarginDeg: -1}, ErrMargin},
-		{"margin past a right angle", beast, Options{MarginDeg: 90}, ErrMargin},
 		{"negative screens", beast, Options{Screens: -1}, ErrScreens},
 		{"a display with no size", glasses.Display{Name: "VITURE Beast"}, Options{}, ErrScreens},
 		{"a field of view that is not one", beast, Options{FOVDeg: 180}, ErrFOV},
@@ -289,9 +256,16 @@ func TestTheBusNamesTheModelWhenTheDisplayDoesNot(t *testing.T) {
 	generic := glasses.Display{Name: "DisplayPort", Width: 1920, Height: 1200}
 	real := &glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}
 
-	// Without the bus, this is exactly the refusal the catalogue is for.
-	if _, err := NewPlan(generic, Options{}); !errors.Is(err, ErrUnknownOptics) {
-		t.Errorf("a nameless display gave %v, want %v", err, ErrUnknownOptics)
+	// Without the bus, the display names nothing: the desk still runs, and says
+	// so — the model is the string the panel gave and the field of view is not
+	// known.
+	blind, err := NewPlan(generic, Options{})
+	if err != nil {
+		t.Fatalf("without the bus: %v", err)
+	}
+	if blind.Model != "DisplayPort" || blind.HFOVDeg != 0 {
+		t.Errorf("without the bus: model %q, %g°; want the panel's own name and no figure",
+			blind.Model, blind.HFOVDeg)
 	}
 
 	p, err := NewPlan(generic, Options{USB: real})

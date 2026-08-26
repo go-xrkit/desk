@@ -98,8 +98,13 @@ func run() int {
 	fmt.Printf("\nplan\n")
 	logf("identified %s", plan.How)
 	logf("%s", plan)
-	logf("one screen spans %.2f° across and %.2f° down, which is the whole view",
-		plan.HFOVDeg, plan.VFOVDeg)
+	// One screen is one full view — in PIXELS, which is what the flat band
+	// keeps. The angles are printed only where they are known, and they are a
+	// fact about the optics rather than about the arrangement.
+	logf("one screen is %dx%d, which is the whole view", plan.ScreenW, plan.ScreenH)
+	if plan.HFOVDeg > 0 {
+		logf("the glasses see %.2f° across and %.2f° down", plan.HFOVDeg, plan.VFOVDeg)
+	}
 
 	ctx := context.Background()
 	fmt.Printf("\nscreens\n")
