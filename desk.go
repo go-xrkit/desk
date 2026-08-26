@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/go-widgets/toolkit"
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
@@ -50,6 +51,16 @@ const (
 	// ActionGallery opens the gallery — every screen at once, as a grid — or
 	// closes it again leaving the ribbon exactly as it was.
 	ActionGallery
+	// ActionGalleryOpen opens the gallery and ActionGalleryClose leaves it,
+	// each doing nothing when the gallery is already in that state.
+	//
+	// They exist alongside the toggle because a system-wide shortcut is pressed
+	// blind: the viewer cannot see whether the gallery is open before deciding,
+	// and one key that means "open" from outside and "close" from inside is one
+	// key that does the wrong thing whenever they have lost track. Two keys
+	// always mean what they say.
+	ActionGalleryOpen
+	ActionGalleryClose
 	// ActionChoose takes the selected screen and returns to the ribbon focused
 	// on it. It means nothing outside the gallery.
 	ActionChoose
@@ -79,6 +90,10 @@ func (a Action) String() string {
 		return "cycle"
 	case ActionGallery:
 		return "gallery"
+	case ActionGalleryOpen:
+		return "open the gallery"
+	case ActionGalleryClose:
+		return "leave the gallery"
 	case ActionChoose:
 		return "choose"
 	case ActionUp:
@@ -129,6 +144,10 @@ type Desk struct {
 	OnCycle func(pos int)
 
 	quit bool
+	// badge says which screen the viewer has arrived at, for a moment. Nil when
+	// it has been turned off.
+	badge *badge
+
 	// err is the last thing a viewer's action returned. The gallery can refuse
 	// — a direction it has no cell for, choosing outside it — and a refusal that
 	// nobody can see is a key that silently does nothing.
@@ -232,7 +251,8 @@ func (d *Desk) Do(a Action) {
 			d.err = d.grid.Move(ribbon.Down)
 		case ActionChoose:
 			d.err = d.nav.Choose()
-		case ActionGallery:
+		case ActionGallery, ActionGalleryClose:
+			// Already open, so both of these leave it.
 			d.err = d.nav.ToggleGallery(d.grid)
 		case ActionQuit:
 			d.quit = true
@@ -246,7 +266,9 @@ func (d *Desk) Do(a Action) {
 		d.nav.Next()
 	case ActionPrev:
 		d.nav.Prev()
-	case ActionGallery:
+	case ActionGallery, ActionGalleryOpen:
+		// Not open, so both of these open it. ActionGalleryClose falls through
+		// to nothing, which is what leaving a gallery you are not in should do.
 		d.err = d.nav.ToggleGallery(d.grid)
 	case ActionFullscreen:
 		d.nav.ToggleFullscreen()
@@ -264,10 +286,19 @@ func (d *Desk) Do(a Action) {
 }
 
 // Advance moves the ribbon towards where it is going, dt seconds later.
+// Badge turns the arrival badge on for this many seconds, or off at zero. It
+// must be set before the first Render.
+func (d *Desk) Badge(seconds float64, theme *toolkit.Theme) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.badge = newBadge(seconds, theme)
+}
+
 func (d *Desk) Advance(dt float64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.nav.Advance(dt)
+	d.badge.tick()
 }
 
 // Render draws the current frame into the panorama and returns it.
@@ -304,6 +335,15 @@ func (d *Desk) Render() *Canvas {
 	}
 
 	d.canvas.Compose(d.blits, d.sources, d.Background)
+
+	// After the screens, so it is ON the picture rather than under it — and only
+	// on the band: in the gallery every screen is in front of the viewer at
+	// once, so saying which one is focused would be answering a question nobody
+	// is asking.
+	if d.nav.Mode() != ribbon.ModeGallery {
+		d.badge.show(d.nav.Focus(), d.plan.Count())
+		d.badge.draw(d.canvas)
+	}
 	return d.canvas
 }
 

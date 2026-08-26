@@ -278,3 +278,34 @@ func TestCoveringTheGlassesOwnMenuBarIsAChoice(t *testing.T) {
 		t.Error("immersive = false was ignored")
 	}
 }
+
+// TestHowLongTheScreenNumberStaysUp.
+func TestHowLongTheScreenNumberStaysUp(t *testing.T) {
+	write(t, `ribbon { badge_seconds = 0.4 }`)
+	c, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig = %v", err)
+	}
+	if got := c.BadgeSeconds(); got != 0.4 {
+		t.Errorf("BadgeSeconds() = %v, want 0.4", got)
+	}
+
+	// Zero turns it off, and is different from saying nothing.
+	write(t, `ribbon { badge_seconds = 0 }`)
+	c, _ = LoadConfig()
+	if got := c.BadgeSeconds(); got != 0 {
+		t.Errorf("badge_seconds = 0 gave %v", got)
+	}
+	write(t, `ribbon { screens = 3 }`)
+	c, _ = LoadConfig()
+	if got := c.BadgeSeconds(); got != DefaultBadgeSeconds {
+		t.Errorf("a file that says nothing gave %v, want the default %v",
+			got, DefaultBadgeSeconds)
+	}
+
+	// A negative duration is not a duration.
+	write(t, `ribbon { badge_seconds = -1 }`)
+	if _, err := LoadConfig(); !errors.Is(err, ErrConfig) {
+		t.Errorf("a negative badge_seconds was accepted (%v)", err)
+	}
+}

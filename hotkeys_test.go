@@ -153,8 +153,11 @@ func TestNoGlobalShortcutsIsNotAReasonNotToRun(t *testing.T) {
 	if _, open := <-h.C(); open {
 		t.Error("C is not closed after Close")
 	}
-	if n := strings.Count(h.Describe(), "no global shortcut"); n != 3 {
-		t.Errorf("Describe() reports %d unclaimed shortcuts, want 3", n)
+	// However many there are: a count typed here becomes wrong the day a
+	// shortcut is added, which is what happened when the gallery gained a key
+	// to enter by and a key to leave by.
+	if n, want := strings.Count(h.Describe(), "no global shortcut"), len(DefaultShortcuts()); n != want {
+		t.Errorf("Describe() reports %d unclaimed shortcuts, want all %d", n, want)
 	}
 }
 

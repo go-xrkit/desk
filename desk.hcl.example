@@ -86,3 +86,13 @@ glasses {
 #
 # Turn this off if the glasses are your MAIN display — there the bar and the
 # Dock are the real ones, not a copy on a screen nobody is looking at.
+
+# ribbon { badge_seconds = 1.5 }
+#
+# How long the screen's number stays up after the band moves. The band moving is
+# silent otherwise: six identical desktops slide past and nothing says which one
+# is now in front, which is fine while a screen has an application on it and
+# unusable while it does not.
+#
+# It is a toolkit toast, low and centred — at the top it would sit under whatever
+# the captured desktop has there, which is its own menu bar. 0 turns it off.
