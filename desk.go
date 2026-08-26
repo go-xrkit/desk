@@ -437,3 +437,31 @@ func (d *Desk) FeedAt(i int) Feed {
 	}
 	return d.feeds[i]
 }
+
+// Click chooses a screen from the gallery, at a point in the picture's own
+// coordinates. It reports whether the click landed on a screen.
+//
+// One click goes there, rather than one to highlight and another to confirm.
+// The gallery exists to be left: somebody who has found the screen they want
+// has already decided, and asking them to say so twice is asking them to aim
+// twice at a tile in a headset.
+//
+// On the band it does nothing. A click on a captured desktop is not this
+// application's to interpret — the desktop under the cursor will have its own
+// idea of what was clicked.
+func (d *Desk) Click(x, y int) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.nav.Mode() != ribbon.ModeGallery {
+		return false
+	}
+	i, ok := d.grid.At(x, y)
+	if !ok {
+		return false
+	}
+	// At only ever returns a cell the grid has, so Select cannot refuse it and
+	// there is no branch here to leave untested.
+	_ = d.grid.Select(i)
+	d.err = d.nav.Choose()
+	return d.err == nil
+}
