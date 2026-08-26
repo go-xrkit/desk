@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/go-widgets/window"
@@ -116,6 +117,23 @@ func run() int {
 			fmt.Printf("WARNING: could not remove every virtual display: %v\n", err)
 		}
 	}()
+
+	// The applications, before the pixels. A screen with nothing on it is what
+	// the first version of this showed a person wearing the glasses, and it
+	// read as broken rather than as empty.
+	if places := settings.Placements(); len(places) > 0 {
+		done, err := desk.Send(desk.TheBench(), screens.IDs, places)
+		for _, line := range done {
+			logf("%s", line)
+		}
+		if err != nil {
+			// Not fatal. A desk of six applications where one is not running
+			// should show the other five.
+			for _, line := range strings.Split(err.Error(), "\n") {
+				logf("%s", line)
+			}
+		}
+	}
 
 	feeds, err := desk.Capture(ctx, plan, screens, logf)
 	if err != nil {
