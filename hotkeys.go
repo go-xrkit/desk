@@ -138,12 +138,24 @@ func (h *Hotkeys) Close() error {
 // so a shortcut that registers without complaint may still be one another
 // application was quietly using. Naming what was taken is what lets the viewer
 // notice.
-func (h *Hotkeys) Describe() string {
+func (h *Hotkeys) Describe() string { return h.describe(hotkey.Combo.String) }
+
+// DescribeNames is the same, spelled out: "Option-Command-Left" rather than
+// "⌥⌘←".
+//
+// The glyphs are what macOS prints on a menu and what a terminal shows
+// perfectly. They are NOT in every font — rendered in a window with the
+// toolkit's own, ⌥ ⌘ ⇧ ⌃ ← → all came out as nothing at all, so a line meant
+// to say which combination was granted said "previous:" and stopped. Anywhere
+// the font is not known, this is the one to use.
+func (h *Hotkeys) DescribeNames() string { return h.describe(hotkey.Combo.Names) }
+
+func (h *Hotkeys) describe(render func(hotkey.Combo) string) string {
 	var b strings.Builder
 	for i, k := range h.held {
-		fmt.Fprintf(&b, "%s: %s", h.does[i], k.Combo())
+		fmt.Fprintf(&b, "%s: %s", h.does[i], render(k.Combo()))
 		if k.Substituted() {
-			fmt.Fprintf(&b, " (asked for %s, it was taken)", k.Wanted())
+			fmt.Fprintf(&b, " (asked for %s, it was taken)", render(k.Wanted()))
 		}
 		b.WriteByte('\n')
 	}
