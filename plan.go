@@ -29,6 +29,11 @@ type Options struct {
 	// as many as fit round the circle without overlapping.
 	Screens int
 
+	// Distance is how far the band sits from the viewer, as a multiple of the
+	// distance at which one screen fills the view. Zero, like one, is the near
+	// end. See [Plan.Distance].
+	Distance float64
+
 	// FOVDeg overrides the catalogue's horizontal field of view, in degrees.
 	// It exists because the catalogue is honest about what it does not know, and
 	// because a person who measures their own optics should be able to say so.
@@ -85,6 +90,10 @@ type Plan struct {
 
 	// count is how many screens the ribbon carries.
 	count int
+
+	// distance is how far the band sits from the viewer, as a multiple of the
+	// distance at which one screen fills the view. See [Plan.Distance].
+	distance float64
 }
 
 // String renders the plan the way a person would want it logged.
@@ -181,6 +190,9 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 		n = DefaultScreens
 	}
 	plan = plan.WithScreens(n)
+	if opts.Distance > 0 {
+		plan = plan.WithDistance(opts.Distance)
+	}
 
 	// There is no panorama any more, and so nothing here to size. The screens
 	// are composited straight into the view: the buffer they go into is the
@@ -258,3 +270,61 @@ func (p Plan) WithScreens(n int) Plan {
 // comes from a person's settings file — a clamp is right for a program composing
 // a plan and wrong for a line somebody wrote and expects to mean something.
 const MaxScreens = 9
+
+// Distance is how far the band sits from the viewer, as a multiple of the
+// distance at which one screen fills the view exactly.
+//
+// One is the near end and the doctrine this started from: a screen is the whole
+// view, at one source pixel per panel pixel, and its neighbours are off to the
+// sides where the head has to turn to reach them. Two puts each screen in half
+// the width, so the two beside it are visible without turning. That is the whole
+// of what "further away" means here -- a screen does not move, it takes up less
+// room, which is what moving a monitor back does.
+//
+// It is deliberately not allowed below one. Closer than filling the view means
+// seeing PART of a screen, and a desk whose middle screen is cropped is not a
+// desk anyone asked for.
+func (p Plan) Distance() float64 {
+	if p.distance < 1 {
+		return 1
+	}
+	return p.distance
+}
+
+// MaxDistance is the far end: four screens across the view.
+//
+// A float, because it is compared with and assigned to a distance and an
+// untyped integer constant next to a float64 is a conversion waiting to be
+// forgotten.
+//
+// Chosen, like [MaxScreens], and for the same kind of reason rather than a
+// geometric one. At four, a 1920-pixel screen is 480 pixels of a 1920-pixel
+// view: text on it is a texture, not words. Somebody who wants the whole desk at
+// once has the gallery, which draws every screen at a readable size instead of
+// pretending nine of them fit in one view.
+const MaxDistance = 4.0
+
+// WithDistance is this plan seen from a different distance, clamped to
+// 1..[MaxDistance].
+//
+// Nothing about the screens changes: the band is the same ring of the same
+// panels at the same resolution. What changes is the number of pixels each one
+// occupies in the view, which is the pixel scale of the whole band -- so this is
+// one multiplication in one place, and the navigator, the gallery and the
+// captures know nothing about it.
+func (p Plan) WithDistance(d float64) Plan {
+	switch {
+	case d < 1:
+		d = 1
+	case d > MaxDistance:
+		d = MaxDistance
+	}
+	p.distance = d
+	return p
+}
+
+// DistanceStep is how much one press moves the band.
+//
+// A quarter, so the near end and the far end are twelve presses apart: enough
+// that a person can stop where they want, few enough that they can get there.
+const DistanceStep = 0.25

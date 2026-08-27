@@ -50,10 +50,14 @@ func (c Config) Bytes() []byte {
 		}
 		body.AppendNewline()
 	}
-	if c.Ribbon != nil && (c.Ribbon.Screens != nil || c.Ribbon.Immersive != nil) {
+	if c.Ribbon != nil && (c.Ribbon.Screens != nil || c.Ribbon.Immersive != nil ||
+		c.Ribbon.Distance != nil) {
 		b := body.AppendNewBlock("ribbon", nil).Body()
 		if c.Ribbon.Screens != nil {
 			b.SetAttributeValue("screens", cty.NumberIntVal(int64(*c.Ribbon.Screens)))
+		}
+		if c.Ribbon.Distance != nil {
+			b.SetAttributeValue("distance", cty.NumberFloatVal(*c.Ribbon.Distance))
 		}
 		if c.Ribbon.Immersive != nil {
 			b.SetAttributeValue("immersive", cty.BoolVal(*c.Ribbon.Immersive))

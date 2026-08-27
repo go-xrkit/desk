@@ -88,6 +88,15 @@ const (
 	// effect: the screen count, the headset and the shortcuts are all read on the
 	// way in.
 	ActionSettings
+	// ActionCloser and ActionFurther move the band towards the viewer and away
+	// from them, by [DistanceStep].
+	//
+	// Further away is what shows the screens EITHER SIDE of the one in front:
+	// they do not move, they take up less of the view, which is what pulling a
+	// monitor back does. Nearer stops at one screen filling the view exactly,
+	// because closer than that means seeing part of a screen.
+	ActionCloser
+	ActionFurther
 )
 
 // String renders an action for a log.
@@ -117,6 +126,10 @@ func (a Action) String() string {
 		return "quit"
 	case ActionSettings:
 		return "settings"
+	case ActionCloser:
+		return "closer"
+	case ActionFurther:
+		return "further"
 	default:
 		return "none"
 	}
@@ -287,6 +300,12 @@ func (d *Desk) Do(a Action) {
 			d.quit = true
 		case ActionSettings:
 			d.quit, d.settings = true, true
+		case ActionCloser, ActionFurther:
+			// The gallery is head-locked and shows every screen at a readable
+			// size already, so there is no distance to change while it is open.
+			// Left as nothing rather than made an error: a system-wide key is
+			// pressed blind, and a refusal for pressing it in the wrong place is
+			// a complaint about something the person could not have known.
 		}
 		d.mu.Unlock()
 		if add != nil {
@@ -317,6 +336,10 @@ func (d *Desk) Do(a Action) {
 		d.quit = true
 	case ActionSettings:
 		d.quit, d.settings = true, true
+	case ActionCloser:
+		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() - DistanceStep))
+	case ActionFurther:
+		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() + DistanceStep))
 	}
 	d.mu.Unlock()
 	if cycle != nil {
@@ -438,6 +461,12 @@ func KeyAction(code string) Action {
 		return ActionUp
 	case "ArrowDown", "j", "J":
 		return ActionDown
+	// The band comes towards you and goes away. Both spellings of each, because a
+	// keyboard has two plus keys and a person reaches for whichever is nearer.
+	case "-", "_":
+		return ActionFurther
+	case "+", "=":
+		return ActionCloser
 	}
 	return ActionNone
 }
@@ -531,23 +560,18 @@ func (d *Desk) Grow(f Feed) (int, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	was := d.nav.Focus()
+	// Through the same swap a change of distance makes: everything the band, the
+	// gallery and the navigator are made of comes from the plan, so one more
+	// screen and a different distance are the same operation on a different
+	// plan. reshape touches nothing until all three exist, which is what leaves
+	// a refusal with the desk exactly as it was rather than half grown.
 	plan := d.plan.WithScreens(d.plan.Count() + 1)
-	r, strip, grid, err := build(plan)
-	if err != nil {
+	if err := d.reshape(plan); err != nil {
 		return 0, err
 	}
-
-	// Nothing above this line has touched the desk, so a refusal leaves it
-	// exactly as it was rather than half grown.
-	d.plan = plan
-	d.strip, d.grid = strip, grid
-	d.nav = ribbon.NewNav(r)
 	d.feeds = append(d.feeds, f)
 	d.sources = append(d.sources, Source{})
 	d.blits = make([]ribbon.Blit, 0, plan.Count()+2)
-	_ = d.nav.GoTo(was)
-	d.nav.Advance(largeEnoughToArrive)
 	return plan.Count() - 1, nil
 }
 
@@ -590,13 +614,18 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, error) {
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("desk: placing %d screens: %w", plan.Count(), err)
 	}
-	// The band, flat. One screen is one full view, so the view is a screen and
-	// a screen at rest fills it exactly.
 	placed := make([]ribbon.Placed, r.Len())
 	for i := range placed {
 		placed[i] = r.At(i)
 	}
-	strip, err := NewStrip(placed, plan.Count()*(plan.ScreenW+DefaultGapPx),
+	// The band, flat, at whatever distance the plan is seen from.
+	//
+	// Distance is the pixel SCALE of the band and nothing else: the whole band
+	// divided by it, so every screen and every gap shrinks together and the ring
+	// stays the same ring. At 1 a screen is exactly the view, which is where this
+	// started; at 2 it is half of it and its two neighbours are in shot.
+	band := int(float64(plan.Count()*(plan.ScreenW+DefaultGapPx)) / plan.Distance())
+	strip, err := NewStrip(placed, band,
 		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("desk: laying out the band: %w", err)
@@ -609,4 +638,41 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, error) {
 		return nil, nil, nil, fmt.Errorf("desk: folding the gallery: %w", err)
 	}
 	return r, strip, grid, nil
+}
+
+// reshape swaps in a plan of the same screens seen differently, keeping the
+// position the viewer is on.
+//
+// It is [Desk.Grow] without the growing: the band, the gallery and the
+// navigator are all derived from the plan, so a plan that differs only in its
+// pixel scale still means rebuilding the three of them. Nothing is touched until
+// all three exist, so a refusal leaves the desk exactly as it was rather than
+// half moved -- the same order Grow keeps, and for the same reason.
+//
+// The caller holds the lock.
+func (d *Desk) reshape(plan Plan) error {
+	if plan.Distance() == d.plan.Distance() && plan.Count() == d.plan.Count() {
+		// Already there: at either end of the range every further press means
+		// this, and rebuilding the band to put it back exactly as it was would
+		// make the desk twitch for nothing.
+		return nil
+	}
+	was := d.nav.Focus()
+	r, strip, grid, err := build(plan)
+	if err != nil {
+		return err
+	}
+	d.plan = plan
+	d.strip, d.grid = strip, grid
+	d.nav = ribbon.NewNav(r)
+	_ = d.nav.GoTo(was)
+	d.nav.Advance(largeEnoughToArrive)
+	return nil
+}
+
+// Distance is how far the band is from the viewer. See [Plan.Distance].
+func (d *Desk) Distance() float64 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.plan.Distance()
 }
