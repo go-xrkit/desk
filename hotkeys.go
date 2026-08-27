@@ -73,6 +73,9 @@ func DefaultShortcuts() []Shortcut {
 		// Escape rather than a letter because it is the key everybody already
 		// tries, and with three modifiers it is not one anybody hits by accident.
 		{hotkey.Combo{Key: hotkey.KeyEscape, Mods: mods | hotkey.Control}, ActionQuit},
+		// And the pointer, which has to be system-wide or it is nothing: the whole
+		// point of it is to be pressed while another application has the keyboard.
+		{hotkey.Combo{Key: hotkey.KeyM, Mods: mods | hotkey.Control}, ActionPoint},
 		// The settings, for the same reason: the tray menu is the other way, and it
 		// needs a pointer.
 		{hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Control}, ActionSettings},

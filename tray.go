@@ -51,6 +51,8 @@ func TrayRows() []TrayRow {
 	return []TrayRow{
 		{Title: "Settings...", Key: ",", Action: ActionSettings},
 		{},
+		{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint},
+		{},
 		{Title: "Show the gallery", Action: ActionGalleryOpen},
 		{Title: "Leave the gallery", Action: ActionGalleryClose},
 		{},
