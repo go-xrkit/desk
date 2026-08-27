@@ -107,6 +107,18 @@ const (
 	// monitors are turned.
 	ActionFlatter
 	ActionRounder
+	// ActionPoint asks for the mouse pointer to be brought to the screen in
+	// front of the viewer.
+	//
+	// It is the answer to the thing that made the desk unusable: the picture
+	// shows screens that applications are running on, and the pointer is
+	// somewhere else on the desktop -- reachable only by dragging it blind across
+	// displays whose contents are captures of somewhere else. One key ends that.
+	//
+	// Moving a pointer is the platform's business, not this package's, so it is
+	// reported through OnPoint rather than acted on here -- the same seam as
+	// ActionCycle and for the same reason.
+	ActionPoint
 )
 
 // String renders an action for a log.
@@ -144,6 +156,8 @@ func (a Action) String() string {
 		return "flatter"
 	case ActionRounder:
 		return "rounder"
+	case ActionPoint:
+		return "bring the pointer here"
 	default:
 		return "none"
 	}
@@ -197,6 +211,16 @@ type Desk struct {
 	// asks for the next source there. It is called without the desk's lock held,
 	// so a handler may call SetFeed — which is the whole point of it.
 	OnCycle func(pos int)
+
+	// OnPoint, when set, is called with the position whose screen the pointer
+	// should be brought to. It is called without the desk's lock held.
+	//
+	// The desk knows which screen a person is looking at; only the application
+	// knows what a screen IS to the window server. So this is the seam, like
+	// OnCycle -- and it is the one that makes the desk usable rather than merely
+	// visible: without it the pointer has to be dragged blind across displays
+	// whose contents are captures of somewhere else.
+	OnPoint func(pos int)
 
 	quit bool
 	// settings is set with quit when the desk stopped to show the settings
@@ -291,7 +315,7 @@ func (d *Desk) WantsSettings() bool {
 
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
-	var cycle func(int)
+	var cycle, point func(int)
 	var add func() (Feed, error)
 	pos := -1
 	d.mu.Lock()
@@ -320,6 +344,13 @@ func (d *Desk) Do(a Action) {
 			d.quit = true
 		case ActionSettings:
 			d.quit, d.settings = true, true
+		case ActionPoint:
+			// In the gallery the pointer goes to the SELECTED cell's screen, not
+			// to the focused one: the gallery is where a person picks, and the
+			// selection is what they are pointing at.
+			if !d.grid.IsAdder(d.grid.Selected()) {
+				point, pos = d.OnPoint, d.grid.Selected()
+			}
 		case ActionCloser, ActionFurther, ActionFlatter, ActionRounder:
 			// The gallery is head-locked and shows every screen at a readable
 			// size already, so there is no distance to change while it is open.
@@ -328,6 +359,9 @@ func (d *Desk) Do(a Action) {
 			// a complaint about something the person could not have known.
 		}
 		d.mu.Unlock()
+		if point != nil {
+			point(pos)
+		}
 		if add != nil {
 			// Outside the lock: making a display and capturing it takes long
 			// enough that holding the desk shut for it would stall the frame
@@ -352,6 +386,9 @@ func (d *Desk) Do(a Action) {
 		// Answered after the lock is dropped: a handler that changes what this
 		// position shows has to be able to take it.
 		cycle, pos = d.OnCycle, d.nav.Focus()
+	case ActionPoint:
+		// Same seam, same reason: moving a pointer talks to the window server.
+		point, pos = d.OnPoint, d.nav.Focus()
 	case ActionQuit:
 		d.quit = true
 	case ActionSettings:
@@ -368,6 +405,9 @@ func (d *Desk) Do(a Action) {
 	d.mu.Unlock()
 	if cycle != nil {
 		cycle(pos)
+	}
+	if point != nil {
+		point(pos)
 	}
 }
 
@@ -523,6 +563,9 @@ func KeyAction(code string) Action {
 		return ActionFlatter
 	case "]", "}":
 		return ActionRounder
+	// The pointer, on the key next to the one that means "here" in every editor.
+	case "m", "M":
+		return ActionPoint
 	}
 	return ActionNone
 }

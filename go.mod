@@ -7,6 +7,7 @@ require (
 	github.com/go-macos/accessibility v0.1.0
 	github.com/go-macos/hotkey v0.4.0
 	github.com/go-macos/iokit v0.1.0
+	github.com/go-macos/pointer v0.1.0
 	github.com/go-macos/screencapture v0.1.0
 	github.com/go-macos/statusitem v0.1.0
 	github.com/go-macos/virtualdisplay v0.1.0

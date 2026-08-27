@@ -379,7 +379,7 @@ func TestActionString(t *testing.T) {
 		ActionUp: "up", ActionDown: "down", Action(99): "none",
 		ActionCloser: "closer", ActionFurther: "further",
 		ActionFlatter: "flatter", ActionRounder: "rounder",
-		ActionSettings: "settings",
+		ActionSettings: "settings", ActionPoint: "bring the pointer here",
 	} {
 		if got := a.String(); got != want {
 			t.Errorf("Action(%d).String() = %q, want %q", a, got, want)
@@ -433,6 +433,7 @@ func TestKeyAction(t *testing.T) {
 		"-": ActionFurther, "_": ActionFurther,
 		"[": ActionFlatter, "{": ActionFlatter,
 		"]": ActionRounder, "}": ActionRounder,
+		"m": ActionPoint, "M": ActionPoint,
 		"+": ActionCloser, "=": ActionCloser,
 		"x": ActionNone, "": ActionNone, "PageUp": ActionNone,
 	} {
@@ -1062,4 +1063,87 @@ func drawn(d *Desk) []ribbon.Blit {
 	out := make([]ribbon.Blit, len(d.blits))
 	copy(out, d.blits)
 	return out
+}
+
+// TestBringingThePointerAsksTheApplication.
+//
+// The desk knows which screen a person is looking at; only the application knows
+// what a screen IS to the window server. So the desk reports and does not act --
+// the same seam as OnCycle, and the reason the whole package still has no
+// operating system in it.
+//
+// It matters more than a callback usually does: this is the action that made the
+// desk usable rather than merely visible. The applications are on displays the
+// window server knows about and the picture is a capture of them, so the pointer
+// has to be MOVED to the screen being looked at; dragging it there means dragging
+// it across displays whose contents are captures of somewhere else.
+func TestBringingThePointerAsksTheApplication(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	var asked []int
+	d.OnPoint = func(pos int) { asked = append(asked, pos) }
+
+	// On the band: the screen in front.
+	d.Do(ActionPoint)
+	if len(asked) != 1 || asked[0] != d.Nav().Focus() {
+		t.Fatalf("asked for %v, want the focused screen %d", asked, d.Nav().Focus())
+	}
+	d.Do(ActionNext)
+	d.Advance(largeEnoughToArrive)
+	d.Do(ActionPoint)
+	if len(asked) != 2 || asked[1] != d.Nav().Focus() {
+		t.Errorf("after turning, asked for %v, want %d", asked, d.Nav().Focus())
+	}
+
+	// In the gallery: the SELECTED cell, not the focused screen. The gallery is
+	// where a person picks, and the selection is what they are pointing at.
+	d.Do(ActionGalleryOpen)
+	// Somewhere that is a screen rather than the adder tile: the gallery opens on
+	// the focused screen, and one step left is another one.
+	d.Do(ActionPrev)
+	sel := d.grid.Selected()
+	if d.grid.IsAdder(sel) {
+		t.Fatalf("the selection is the adder tile (%d), so this proves nothing", sel)
+	}
+	asked = nil
+	d.Do(ActionPoint)
+	if len(asked) != 1 || asked[0] != sel {
+		t.Errorf("in the gallery, asked for %v, want the selected cell %d", asked, sel)
+	}
+
+	// And never for the adder, which is not a screen and has no display behind
+	// it: asking would be asking the window server about a screen that does not
+	// exist.
+	idx, ok := d.grid.Adder()
+	if !ok {
+		t.Fatal("the gallery has no adder tile")
+	}
+	for range 2 * d.grid.Cells() {
+		if d.grid.Selected() == idx {
+			break
+		}
+		d.Do(ActionNext)
+	}
+	if d.grid.Selected() != idx {
+		t.Fatalf("the arrows never reached the adder tile (%d), so it cannot be "+
+			"used to add a screen either", idx)
+	}
+	asked = nil
+	d.Do(ActionPoint)
+	if len(asked) != 0 {
+		t.Errorf("on the adder tile, asked for screen %v", asked)
+	}
+
+	// With no handler at all it is simply nothing: a desk whose application does
+	// not offer to move the pointer still runs.
+	d.OnPoint = nil
+	d.Do(ActionPoint)
+	if err := d.Err(); err != nil {
+		t.Errorf("with no handler, asking reported %v", err)
+	}
 }
