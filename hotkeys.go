@@ -25,7 +25,7 @@ type Shortcut struct {
 	Does Action
 }
 
-// DefaultShortcuts are the three the ribbon needs.
+// DefaultShortcuts are what the ribbon needs from the whole machine.
 //
 // Option+Command with the arrows and the space bar, chosen because they are
 // what a person reaches for and because the arrows already mean "along the
@@ -61,6 +61,21 @@ func DefaultShortcuts() []Shortcut {
 		// the same two positions on a French keyboard whatever is printed there.
 		{hotkey.Combo{Key: hotkey.KeyMinus, Mods: mods | hotkey.Control}, ActionFurther},
 		{hotkey.Combo{Key: hotkey.KeyEqual, Mods: mods | hotkey.Control}, ActionCloser},
+		// And a way OUT, system-wide.
+		//
+		// This one is not a convenience. The desk takes a whole display and puts a
+		// picture over it, and the pointer that wanders onto that display is
+		// invisible -- the picture is a capture of somewhere else, so it does not
+		// show where the mouse is. Somebody in that position, with the desk's own
+		// window not holding the keyboard, has nothing to click and nothing to
+		// press: it was measured, and the way out was UNPLUGGING THE GLASSES.
+		//
+		// Escape rather than a letter because it is the key everybody already
+		// tries, and with three modifiers it is not one anybody hits by accident.
+		{hotkey.Combo{Key: hotkey.KeyEscape, Mods: mods | hotkey.Control}, ActionQuit},
+		// The settings, for the same reason: the tray menu is the other way, and it
+		// needs a pointer.
+		{hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Control}, ActionSettings},
 	}
 }
 

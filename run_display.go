@@ -55,6 +55,24 @@ type RunOptions struct {
 	// picture instead of covering them. See [Config.Immersive].
 	Windowed bool
 
+	// Interactive lets the desk's own window take the keyboard and the mouse.
+	//
+	// It does NOT by default, and that is the whole design rather than a
+	// precaution. The desk is a picture of screens that applications are running
+	// on: the keyboard has to reach THOSE applications, and a window that takes it
+	// is a window that stops the person using their own desk. The pointer is
+	// worse -- it wanders onto the display the desk owns, where the picture is a
+	// capture of somewhere else and so does not show where the mouse is. Measured:
+	// the way out was unplugging the glasses.
+	//
+	// So the desk is driven from outside, which is what the system-wide shortcuts
+	// and the menu-bar item are for, and the applications keep the keyboard and
+	// the pointer they always had.
+	//
+	// Interactive is for a session on a desktop -- with -windowed, to try the
+	// thing out -- where clicking the picture is the only way in.
+	Interactive bool
+
 	// NoGlobal leaves the system-wide shortcuts unclaimed.
 	//
 	// Claiming them takes them away from everything else on the machine for as
@@ -116,7 +134,10 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// the furniture it appears on top of the picture, which on glasses
 		// showing a captured desktop reads as two menu bars.
 		Immersive: !opt.Windowed,
-		Theme:     toolkit.DefaultDark(),
+		// A picture, not something to work in: the keyboard and the pointer belong
+		// to the applications the desk is showing.
+		Passive: !opt.Interactive,
+		Theme:   toolkit.DefaultDark(),
 	})
 	if err != nil {
 		return fmt.Errorf("desk: cannot open a window on %s: %w", opt.Screen, err)
@@ -125,6 +146,13 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 
 	fbW, fbH := win.Size()
 	logf("framebuffer %dx%d", fbW, fbH)
+	if opt.Interactive {
+		logf("this window takes the keyboard and the mouse, so the applications on " +
+			"the screens do not")
+	} else {
+		logf("the keyboard and the pointer belong to the applications on the " +
+			"screens; this window is a picture, driven by the shortcuts above")
+	}
 	v, err := newView(plan, fbW, fbH)
 	if err != nil {
 		return err

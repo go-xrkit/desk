@@ -55,6 +55,9 @@ func run() int {
 	quiet := flag.Bool("quiet", false, "say less")
 	noGlobal := flag.Bool("no-global", false,
 		"do not claim the system-wide shortcuts (\u2325\u2318\u2190/\u2192 and \u2325\u2318Space)")
+	interactive := flag.Bool("interactive", false,
+		"let the desk window take the keyboard and the mouse (it does not by "+
+			"default: they belong to the applications on the screens)")
 	settingsWin := flag.Bool("settings", false,
 		"open the settings window instead of the desk")
 	snap := flag.Bool("snapshot", false, "write the first frame shown, so it can be looked at afterwards")
@@ -261,11 +264,12 @@ func run() int {
 		start := time.Now()
 		opts := desk.RunOptions{
 			Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
-			NoGlobal:  *noGlobal,
-			Badge:     settings.BadgeSeconds(),
-			Windowed:  !settings.Immersive(),
-			Shortcuts: settings.ShortcutsOr(desk.DefaultShortcuts()),
-			Hotkeys:   settings.HotkeyOptions(),
+			NoGlobal:    *noGlobal,
+			Interactive: *interactive,
+			Badge:       settings.BadgeSeconds(),
+			Windowed:    !settings.Immersive(),
+			Shortcuts:   settings.ShortcutsOr(desk.DefaultShortcuts()),
+			Hotkeys:     settings.HotkeyOptions(),
 			// The menu bar is an input like any other: same actions, same loop.
 			Actions: actions,
 		}
