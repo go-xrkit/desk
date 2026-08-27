@@ -76,6 +76,16 @@ func DefaultShortcuts() []Shortcut {
 		// And the pointer, which has to be system-wide or it is nothing: the whole
 		// point of it is to be pressed while another application has the keyboard.
 		{hotkey.Combo{Key: hotkey.KeyM, Mods: mods | hotkey.Control}, ActionPoint},
+		// The angle between the screens, on the same two keys the window uses.
+		//
+		// System-wide because a window-only shortcut is no use to a surface that
+		// does not hold the keyboard, which this one deliberately does not -- and
+		// on the SAME keys, because a person who learns [ and ] in one place and
+		// finds them somewhere else has learnt nothing. It needed KeyLeftBracket
+		// upstream (go-macos/hotkey v0.5.0), which is why the angle was the one
+		// setting that could only be given on the command line for an evening.
+		{hotkey.Combo{Key: hotkey.KeyLeftBracket, Mods: mods | hotkey.Control}, ActionFlatter},
+		{hotkey.Combo{Key: hotkey.KeyRightBracket, Mods: mods | hotkey.Control}, ActionRounder},
 		// The settings, for the same reason: the tray menu is the other way, and it
 		// needs a pointer.
 		{hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Control}, ActionSettings},
