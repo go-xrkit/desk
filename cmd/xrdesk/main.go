@@ -45,7 +45,7 @@ func main() { os.Exit(run()) }
 func run() int {
 	screen := flag.String("screen", "", "which display to take over, matched by name")
 	fov := flag.Float64("fov", 0, "horizontal field of view in degrees, when the catalogue does not know")
-	count := flag.Int("screens", 0, "how many screens on the ribbon (0 = as many as fit)")
+	count := flag.Int("screens", 0, fmt.Sprintf("how many screens on the ribbon, 1 to %d (0 = the setting, or six)", desk.MaxScreens))
 	forDur := flag.Duration("for", 0, "stop after this long; 0 runs until you quit")
 	quiet := flag.Bool("quiet", false, "say less")
 	noGlobal := flag.Bool("no-global", false,

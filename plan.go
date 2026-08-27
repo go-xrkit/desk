@@ -115,6 +115,13 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	if opts.Screens < 0 {
 		return Plan{}, fmt.Errorf("%w: %d", ErrScreens, opts.Screens)
 	}
+	if opts.Screens > MaxScreens {
+		// Clamped, not refused: a caller composing a plan in code asked for a
+		// desk, and the nearest legal desk is one. A number that came from a
+		// PERSON is refused instead, where their settings are read, so the
+		// ceiling is named to whoever chose it.
+		opts.Screens = MaxScreens
+	}
 
 	stereoscopic, eyeW, eyeH := glasses.StereoMode(d.Width, d.Height)
 	if eyeW <= 0 || eyeH <= 0 {
@@ -187,19 +194,23 @@ func deg(r float64) float64 { return r * 180 / math.Pi }
 // Count is how many screens the ribbon carries.
 func (p Plan) Count() int { return p.count }
 
-// WithScreens is this plan with a different number of screens on the band.
+// WithScreens is this plan with a different number of screens on the band,
+// clamped to 1..[MaxScreens].
 //
-// The screens are FLAT, so the angles are a scroll coordinate and nothing more
-// — which is what lets there be as many of them as a person wants, and what
-// lets one be added while the desk is running.
+// The screens are FLAT, so the angles are a scroll coordinate and nothing more,
+// which is what lets one be added while the desk is running.
 //
-// A curved band had to fit in 360°, and at one screen per view that was seven
-// of them and no more. Flat, the circle is a fiction: the yaw says how far
+// A curved band had to fit in 360 degrees, and at one screen per view that was
+// seven of them and no more. Flat, the circle is a fiction: the yaw says how far
 // along the band the viewer is, and the band is however long it needs to be. So
-// n screens are spread over the full turn whatever n is.
+// n screens are spread over the full turn whatever n is -- and the ceiling is
+// therefore a DECISION, not a consequence. See [MaxScreens].
 func (p Plan) WithScreens(n int) Plan {
 	if n < 1 {
 		n = 1
+	}
+	if n > MaxScreens {
+		n = MaxScreens
 	}
 	p.count = n
 	aspect := float64(p.ScreenW) / float64(p.ScreenH)
@@ -224,3 +235,26 @@ func (p Plan) WithScreens(n int) Plan {
 	}
 	return p
 }
+
+// MaxScreens is the most screens a desk carries: nine.
+//
+// It is an ARBITRARY ceiling, chosen rather than derived, and that is worth
+// saying plainly because nothing in this package supplies one. The screens are
+// flat, so the band is as long as it needs to be; the plan would spread forty of
+// them over the turn without complaint, and a test used to.
+//
+// Nine is where three things happen to agree:
+//
+//   - the gallery is [DefaultColumns] wide, so nine fills three rows of three
+//     exactly, with nothing ragged and every screen keeping its column as the
+//     desk grows;
+//   - a screen costs a display to create and a stream to capture, and that cost
+//     is linear — on macOS it is a CGVirtualDisplay each;
+//   - past nine, a person stops holding a map of where things are, which is the
+//     whole point of a fixed arrangement.
+//
+// A number asked for above it is CLAMPED rather than refused when it comes from
+// the geometry ([Plan.WithScreens]), and REFUSED with the ceiling named when it
+// comes from a person's settings file — a clamp is right for a program composing
+// a plan and wrong for a line somebody wrote and expects to mean something.
+const MaxScreens = 9

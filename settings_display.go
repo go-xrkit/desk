@@ -33,7 +33,7 @@ type SettingsOptions struct {
 // Three, six and nine first, because those are the ones that fold into a
 // gallery three columns wide with nothing ragged — the shape a person keeps a
 // map of.
-var screenCounts = []int{3, 6, 9, 1, 2, 4, 12}
+var screenCounts = []int{3, 6, 9, 1, 2, 4}
 
 // RunSettings shows the settings window and returns when it is closed.
 //
