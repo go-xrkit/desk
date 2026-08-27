@@ -16,7 +16,7 @@ Pure Go, `CGO_ENABLED=0`, no vendor SDK.
 
 XR glasses show one screen. This puts a ring of them around you: real virtual
 displays that macOS extends the desktop onto, so ordinary applications run on
-them, captured and drawn as curved screens on a band at eye level. The keyboard
+them, captured and drawn as FLAT screens on a band at eye level. The keyboard
 turns the band; one key promotes a screen to fill the view.
 
 **One screen is one full view.** Each virtual display is created at exactly one
@@ -24,10 +24,22 @@ eye's resolution — the most the glasses can show at once — and is given exac
 the arc that eye can see. Looking straight at a screen shows it edge to edge, at
 one source pixel per output pixel.
 
-For a VITURE Beast in its side-by-side 3D mode that works out as six screens of
-1920x1080, each spanning 51.57°. For a Luma Ultra or an XREAL One S, seven of
-46.06°. The numbers are not configured: they follow from the headset's published
-optics.
+**How many screens is a choice, and it stops at nine.** Nothing in the geometry
+supplies a ceiling: the screens are flat, so the angles are only a scroll
+coordinate and the band is as long as it needs to be — the plan would spread
+forty over the turn without complaint. So the limit is *decided*, at
+`desk.MaxScreens` = **9**, where three things agree: the gallery is three columns
+wide, so nine fills three rows of three exactly and every screen keeps its column
+as the desk grows; each screen costs a display to create and a stream to capture,
+linearly; and past nine a person stops holding a map of where anything is, which
+is the whole point of a fixed arrangement. A bigger number is *clamped* when a
+program composes a plan and *refused, with the ceiling named*, when it comes from
+a settings file — a clamp is right for code and wrong for a line somebody wrote.
+
+The field of view is **reported, not required**. What fills the glasses is one
+source pixel per panel pixel, which needs the panel's resolution and nothing
+else, so a headset nobody has heard of runs at the right size and an unknown
+field of view prints as unknown rather than as `0.00°`.
 
 ## Why the keyboard
 
@@ -80,15 +92,17 @@ printed rather than hidden.
 
 | | |
 |---|---|
-| [`go-xrkit/xrkit`](https://github.com/go-xrkit/xrkit) | `glasses` names the headset and derives its field of view; `ribbon` places screens on the band and composites them by yaw; `warp` turns the panorama into two eyes |
+| [`go-xrkit/xrkit`](https://github.com/go-xrkit/xrkit) | `glasses` names the headset; `ribbon` places screens on the band and composites them by yaw |
 | [`go-macos/virtualdisplay`](https://github.com/go-macos/virtualdisplay) | creates the displays macOS extends onto |
 | [`go-macos/screencapture`](https://github.com/go-macos/screencapture) | streams their pixels |
 | [`go-widgets`](https://github.com/go-widgets) | the window, and every pixel of interface |
 
-The renderer never rebuilds its distortion table. Building one costs 56.5 ms and
-there are 16.6 ms in a frame — but on an equirectangular panorama a yaw is
-exactly a horizontal shift, so the yaw is applied when the screens are
-composited into the panorama, where it costs nothing at all.
+There is no distortion table, and no panorama. The screens used to be wrapped on
+a cylinder and unwrapped again through a per-pixel warp, which cost 2.8 ms of a
+16.6 ms frame to make something whose whole purpose is to look flat — and drew
+the screen you look at straight on with a bow in it, arguing with the depth the
+glasses already present. Worn once, that settled it. A yaw is now what it looks
+like: a horizontal offset into a band of flat pictures, which costs nothing.
 
 
 ### Which glasses are these
