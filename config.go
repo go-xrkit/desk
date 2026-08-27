@@ -88,6 +88,10 @@ type ConfigRibbon struct {
 	// [DefaultScreens].
 	Screens *int `hcl:"screens"`
 
+	// Splay is the angle between one screen and the next, in degrees. Nil means
+	// [DefaultSplayDeg]; zero is the flat band. See [Plan.SplayDeg].
+	Splay *float64 `hcl:"splay"`
+
 	// Distance is how far the band sits from the viewer, as a multiple of the
 	// distance at which one screen fills the view. Nil, or anything below one,
 	// means one. See [Plan.Distance].
@@ -193,6 +197,10 @@ func (c Config) check() error {
 			}
 		}
 	}
+	if c.Ribbon != nil && c.Ribbon.Splay != nil && *c.Ribbon.Splay > MaxSplayDeg {
+		return fmt.Errorf("%w: ribbon splay = %g, and %g is the widest angle between "+
+			"neighbours", ErrConfig, *c.Ribbon.Splay, MaxSplayDeg)
+	}
 	if c.Ribbon != nil && c.Ribbon.Distance != nil && *c.Ribbon.Distance > MaxDistance {
 		// Named, not clamped, for the same reason the screen count is: a person
 		// who wrote a number expects it to mean something, and quietly running at
@@ -287,6 +295,21 @@ func (c Config) Distance() float64 {
 		return 1
 	}
 	return *c.Ribbon.Distance
+}
+
+// SplayDeg is the angle between one screen and the next, or [DefaultSplayDeg]
+// when the settings do not say. See [Plan.SplayDeg].
+//
+// A zero in the file is honoured: it means the flat band, which is a real choice
+// and not an absence. Nil is the absence, and that is what gets the default.
+func (c Config) SplayDeg() float64 {
+	if c.Ribbon == nil || c.Ribbon.Splay == nil {
+		return DefaultSplayDeg
+	}
+	if *c.Ribbon.Splay < 0 {
+		return 0
+	}
+	return *c.Ribbon.Splay
 }
 
 // Model is the headset this configuration prefers when several are attached,

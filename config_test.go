@@ -368,3 +368,70 @@ func TestTheDistanceSetting(t *testing.T) {
 		t.Errorf("the file gave back %g, want %g", got, two)
 	}
 }
+
+// TestTheSplaySetting: the angle between neighbours is a preference like the
+// distance, with one difference that matters -- a ZERO in the file is a choice.
+//
+// Nil means "not said", and gets the default. Zero means the flat band, which is
+// a real thing somebody may want: one wide surface rather than a desk of angled
+// panels. A reader that treated them alike would make the flat band unreachable
+// from the settings.
+func TestTheSplaySetting(t *testing.T) {
+	if got := (Config{}).SplayDeg(); got != DefaultSplayDeg {
+		t.Errorf("an empty configuration is splayed %g, want the default %g",
+			got, DefaultSplayDeg)
+	}
+	if got := (Config{Ribbon: &ConfigRibbon{}}).SplayDeg(); got != DefaultSplayDeg {
+		t.Errorf("a ribbon block with no splay is %g", got)
+	}
+	flat := 0.0
+	if got := (Config{Ribbon: &ConfigRibbon{Splay: &flat}}).SplayDeg(); got != 0 {
+		t.Errorf("a splay of zero came back as %g, so the flat band cannot be "+
+			"asked for", got)
+	}
+	// Below zero is not an angle; it reads as flat rather than as an error,
+	// because there is nothing else it could mean.
+	below := -10.0
+	if got := (Config{Ribbon: &ConfigRibbon{Splay: &below}}).SplayDeg(); got != 0 {
+		t.Errorf("a splay of %g came back as %g", below, got)
+	}
+	some := 25.0
+	if got := (Config{Ribbon: &ConfigRibbon{Splay: &some}}).SplayDeg(); got != some {
+		t.Errorf("a splay of %g came back as %g", some, got)
+	}
+
+	// Past the widest angle: refused, naming both numbers, like every other
+	// ceiling in this package.
+	far := MaxSplayDeg + 5
+	err := (Config{Ribbon: &ConfigRibbon{Splay: &far}}).check()
+	if err == nil {
+		t.Fatalf("a splay of %g was accepted", far)
+	}
+	for _, want := range []string{"65", "60"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not say %q: %v", want, err)
+		}
+	}
+	edge := MaxSplayDeg
+	if err := (Config{Ribbon: &ConfigRibbon{Splay: &edge}}).check(); err != nil {
+		t.Errorf("the widest angle itself was refused: %v", err)
+	}
+
+	// And it makes the round trip through the file, zero included -- which is the
+	// case a writer that skipped empty values would lose.
+	for _, v := range []float64{0, 25} {
+		val := v
+		cfg := Config{Ribbon: &ConfigRibbon{Splay: &val}}
+		path := filepath.Join(t.TempDir(), "desk.hcl")
+		if err := cfg.SaveTo(path); err != nil {
+			t.Fatal(err)
+		}
+		back, err := LoadConfigFile(path)
+		if err != nil {
+			t.Fatalf("what was written does not load: %v", err)
+		}
+		if got := back.SplayDeg(); got != val {
+			t.Errorf("a splay of %g came back from the file as %g", val, got)
+		}
+	}
+}

@@ -97,6 +97,16 @@ const (
 	// because closer than that means seeing part of a screen.
 	ActionCloser
 	ActionFurther
+	// ActionFlatter and ActionRounder change the angle between one screen and
+	// the next, by [SplayStep].
+	//
+	// Flatter ends at one plane -- every screen square on, which is the band this
+	// package drew before there was an angle and still what somebody wanting a
+	// single wide surface should get. Rounder turns each screen further towards
+	// the viewer, the way the two beside the middle one on a desk of three
+	// monitors are turned.
+	ActionFlatter
+	ActionRounder
 )
 
 // String renders an action for a log.
@@ -130,6 +140,10 @@ func (a Action) String() string {
 		return "closer"
 	case ActionFurther:
 		return "further"
+	case ActionFlatter:
+		return "flatter"
+	case ActionRounder:
+		return "rounder"
 	default:
 		return "none"
 	}
@@ -156,6 +170,10 @@ type Desk struct {
 	feeds   []Feed
 	sources []Source
 	blits   []ribbon.Blit
+	// slants is the frame when the screens are TURNED, and fan the chain that
+	// produces them. A nil fan is the flat band: see [Plan.SplayDeg].
+	slants []Slant
+	fan    *Fan
 
 	// mu serialises everything a viewer can change against everything the frame
 	// loop reads. They are genuinely different goroutines — keys arrive on the
@@ -215,7 +233,7 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 		return nil, fmt.Errorf("%w: %d feeds for %d screens",
 			ErrNoScreens, len(feeds), plan.Count())
 	}
-	r, strip, grid, err := build(plan)
+	r, strip, grid, fan, err := build(plan)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +246,8 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 		feeds:      feeds,
 		sources:    make([]Source, len(feeds)),
 		blits:      make([]ribbon.Blit, 0, len(feeds)+2),
+		slants:     make([]Slant, 0, 2*FanReach+1),
+		fan:        fan,
 		Background: DefaultBackground,
 	}, nil
 }
@@ -300,7 +320,7 @@ func (d *Desk) Do(a Action) {
 			d.quit = true
 		case ActionSettings:
 			d.quit, d.settings = true, true
-		case ActionCloser, ActionFurther:
+		case ActionCloser, ActionFurther, ActionFlatter, ActionRounder:
 			// The gallery is head-locked and shows every screen at a readable
 			// size already, so there is no distance to change while it is open.
 			// Left as nothing rather than made an error: a system-wide key is
@@ -340,6 +360,10 @@ func (d *Desk) Do(a Action) {
 		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() - DistanceStep))
 	case ActionFurther:
 		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() + DistanceStep))
+	case ActionFlatter:
+		d.err = d.reshape(d.plan.WithSplay(d.plan.SplayDeg() - SplayStep))
+	case ActionRounder:
+		d.err = d.reshape(d.plan.WithSplay(d.plan.SplayDeg() + SplayStep))
 	}
 	d.mu.Unlock()
 	if cycle != nil {
@@ -395,27 +419,52 @@ func (d *Desk) Render() *Canvas {
 		// and therefore never be tested.
 		d.blits, _ = d.strip.Fullscreen(d.blits, d.nav.Focus())
 	default:
+		// The band. Turned, when there is an angle to turn it by: the fan and the
+		// strip draw the same screens in the same order, and at a splay of
+		// nothing they draw the same pixels -- which is asserted, not assumed.
+		//
+		// The strip keeps the flat case because it is worth keeping: every panel
+		// square on means every panel is a rectangle, and a rectangle is a run of
+		// row copies instead of a pixel at a time.
+		if d.fan != nil {
+			// Where the band is comes from the STRIP, which takes it from the
+			// ribbon's own arrangement. Two renderers with two ideas of where the
+			// band is would be the mistake that put it half a screen out of step
+			// with the navigator, made twice.
+			d.slants = d.fan.Frame(d.slants[:0], d.nav.Focus(),
+				d.strip.Toward(d.nav.Yaw(), d.nav.Focus()))
+			d.canvas.ComposeSlants(d.slants, d.sources, d.Background)
+			d.mark(inGallery)
+			return d.canvas
+		}
 		d.blits = d.strip.Frame(d.blits, d.strip.Offset(d.nav.Yaw()))
 	}
 
 	d.canvas.Compose(d.blits, d.sources, d.Background)
+	d.mark(inGallery)
+	return d.canvas
+}
 
-	// After the screens, so it is ON the picture rather than under it.
-	//
-	// The two say different things. On the band the question is "which one am I
-	// looking at", and the answer goes up for a moment and leaves. In the
-	// gallery every screen is in front of the viewer at once, so the question is
-	// "which is which, and which would Enter take" — and that has to be on the
-	// picture for as long as the gallery is.
+// mark puts the numbers on the finished picture.
+//
+// After the screens, so it is ON the picture rather than under it -- and in one
+// place, because there are two ways to compose a frame now and both of them end
+// here.
+//
+// The two marks say different things. On the band the question is "which one am I
+// looking at", and the answer goes up for a moment and leaves. In the gallery
+// every screen is in front of the viewer at once, so the question is "which is
+// which, and which would Enter take" -- and that has to be on the picture for as
+// long as the gallery is.
+func (d *Desk) mark(inGallery bool) {
 	if inGallery {
 		// Which cell is which, and which one Enter would take. Without this the
 		// arrows move a selection that is nowhere on the picture.
 		d.marks.draw(d.canvas, d.grid, d.grid.Selected())
-	} else {
-		d.badge.show(d.nav.Focus(), d.plan.Count())
-		d.badge.draw(d.canvas)
+		return
 	}
-	return d.canvas
+	d.badge.show(d.nav.Focus(), d.plan.Count())
+	d.badge.draw(d.canvas)
 }
 
 // Close shuts every feed down, returning the first error but closing them all.
@@ -467,6 +516,13 @@ func KeyAction(code string) Action {
 		return ActionFurther
 	case "+", "=":
 		return ActionCloser
+	// The angle between the screens, on the brackets next to them: a keyboard has
+	// no key that means "more turned", and these are where a person expects a
+	// pair of opposites they were not told about.
+	case "[", "{":
+		return ActionFlatter
+	case "]", "}":
+		return ActionRounder
 	}
 	return ActionNone
 }
@@ -609,10 +665,10 @@ func (d *Desk) grow(add func() (Feed, error)) {
 // built exactly as one that started that size. Two copies of this would be two
 // chances for the band and the gallery to disagree about how many screens there
 // are, which is the kind of difference that shows up as a blank tile.
-func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, error) {
+func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 	r, err := ribbon.Place(plan.Screens(), plan.Layout)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("desk: placing %d screens: %w", plan.Count(), err)
+		return nil, nil, nil, nil, fmt.Errorf("desk: placing %d screens: %w", plan.Count(), err)
 	}
 	placed := make([]ribbon.Placed, r.Len())
 	for i := range placed {
@@ -628,16 +684,30 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, error) {
 	strip, err := NewStrip(placed, band,
 		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("desk: laying out the band: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("desk: laying out the band: %w", err)
 	}
 	// Every screen at once, folded into the same view. It is head-locked, so
 	// unlike the band it has no offset to follow and nothing to rebuild.
 	grid, err := NewGrid(plan.Count(), plan.ScreenW, plan.ScreenH,
 		plan.ScreenW, plan.ScreenH, DefaultGapPx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("desk: folding the gallery: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("desk: folding the gallery: %w", err)
 	}
-	return r, strip, grid, nil
+	// The fan, when there is an angle to turn the screens by. A nil fan is the
+	// flat band and the strip draws it: every panel square on is every panel a
+	// rectangle, which is a run of row copies rather than a pixel at a time.
+	//
+	// The error is dropped because there is none to have. NewFan refuses three
+	// things -- no screens, no size, and a splay of nothing -- and all three are
+	// already impossible here: the first two would have stopped NewStrip above,
+	// and the third is the branch this is inside.
+	// TestAValidPlanAlwaysBuildsItsFan pins that down rather than leaving a
+	// branch that can never be taken and therefore never be tested.
+	var fan *Fan
+	if plan.SplayDeg() > 0 {
+		fan, _ = NewFan(plan)
+	}
+	return r, strip, grid, fan, nil
 }
 
 // reshape swaps in a plan of the same screens seen differently, keeping the
@@ -651,19 +721,20 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, error) {
 //
 // The caller holds the lock.
 func (d *Desk) reshape(plan Plan) error {
-	if plan.Distance() == d.plan.Distance() && plan.Count() == d.plan.Count() {
+	if plan.Distance() == d.plan.Distance() && plan.Count() == d.plan.Count() &&
+		plan.SplayDeg() == d.plan.SplayDeg() {
 		// Already there: at either end of the range every further press means
 		// this, and rebuilding the band to put it back exactly as it was would
 		// make the desk twitch for nothing.
 		return nil
 	}
 	was := d.nav.Focus()
-	r, strip, grid, err := build(plan)
+	r, strip, grid, fan, err := build(plan)
 	if err != nil {
 		return err
 	}
 	d.plan = plan
-	d.strip, d.grid = strip, grid
+	d.strip, d.grid, d.fan = strip, grid, fan
 	d.nav = ribbon.NewNav(r)
 	_ = d.nav.GoTo(was)
 	d.nav.Advance(largeEnoughToArrive)

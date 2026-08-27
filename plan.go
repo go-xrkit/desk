@@ -34,6 +34,11 @@ type Options struct {
 	// end. See [Plan.Distance].
 	Distance float64
 
+	// SplayDeg is the angle between one screen and the next, in degrees. A
+	// NEGATIVE value asks for the flat band; zero asks for [DefaultSplayDeg],
+	// because zero is what a caller that has not thought about it passes.
+	SplayDeg float64
+
 	// FOVDeg overrides the catalogue's horizontal field of view, in degrees.
 	// It exists because the catalogue is honest about what it does not know, and
 	// because a person who measures their own optics should be able to say so.
@@ -94,6 +99,9 @@ type Plan struct {
 	// distance is how far the band sits from the viewer, as a multiple of the
 	// distance at which one screen fills the view. See [Plan.Distance].
 	distance float64
+
+	// splayDeg is the angle between one screen and the next. See [Plan.SplayDeg].
+	splayDeg float64
 }
 
 // String renders the plan the way a person would want it logged.
@@ -192,6 +200,14 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	plan = plan.WithScreens(n)
 	if opts.Distance > 0 {
 		plan = plan.WithDistance(opts.Distance)
+	}
+	switch {
+	case opts.SplayDeg < 0:
+		plan = plan.WithSplay(0)
+	default:
+		plan = plan.WithSplay(opts.SplayDeg)
+	case opts.SplayDeg == 0:
+		plan = plan.WithSplay(DefaultSplayDeg)
 	}
 
 	// There is no panorama any more, and so nothing here to size. The screens
@@ -328,3 +344,58 @@ func (p Plan) WithDistance(d float64) Plan {
 // A quarter, so the near end and the far end are twelve presses apart: enough
 // that a person can stop where they want, few enough that they can get there.
 const DistanceStep = 0.25
+
+// SplayDeg is the angle between one screen and the next, in degrees.
+//
+// Zero is the flat band: every screen in one plane, square on, which is what
+// this package drew before there was an angle at all and still the right answer
+// for somebody who wants a single wide surface. Anything more turns each screen
+// towards the viewer, the way the two beside the middle one on a desk of three
+// monitors are turned.
+//
+// It is an angle between NEIGHBOURS and not a total arc, so it means the same
+// thing whatever the screen count -- which is the point: three screens at twenty
+// degrees and nine at twenty degrees have the same feel in front of you and
+// differ in how far round the rest of them go.
+//
+// The field cannot be negative -- [Plan.WithSplay] clamps at nothing and it is
+// the only way in -- so there is no guard here to read past. A plan's zero value
+// is the flat band, which is the right thing for it to be.
+func (p Plan) SplayDeg() float64 { return p.splayDeg }
+
+// MaxSplayDeg is the widest angle between neighbours.
+//
+// Sixty. Past it a chain of nine screens wraps round past the viewer's own
+// shoulders and the far ones come back into shot from behind, which is not a desk
+// -- and a panel turned that far is mostly edge, so its pixels are a smear
+// whatever else is true. Chosen, like every other end in this package, and said
+// so rather than derived.
+const MaxSplayDeg = 60.0
+
+// DefaultSplayDeg is the angle a desk gets when nobody says: twenty degrees.
+//
+// Enough to read as turned -- the keystone is visible, the neighbours face you --
+// and shallow enough that a screen two along is still squarely in front of you
+// when you turn to it. It is also close to what people set real monitors to,
+// which is the only evidence available for a number like this.
+const DefaultSplayDeg = 20.0
+
+// SplayStep is how much one press changes the angle: five degrees, so the whole
+// range is twelve presses and each one is visible.
+const SplayStep = 5.0
+
+// WithSplay is this plan with a different angle between neighbours, clamped to
+// 0..[MaxSplayDeg].
+//
+// Like the distance, it changes nothing about the screens themselves -- same
+// count, same resolution, same order. It changes which way each one faces.
+func (p Plan) WithSplay(deg float64) Plan {
+	switch {
+	case deg < 0:
+		deg = 0
+	case deg > MaxSplayDeg:
+		deg = MaxSplayDeg
+	}
+	p.splayDeg = deg
+	return p
+}
