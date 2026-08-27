@@ -88,6 +88,16 @@ type ConfigRibbon struct {
 	// [DefaultScreens].
 	Screens *int `hcl:"screens"`
 
+	// Distance is how far the band sits from the viewer, as a multiple of the
+	// distance at which one screen fills the view. Nil, or anything below one,
+	// means one. See [Plan.Distance].
+	//
+	// It is here as well as on the keyboard because it is a PREFERENCE, not a
+	// gesture: somebody who works with three screens in view wants three screens
+	// in view every session, and setting it twelve times a day with a shortcut is
+	// not a setting, it is a chore.
+	Distance *float64 `hcl:"distance"`
+
 	// BadgeSeconds is how long the screen's number stays up after the band
 	// moves. Nil means [DefaultBadgeSeconds]; zero turns it off.
 	BadgeSeconds *float64 `hcl:"badge_seconds"`
@@ -183,6 +193,13 @@ func (c Config) check() error {
 			}
 		}
 	}
+	if c.Ribbon != nil && c.Ribbon.Distance != nil && *c.Ribbon.Distance > MaxDistance {
+		// Named, not clamped, for the same reason the screen count is: a person
+		// who wrote a number expects it to mean something, and quietly running at
+		// four because they asked for forty is worse than saying so.
+		return fmt.Errorf("%w: ribbon distance = %g, and %g is the furthest a band goes",
+			ErrConfig, *c.Ribbon.Distance, MaxDistance)
+	}
 	if c.Ribbon != nil && c.Ribbon.BadgeSeconds != nil && *c.Ribbon.BadgeSeconds < 0 {
 		return fmt.Errorf("%w: badge_seconds = %g", ErrConfig, *c.Ribbon.BadgeSeconds)
 	}
@@ -261,6 +278,15 @@ func (c Config) Screens() int {
 		return 0
 	}
 	return *c.Ribbon.Screens
+}
+
+// Distance is how far the band sits from the viewer, or 1 when the settings do
+// not say. See [Plan.Distance].
+func (c Config) Distance() float64 {
+	if c.Ribbon == nil || c.Ribbon.Distance == nil || *c.Ribbon.Distance < 1 {
+		return 1
+	}
+	return *c.Ribbon.Distance
 }
 
 // Model is the headset this configuration prefers when several are attached,

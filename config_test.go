@@ -309,3 +309,62 @@ func TestHowLongTheScreenNumberStaysUp(t *testing.T) {
 		t.Errorf("a negative badge_seconds was accepted (%v)", err)
 	}
 }
+
+// TestTheDistanceSetting: a preference, not a gesture.
+//
+// Somebody who works with three screens in view wants three screens in view
+// every session; setting it twelve times a day with a shortcut is not a setting,
+// it is a chore. So it is in the file, it survives a write and a read, and a
+// number past the far end is REFUSED with the limit named rather than quietly
+// clamped -- the same rule as the screen count, for the same reason.
+func TestTheDistanceSetting(t *testing.T) {
+	// Nothing said: the near end.
+	if got := (Config{}).Distance(); got != 1 {
+		t.Errorf("an empty configuration is at %g", got)
+	}
+	if got := (Config{Ribbon: &ConfigRibbon{}}).Distance(); got != 1 {
+		t.Errorf("a ribbon block with no distance is at %g", got)
+	}
+	// Below one is not a distance: closer than filling the view means seeing
+	// part of a screen.
+	half := 0.5
+	if got := (Config{Ribbon: &ConfigRibbon{Distance: &half}}).Distance(); got != 1 {
+		t.Errorf("a distance of %g came back as %g", half, got)
+	}
+	two := 2.5
+	if got := (Config{Ribbon: &ConfigRibbon{Distance: &two}}).Distance(); got != two {
+		t.Errorf("a distance of %g came back as %g", two, got)
+	}
+
+	// Past the far end: refused, naming both numbers.
+	far := MaxDistance + 1
+	err := (Config{Ribbon: &ConfigRibbon{Distance: &far}}).check()
+	if err == nil {
+		t.Fatalf("a distance of %g was accepted", far)
+	}
+	for _, want := range []string{"5", "4"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not say %q: %v", want, err)
+		}
+	}
+	// The far end itself is fine.
+	edge := MaxDistance
+	if err := (Config{Ribbon: &ConfigRibbon{Distance: &edge}}).check(); err != nil {
+		t.Errorf("the far end itself was refused: %v", err)
+	}
+
+	// And it makes the round trip through the file, which is the whole point of
+	// it being a setting.
+	cfg := Config{Ribbon: &ConfigRibbon{Distance: &two}}
+	path := filepath.Join(t.TempDir(), "desk.hcl")
+	if err := cfg.SaveTo(path); err != nil {
+		t.Fatal(err)
+	}
+	back, err := LoadConfigFile(path)
+	if err != nil {
+		t.Fatalf("what was written does not load: %v", err)
+	}
+	if got := back.Distance(); got != two {
+		t.Errorf("the file gave back %g, want %g", got, two)
+	}
+}

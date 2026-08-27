@@ -415,6 +415,10 @@ func TestKeyAction(t *testing.T) {
 		"Enter": ActionChoose, "Return": ActionChoose,
 		"ArrowUp": ActionUp, "k": ActionUp, "K": ActionUp,
 		"ArrowDown": ActionDown, "j": ActionDown, "J": ActionDown,
+		// Both spellings of each, because a keyboard has two plus keys and a
+		// person reaches for whichever is nearer.
+		"-": ActionFurther, "_": ActionFurther,
+		"+": ActionCloser, "=": ActionCloser,
 		"x": ActionNone, "": ActionNone, "PageUp": ActionNone,
 	} {
 		if got := KeyAction(code); got != want {
@@ -869,4 +873,178 @@ func TestTheCeilingOnScreens(t *testing.T) {
 	if got := base.WithScreens(MaxScreens).WithScreens(MaxScreens + 1).Count(); got != MaxScreens {
 		t.Errorf("growing past the ceiling gave %d screens", got)
 	}
+}
+
+// TestFurtherShowsTheScreensEitherSide.
+//
+// This is the whole of what distance means: a screen does not move, it takes up
+// less of the view, and the two beside it come into shot. Measured on the BLITS
+// -- what the frame is actually made of -- because a number in a plan proves
+// nothing about what a person sees.
+func TestFurtherShowsTheScreensEitherSide(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// At the near end, one screen fills the view: it is the only one in the
+	// frame, and it is the whole width of it.
+	near := d.Render()
+	_ = near
+	first := drawn(d)
+	if len(first) != 1 {
+		t.Fatalf("at distance 1 the frame is made of %d blits, want one screen "+
+			"filling the view", len(first))
+	}
+	if got := first[0].Dst.W; got != p.ScreenW {
+		t.Errorf("the one screen is %d wide in a %d view", got, p.ScreenW)
+	}
+
+	// Pull back: more screens, each narrower, and the sum still covers the view.
+	d.Do(ActionFurther)
+	if got := d.Distance(); got != 1+DistanceStep {
+		t.Fatalf("one press gave distance %.2f", got)
+	}
+	d.Render()
+	back := drawn(d)
+	if len(back) <= len(first) {
+		t.Errorf("pulling back gave %d blits, no more than the %d before it: the "+
+			"neighbours are still out of shot", len(back), len(first))
+	}
+	for i, b := range back {
+		if b.Dst.W >= p.ScreenW {
+			t.Errorf("blit %d is %d wide at distance %.2f, still the whole view",
+				i, b.Dst.W, d.Distance())
+		}
+	}
+
+	// And in again, back to where it started.
+	d.Do(ActionCloser)
+	if got := d.Distance(); got != 1 {
+		t.Errorf("pressing back in gave %.2f", got)
+	}
+	d.Render()
+	if got := len(drawn(d)); got != len(first) {
+		t.Errorf("back at the near end the frame is %d blits, was %d", got, len(first))
+	}
+}
+
+// TestTheDistanceStopsAtBothEnds: nearer than one screen filling the view means
+// seeing part of a screen, and further than MaxDistance means text as texture.
+//
+// Both ends are pressed twice, because a system-wide key is pressed blind and a
+// person at an end will press again -- and the second press must be nothing, not
+// an error and not a twitch.
+func TestTheDistanceStopsAtBothEnds(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	for range 3 {
+		d.Do(ActionCloser)
+	}
+	if got := d.Distance(); got != 1 {
+		t.Errorf("pressing nearer at the near end gave %.2f", got)
+	}
+	for range int(MaxDistance/DistanceStep) + 4 {
+		d.Do(ActionFurther)
+	}
+	if got := d.Distance(); got != MaxDistance {
+		t.Errorf("pressing further past the far end gave %.2f, want %.2f",
+			got, MaxDistance)
+	}
+	// Pressing further at the far end is nothing at all, not a rebuild that puts
+	// the band back exactly as it was: reshape refuses that, or the desk twitches
+	// every time somebody leans on a key at an end.
+	band := d.Plan()
+	d.Do(ActionFurther)
+	if d.Plan().Distance() != band.Distance() {
+		t.Error("a press at the far end moved the band")
+	}
+
+	// Nothing broke on the way: the frame is still made of screens, and the desk
+	// still knows where it is.
+	d.Render()
+	if len(drawn(d)) == 0 {
+		t.Error("at the far end the frame is empty")
+	}
+	if err := d.Err(); err != nil {
+		t.Errorf("walking to both ends left an error: %v", err)
+	}
+}
+
+// TestDistanceKeepsTheFocusedScreen: pulling back re-lays the band, and a viewer
+// looking at screen four must still be looking at screen four.
+//
+// The rebuild is a new navigator over a new ribbon, so keeping the position is a
+// deliberate act rather than something that happens to survive -- and getting it
+// wrong sends the desk back to the first screen every time somebody changes the
+// distance.
+func TestDistanceKeepsTheFocusedScreen(t *testing.T) {
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	for range 3 {
+		d.Do(ActionNext)
+	}
+	was := d.Nav().Focus()
+	if was == 0 {
+		t.Fatal("the band did not move")
+	}
+	d.Do(ActionFurther)
+	if got := d.Nav().Focus(); got != was {
+		t.Errorf("after pulling back the desk is on screen %d, was on %d", got, was)
+	}
+	d.Do(ActionCloser)
+	if got := d.Nav().Focus(); got != was {
+		t.Errorf("after going back in the desk is on screen %d, was on %d", got, was)
+	}
+}
+
+// TestTheDistanceDoesNothingInTheGallery: the gallery is head-locked and already
+// shows every screen at a readable size, so there is no distance to change.
+//
+// Nothing, not an error: a system-wide key is pressed blind, and refusing it
+// because the gallery happens to be open is a complaint about something the
+// person could not have known.
+func TestTheDistanceDoesNothingInTheGallery(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	d.Do(ActionGalleryOpen)
+	was := d.Distance()
+	d.Do(ActionFurther)
+	d.Do(ActionCloser)
+	if got := d.Distance(); got != was {
+		t.Errorf("the gallery moved the band to %.2f from %.2f", got, was)
+	}
+	if err := d.Err(); err != nil {
+		t.Errorf("pressing it in the gallery reported %v", err)
+	}
+}
+
+// drawn is the frame's blits, rendered fresh.
+func drawn(d *Desk) []ribbon.Blit {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	out := make([]ribbon.Blit, len(d.blits))
+	copy(out, d.blits)
+	return out
 }

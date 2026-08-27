@@ -325,3 +325,63 @@ func placedOf(r *ribbon.Ribbon) []ribbon.Placed {
 	}
 	return out
 }
+
+// TestPlanDistance: what "further away" is, and both ends of it.
+//
+// The plan is where the distance lives because it is the pixel SCALE of the
+// band and nothing else -- the screens, their number and their resolution are
+// untouched, so the navigator, the gallery and the captures know nothing about
+// it. Which is also why one multiplication in build() is the whole of the
+// feature at this stage.
+func TestPlanDistance(t *testing.T) {
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The near end by default: one screen fills the view, which is where this
+	// started and what the doctrine says.
+	if got := p.Distance(); got != 1 {
+		t.Errorf("a fresh plan is at %g", got)
+	}
+
+	for _, c := range []struct {
+		asked, want float64
+	}{
+		{0, 1}, {-3, 1}, {0.5, 1}, // below the near end is the near end
+		{1, 1}, {2, 2}, {MaxDistance, MaxDistance},
+		{MaxDistance + 1, MaxDistance}, {1000, MaxDistance},
+	} {
+		if got := p.WithDistance(c.asked).Distance(); got != c.want {
+			t.Errorf("WithDistance(%g) = %g, want %g", c.asked, got, c.want)
+		}
+	}
+
+	// Nothing else about the plan moves: same screens, same size, same count.
+	far := p.WithDistance(MaxDistance)
+	if far.Count() != p.Count() || far.ScreenW != p.ScreenW || far.ScreenH != p.ScreenH {
+		t.Errorf("the distance changed the screens: %d of %dx%d became %d of %dx%d",
+			p.Count(), p.ScreenW, p.ScreenH, far.Count(), far.ScreenW, far.ScreenH)
+	}
+	if far.Layout != p.Layout {
+		t.Error("the distance changed where the screens are on the band")
+	}
+
+	// Options carries it in, so a caller that composes a plan once gets the
+	// distance a person chose without a second call.
+	q, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6, Distance: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := q.Distance(); got != 2 {
+		t.Errorf("Options.Distance gave %g", got)
+	}
+
+	// The step divides the range: a person can reach the far end and stop
+	// anywhere on the way, which is what makes it usable from a key.
+	if steps := (MaxDistance - 1) / DistanceStep; steps != float64(int(steps)) {
+		t.Errorf("%g steps of %g do not land on the far end %g",
+			steps, DistanceStep, MaxDistance)
+	}
+}
