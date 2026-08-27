@@ -189,6 +189,14 @@ func (c Config) check() error {
 	if c.Ribbon != nil && c.Ribbon.Screens != nil && *c.Ribbon.Screens < 0 {
 		return fmt.Errorf("%w: ribbon screens = %d", ErrConfig, *c.Ribbon.Screens)
 	}
+	// Named, not clamped. A person who wrote a number in this file expects it to
+	// mean something, and silently running six screens because they asked for
+	// sixty is worse than saying so -- the ceiling is arbitrary, so it has to be
+	// stated wherever it bites.
+	if c.Ribbon != nil && c.Ribbon.Screens != nil && *c.Ribbon.Screens > MaxScreens {
+		return fmt.Errorf("%w: ribbon screens = %d, and %d is the most a desk carries",
+			ErrConfig, *c.Ribbon.Screens, MaxScreens)
+	}
 	for _, p := range c.Places {
 		if strings.TrimSpace(p.App) == "" {
 			return fmt.Errorf("%w: a place with no application to put there", ErrConfig)

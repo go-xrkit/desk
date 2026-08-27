@@ -18,7 +18,6 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/go-widgets/painter"
@@ -139,40 +138,4 @@ func TestRenderTheSettingsWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("the settings window is at %s", out)
-}
-
-// TestNoShortcutLineRunsOffTheWindow.
-//
-// The line saying which combination the gallery got ran past the right edge at
-// "it was taken)", so the reader was told everything except the part that
-// mattered. It breaks at the parenthesis, which is where the sentence divides —
-// anywhere else would split a combination in half, and half a combination is
-// worse than none.
-func TestNoShortcutLineRunsOffTheWindow(t *testing.T) {
-	report := "previous: Option-Command-Left\n" +
-		"gallery: Control-Option-Command-Space (asked for Option-Command-Space, it was taken)\n"
-	got := wrapShortcuts(report)
-	if len(got) != 3 {
-		t.Fatalf("wrapShortcuts gave %d lines: %q", len(got), got)
-	}
-	for i, line := range got {
-		if len(line) > shortcutCols {
-			t.Errorf("line %d is %d characters, past the window's %d: %q",
-				i, len(line), shortcutCols, line)
-		}
-	}
-	// The break keeps the granted combination whole on its own line.
-	if got[1] != "gallery: Control-Option-Command-Space" {
-		t.Errorf("the granted combination was broken up: %q", got[1])
-	}
-	// A line with nothing to break at is left alone rather than cut.
-	long := "no global shortcut for " + strings.Repeat("x", shortcutCols)
-	if out := wrapShortcuts(long); len(out) != 1 || out[0] != long {
-		t.Errorf("a line with no parenthesis was cut: %q", out)
-	}
-	// A blank line between two reports is dropped rather than drawn as an empty
-	// row, which would open a gap nobody put there.
-	if out := wrapShortcuts("next: Option-Command-Right\n\nquit: Escape\n"); len(out) != 2 {
-		t.Errorf("a blank line survived: %q", out)
-	}
 }

@@ -45,7 +45,7 @@ func main() { os.Exit(run()) }
 func run() int {
 	screen := flag.String("screen", "", "which display to take over, matched by name")
 	fov := flag.Float64("fov", 0, "horizontal field of view in degrees, when the catalogue does not know")
-	count := flag.Int("screens", 0, "how many screens on the ribbon (0 = as many as fit)")
+	count := flag.Int("screens", 0, fmt.Sprintf("how many screens on the ribbon, 1 to %d (0 = the setting, or six)", desk.MaxScreens))
 	forDur := flag.Duration("for", 0, "stop after this long; 0 runs until you quit")
 	quiet := flag.Bool("quiet", false, "say less")
 	noGlobal := flag.Bool("no-global", false,
@@ -69,7 +69,9 @@ func run() int {
 		return 1
 	}
 	if *settingsWin {
-		if err := desk.RunSettings(desk.SettingsOptions{Logf: logf}); err != nil {
+		if err := desk.RunSettings(desk.SettingsOptions{
+			Logf: logf, DisplayH: tallestDisplay(),
+		}); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -81,7 +83,9 @@ func run() int {
 	// already decided; this is only for the case where nobody has.
 	if desk.ShouldChoose(settings, *screen, desk.Peripherals()) {
 		logf("several headsets are attached and none is chosen")
-		if err := desk.RunSettings(desk.SettingsOptions{Logf: logf}); err != nil {
+		if err := desk.RunSettings(desk.SettingsOptions{
+			Logf: logf, DisplayH: tallestDisplay(),
+		}); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
@@ -315,4 +319,25 @@ func closeFeed(f desk.Feed) {
 	if err := f.Close(); err != nil {
 		fmt.Printf("closing a replaced screen: %v\n", err)
 	}
+}
+
+// tallestDisplay is the height of the biggest display attached, which is where
+// a window macOS places for itself is most likely to land — and the one whose
+// pixels are smallest to look at.
+//
+// The settings window is scaled for it rather than for the glasses: it is shown
+// BEFORE the glasses are chosen, so it appears on the desktop, and a person
+// reading it is not wearing anything yet.
+func tallestDisplay() int {
+	ss, err := window.Screens()
+	if err != nil {
+		return 0 // no scaling rather than a guess
+	}
+	tallest := 0
+	for _, s := range ss {
+		if s.Height > tallest {
+			tallest = s.Height
+		}
+	}
+	return tallest
 }

@@ -6,6 +6,7 @@ package desk
 
 import (
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -78,12 +79,14 @@ func TestNewRefusesAMismatchedDesk(t *testing.T) {
 // out — more screens than fit round the circle at that density.
 // TestAsManyScreensAsAPersonWants.
 //
-// A curved band had to fit in 360°, and at one screen per view that was seven
-// of them and no more. Flat, the circle is a fiction — the yaw says how far
-// along the band the viewer is — so forty screens lay out as readily as three,
-// and every one of them is still exactly one view wide.
+// A curved band had to fit in 360 degrees, and at one screen per view that was
+// seven of them and no more. Flat, the circle is a fiction -- the yaw says how
+// far along the band the viewer is -- so nine screens lay out as readily as
+// three, and every one of them is still exactly one view wide.
+//
+// The ceiling is therefore not the geometry's. See TestTheCeilingOnScreens.
 func TestAsManyScreensAsAPersonWants(t *testing.T) {
-	for _, n := range []int{1, 2, 3, 6, 9, 12, 40} {
+	for _, n := range []int{1, 2, 3, 4, 6, 9} {
 		p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
 			Options{Screens: n})
 		if err != nil {
@@ -794,5 +797,76 @@ func TestTheGalleryKeysAreTheOnesThatWereAskedFor(t *testing.T) {
 		if got[a] != c {
 			t.Errorf("%v is %v, want %v", a, got[a], c)
 		}
+	}
+}
+
+// TestTheCeilingOnScreens: nine, clamped where a program asks and refused where
+// a person does.
+//
+// The distinction is the point. A plan composed in code takes the nearest legal
+// answer, because a caller that asked for twelve wants a desk, not an error. A
+// number in somebody's settings file is a sentence they wrote: running six
+// because they asked for sixty, silently, is worse than saying what the ceiling
+// is -- and since the ceiling is arbitrary, it has to be stated wherever it
+// bites.
+func TestTheCeilingOnScreens(t *testing.T) {
+	if MaxScreens != DefaultColumns*DefaultColumns {
+		t.Errorf("MaxScreens is %d and the gallery is %d columns: nine was chosen "+
+			"because it fills three rows of three exactly",
+			MaxScreens, DefaultColumns)
+	}
+
+	d := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	for _, n := range []int{MaxScreens + 1, 12, 40, 1000} {
+		p, err := NewPlan(d, Options{Screens: n})
+		if err != nil {
+			t.Fatalf("%d screens: NewPlan = %v", n, err)
+		}
+		if got := p.Count(); got != MaxScreens {
+			t.Errorf("%d screens came back as %d, want the ceiling %d", n, got, MaxScreens)
+		}
+	}
+	// A negative count is a caller's mistake rather than a big desk, and has
+	// always been refused.
+	if _, err := NewPlan(d, Options{Screens: -3}); !errors.Is(err, ErrScreens) {
+		t.Errorf("a negative count gave %v, want ErrScreens", err)
+	}
+	// The geometry itself clamps at both ends, which is what Grow leans on.
+	base, err := NewPlan(d, Options{Screens: 3})
+	if err != nil {
+		t.Fatalf("NewPlan = %v", err)
+	}
+	if got := base.WithScreens(1000).Count(); got != MaxScreens {
+		t.Errorf("WithScreens(1000) gave %d, want the ceiling %d", got, MaxScreens)
+	}
+	if got := base.WithScreens(0).Count(); got != 1 {
+		t.Errorf("WithScreens(0) gave %d, want the floor 1", got)
+	}
+
+	// A settings file naming more than the ceiling is refused, with the number
+	// and the ceiling both in the message.
+	over := MaxScreens + 1
+	cfg := Config{Ribbon: &ConfigRibbon{Screens: &over}}
+	err = cfg.check()
+	if err == nil {
+		t.Fatalf("a settings file asking for %d screens was accepted", over)
+	}
+	for _, want := range []string{"10", "9"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not say %q: %v", want, err)
+		}
+	}
+	// The ceiling itself is fine.
+	ok := MaxScreens
+	if err := (Config{Ribbon: &ConfigRibbon{Screens: &ok}}).check(); err != nil {
+		t.Errorf("%d screens, the ceiling itself, was refused: %v", ok, err)
+	}
+
+	// Nothing the settings window offers is above the ceiling, so a person
+	// cannot pick something the file would then refuse.
+	// The gallery is where a screen is added, so the ceiling has to be what the
+	// gallery enforces: Grow refuses to go past it.
+	if got := base.WithScreens(MaxScreens).WithScreens(MaxScreens + 1).Count(); got != MaxScreens {
+		t.Errorf("growing past the ceiling gave %d screens", got)
 	}
 }
