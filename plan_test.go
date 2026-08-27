@@ -385,3 +385,60 @@ func TestPlanDistance(t *testing.T) {
 			steps, DistanceStep, MaxDistance)
 	}
 }
+
+// TestPlanSplay: the angle between neighbours, both ends of it, and what a
+// caller who has not thought about it gets.
+//
+// The last part is the interesting one. Zero from Options means "I did not say",
+// because zero is what a zero value is, and the useful answer to that is the
+// default rather than the flat band. Asking for flat is therefore a NEGATIVE,
+// which is odd to look at and unambiguous to write -- and the alternative was a
+// pointer in a struct that is otherwise all values.
+func TestPlanSplay(t *testing.T) {
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.SplayDeg(); got != DefaultSplayDeg {
+		t.Errorf("a plan nobody splayed is %g, want the default %g",
+			got, DefaultSplayDeg)
+	}
+
+	for _, c := range []struct {
+		asked, want float64
+	}{
+		{-1, 0}, {-90, 0}, {0, 0},
+		{SplayStep, SplayStep}, {DefaultSplayDeg, DefaultSplayDeg},
+		{MaxSplayDeg, MaxSplayDeg}, {MaxSplayDeg + 1, MaxSplayDeg}, {1000, MaxSplayDeg},
+	} {
+		if got := p.WithSplay(c.asked).SplayDeg(); got != c.want {
+			t.Errorf("WithSplay(%g) = %g, want %g", c.asked, got, c.want)
+		}
+	}
+
+	// A negative asked for through Options is the flat band; zero is the default.
+	flat, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6, SplayDeg: -1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := flat.SplayDeg(); got != 0 {
+		t.Errorf("Options.SplayDeg = -1 gave %g, want the flat band", got)
+	}
+
+	// Nothing else about the plan moves: the angle is which way the screens face
+	// and not what they are.
+	turned := p.WithSplay(MaxSplayDeg)
+	if turned.Count() != p.Count() || turned.ScreenW != p.ScreenW ||
+		turned.ScreenH != p.ScreenH || turned.Layout != p.Layout ||
+		turned.Distance() != p.Distance() {
+		t.Error("the splay changed something other than the angle")
+	}
+
+	// The step divides the range, so a person can reach both ends and stop
+	// anywhere between them.
+	if steps := MaxSplayDeg / SplayStep; steps != float64(int(steps)) {
+		t.Errorf("%g steps of %g do not land on %g", steps, SplayStep, MaxSplayDeg)
+	}
+}

@@ -208,3 +208,21 @@ func (c *Canvas) Slant(s Slant, src Source) {
 		}
 	}
 }
+
+// ComposeSlants is [Canvas.Compose] for turned screens: the background, then
+// every panel in the frame.
+//
+// Back to front is not a question here. A chain of panels hinged edge to edge
+// cannot overlap in the view -- each one starts where the last one ended -- so
+// the order they are drawn in cannot change the picture. That is a property of
+// the arrangement, not of the loop, and it is why there is no depth sort in a
+// renderer that draws a three-dimensional thing.
+func (c *Canvas) ComposeSlants(slants []Slant, sources []Source, background [4]byte) {
+	c.Fill(background)
+	for _, s := range slants {
+		if s.Screen < 0 || s.Screen >= len(sources) {
+			continue
+		}
+		c.Slant(s, sources[s.Screen])
+	}
+}
