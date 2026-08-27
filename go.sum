@@ -68,8 +68,8 @@ github.com/go-widgets/painter v0.11.0 h1:xsj4zTz8B43rOZnWrx7ZsaUBMgJyvgaE/Pq2Ffc
 github.com/go-widgets/painter v0.11.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.259.0 h1:RAtJm3xmSEWaL5JjmuzLlzGpIXE55IsB24/4xC0gE7k=
 github.com/go-widgets/toolkit v0.259.0/go.mod h1:eBfiAf9RI6uqmW6NoyFIBjNJgVmpjgVtVuJYS/8N5kI=
-github.com/go-widgets/window v0.52.0 h1:ipEYvfOI3E6dtxs/xRKmg9ZzrGFbQ5T6c/St1BpzkuY=
-github.com/go-widgets/window v0.52.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
+github.com/go-widgets/window v0.53.0 h1:cm8Vu8gvCvC3F3ShfqV9w/NadS030QCBz/ZLf/EmpUw=
+github.com/go-widgets/window v0.53.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
 github.com/go-xrkit/xrkit v0.5.0 h1:MRZfAfWlImC6TlTGczc250vh8B/VKnuOHYHA5r88hmQ=

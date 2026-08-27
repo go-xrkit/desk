@@ -34,7 +34,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 	// It was reported, accurately, as looking like nothing.
 	col := toolkit.NewBoxLayout()
 	col.Vertical = true
-	col.Spacing = 12
+	col.Spacing = toolkit.Scaled(12)
 	box := toolkit.NewContainer(col)
 
 	// Which glasses, when several are attached. A list rather than a drop-down:
@@ -78,8 +78,19 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 			pick = i
 		}
 	}
-	count := toolkit.NewDropDown(counts, pick)
-	box.Add(toolkit.Item{Size: fieldH(1) + 8, Widget: toolkit.NewFormField(
+	// A LIST and not a drop-down.
+	//
+	// A DropDown's popover is the HOST's to render — the toolkit says so in as
+	// many words: Draw paints only the closed control, and the host must call
+	// DrawPopover and route clicks through PopoverClick. This window did
+	// neither, so the control opened onto nothing and nothing could be chosen.
+	// It was reported exactly that way.
+	//
+	// A list needs none of that, shows every choice at once, and matches the
+	// row above it. Seven numbers is a short list.
+	count := toolkit.NewListBox(counts)
+	count.Selected().Set(pick)
+	box.Add(toolkit.Item{Size: fieldH(len(counts)), Widget: toolkit.NewFormField(
 		"Screens on the band: 3, 6 and 9 fold into a gallery three columns wide",
 		count)})
 
@@ -90,7 +101,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 	// middle of a sentence, which is what "hard to read" was made of.
 	immersive := toolkit.NewCheckButton(
 		"Cover the local menu bar and Dock on the glasses", cfg.Immersive())
-	box.Add(toolkit.Item{Widget: immersive, Size: 24})
+	box.Add(toolkit.Item{Widget: immersive, Size: toolkit.Scaled(24)})
 
 	// What the machine will actually grant. Shown, not logged: of the three
 	// ways a shortcut can already be taken, only two are detectable.
@@ -102,7 +113,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 	}())
 	lines := 0
 	for _, line := range wrapShortcuts(whatWeGet(cfg)) {
-		shortcuts.Add(toolkit.Item{Widget: toolkit.NewLabel(line), Size: rowH})
+		shortcuts.Add(toolkit.Item{Widget: toolkit.NewLabel(line), Size: rowH()})
 		lines++
 	}
 	// No Help caption anywhere: the toolkit draws one in theme.Border, which on
@@ -130,10 +141,10 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 	}
 
 	row := toolkit.NewBoxLayout()
-	row.Spacing = 8
+	row.Spacing = toolkit.Scaled(8)
 	row.Pack = toolkit.PackEnd
 	buttons := toolkit.NewContainer(row)
-	buttons.Add(toolkit.Item{Size: 96, Widget: toolkit.NewButton("Save", func() {
+	buttons.Add(toolkit.Item{Size: toolkit.Scaled(96), Widget: toolkit.NewButton("Save", func() {
 		read()
 		path, err := cfg.Save()
 		if err != nil {
@@ -143,13 +154,13 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		logf("saved to %s", path)
 		closeWindow()
 	})})
-	buttons.Add(toolkit.Item{Widget: toolkit.NewButton("Close", func() { closeWindow() }), Size: 96})
+	buttons.Add(toolkit.Item{Widget: toolkit.NewButton("Close", func() { closeWindow() }), Size: toolkit.Scaled(96)})
 	// The buttons are pinned to the bottom; the fields take what is above them.
 	frame := toolkit.NewContainer(toolkit.BorderLayout{})
 	frame.Add(toolkit.Item{Widget: box, Region: toolkit.RegionCenter})
-	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth, Size: 40})
+	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth, Size: toolkit.Scaled(40)})
 
-	return pad(frame, 20, 16), read
+	return pad(frame, toolkit.Scaled(20), toolkit.Scaled(16)), read
 }
 
 // headsetNames is what the catalogue calls each headset on the bus.
@@ -179,13 +190,44 @@ func whatWeGet(cfg *Config) string {
 	return h.DescribeNames()
 }
 
-// SettingsWidth is how wide the settings window is. Its HEIGHT depends on what
-// the machine has to say; see settingsHeight.
+// SettingsFontPx is the settings window's type size in LOGICAL pixels, before
+// the metric scale. Thirteen is a comfortable interface size; on a 2160-row
+// panel the scale takes it to thirty-nine.
+const SettingsFontPx = 13
+
+// SettingsWidth is how wide the settings window is, in LOGICAL pixels. Its
+// HEIGHT depends on what the machine has to say; see settingsHeight.
 const SettingsWidth = 560
 
-// rowH is one line of a list or a caption, and fieldH is a form field holding n
-// of them: its label, its child, and the padding the toolkit puts between.
-const rowH = 20
+// SettingsScale is how much to magnify the settings window on a display of this
+// height, so its type is about the same SIZE TO LOOK AT everywhere.
+//
+// A 5x7 bitmap glyph on a 2160-row panel is three millimetres tall. That window
+// was reported as too small on an 8K screen and it was: unscaled, it was built
+// for a 720-row display and shown on one three times that.
+//
+// One knob, and the toolkit's own: [toolkit.SetMetricScale] re-sizes every
+// widget's metrics AND the built-in font together, which is why the numbers
+// below go through [toolkit.Scaled] rather than being pixel constants.
+func SettingsScale(displayH int) float64 {
+	const builtFor = 720
+	if displayH < builtFor {
+		return 1
+	}
+	s := float64(displayH) / builtFor
+	if s > 4 {
+		// Past this a window stops being a window and becomes a poster; a person
+		// on a very tall panel would rather have a small dialogue than one they
+		// have to scroll.
+		return 4
+	}
+	return s
+}
+
+// rowH is one line of a list or a caption, in device pixels at the current
+// scale, and fieldH is a form field holding n of them: its label, its child, and
+// the padding the toolkit puts between.
+func rowH() int { return toolkit.Scaled(20) }
 
 // settingsHeight is how tall the window has to be for THIS machine's settings.
 //
@@ -196,12 +238,12 @@ const rowH = 20
 // exactly that happened. A window whose buttons have fallen off the end is
 // worse than an ugly one.
 func settingsHeight(cfg Config, attached []glasses.USB) int {
-	const spacing, buttons, margins = 12, 40, 32
+	spacing, buttons, margins := toolkit.Scaled(12), toolkit.Scaled(40), toolkit.Scaled(32)
 	rows := len(headsetNames(attached))
 	if rows == 0 {
 		rows = 1
 	}
-	h := fieldH(rows) + fieldH(1) + 8 + 24 +
+	h := fieldH(rows) + fieldH(len(screenCounts)) + toolkit.Scaled(24) +
 		fieldH(len(wrapShortcuts(whatWeGet(&cfg))))
 	return h + 4*spacing + buttons + margins
 }
@@ -210,8 +252,15 @@ func fieldH(n int) int {
 	if n < 1 {
 		n = 1
 	}
-	return 26 + n*rowH + 6
+	// The label's own height from the toolkit, not a guess at it: a form field
+	// draws its label, a gap, then its child, and only the toolkit knows how
+	// tall the first two are at this scale.
+	return toolkit.FormFieldLabelH() + toolkit.Scaled(FormFieldSlack) + n*rowH()
 }
+
+// FormFieldSlack is the padding a form field puts round its child, in logical
+// pixels: the gap under the label plus its own vertical inset, doubled.
+const FormFieldSlack = 18
 
 // pad wraps a widget in a margin, because a window whose text starts at its
 // own left edge reads as spilled rather than laid out.

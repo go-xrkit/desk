@@ -12,7 +12,7 @@ require (
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-widgets/painter v0.11.0
 	github.com/go-widgets/toolkit v0.259.0
-	github.com/go-widgets/window v0.52.0
+	github.com/go-widgets/window v0.53.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/xrkit v0.5.0
 	github.com/hashicorp/hcl/v2 v2.24.0

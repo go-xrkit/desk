@@ -163,8 +163,9 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	// Pick the second headset, the third screen count, and turn the menu bar
 	// covering off — through the widgets, the way a person would.
 	c := root.(*toolkit.Container)
-	var list *toolkit.ListBox
-	var drop *toolkit.DropDown
+	// Two lists now: the glasses first, the screen count second, in the order
+	// the window lays them out.
+	var lists []*toolkit.ListBox
 	var check *toolkit.CheckButton
 	// Down the tree, because the controls are inside form fields: the window a
 	// person sees is what is at the leaves, not what the root holds.
@@ -172,9 +173,7 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	walk = func(w toolkit.Widget) {
 		switch v := w.(type) {
 		case *toolkit.ListBox:
-			list = v
-		case *toolkit.DropDown:
-			drop = v
+			lists = append(lists, v)
 		case *toolkit.CheckButton:
 			check = v
 		}
@@ -186,12 +185,12 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	}
 	walk(root)
 	_ = c
-	if list == nil || drop == nil || check == nil {
-		t.Fatalf("the window is missing a control: list=%v drop=%v check=%v",
-			list != nil, drop != nil, check != nil)
+	if len(lists) != 2 || check == nil {
+		t.Fatalf("the window has %d lists and check=%v; want the glasses, the "+
+			"screen count, and the menu bar", len(lists), check != nil)
 	}
-	list.Selected().Set(1)
-	drop.Selected().Set(2)
+	lists[0].Selected().Set(1) // the second headset
+	lists[1].Selected().Set(2) // the third screen count
 	check.Checked().Set(false)
 
 	read()
@@ -387,6 +386,47 @@ func TestWhenToAskWhichGlasses(t *testing.T) {
 	} {
 		if got := ShouldChoose(tc.cfg, tc.screen, tc.attached); got != tc.want {
 			t.Errorf("%s: ShouldChoose = %v, want %v", name, got, tc.want)
+		}
+	}
+}
+
+// TestSettingsScale covers every answer the magnification gives, including the
+// two it refuses to go past.
+//
+// The interesting part is not the arithmetic, it is the two clamps. Below a
+// 720-row display the window is left alone: a 1366x768 laptop is what the
+// window was drawn for, and a 600-row panel is one where making the type BIGGER
+// is how the buttons fall off the bottom. Above four the window stops being a
+// window: 4x on this Mac's 2160-row panel is already a dialogue 2240 pixels
+// tall, and a person on a taller one would rather have a small dialogue than
+// one they have to scroll.
+func TestSettingsScale(t *testing.T) {
+	for _, c := range []struct {
+		what string
+		h    int
+		want float64
+	}{
+		{"nothing known about the display", 0, 1},
+		{"a small panel is left alone", 600, 1},
+		{"the size it was drawn for", 720, 1},
+		{"a 1440p display", 1440, 2},
+		{"the 8K panel this was reported on", 2160, 3},
+		{"exactly at the clamp", 2880, 4},
+		{"past the clamp", 4320, 4},
+	} {
+		if got := SettingsScale(c.h); got != c.want {
+			t.Errorf("%s (%d rows): scale %.2f, want %.2f", c.what, c.h, got, c.want)
+		}
+	}
+
+	// The scale is monotonic: a taller display never gets SMALLER type. Nothing
+	// in the two clamps may invert the order between them.
+	last := 0.0
+	for h := 0; h <= 6000; h += 37 {
+		if s := SettingsScale(h); s < last {
+			t.Fatalf("%d rows scaled %.2f after %.2f: taller and smaller", h, s, last)
+		} else {
+			last = s
 		}
 	}
 }
