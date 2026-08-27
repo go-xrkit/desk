@@ -5,7 +5,10 @@
 package desk
 
 import (
+	"bytes"
 	"errors"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/go-macos/hotkey"
@@ -521,5 +524,47 @@ func TestClickingThePlusWithNoWayToAddIt(t *testing.T) {
 	}
 	if d.Plan().Count() != 3 {
 		t.Errorf("the desk grew to %d", d.Plan().Count())
+	}
+}
+
+// TestNothingInThisPackageDrawsAPixel.
+//
+// « tu as ajouté des widgets au toolkit ou tu dessine a la main? » — asked on
+// 2026-08-27, and the honest answer was: hand-drawn, two painter.StrokeRect
+// calls, and nothing added to the toolkit. The answer is now a widget,
+// toolkit.SelectionBox, and this is the barrier that keeps it that way.
+//
+// The capture path is excluded: Canvas composites captured desktops, which is
+// pixels by definition and not interface. Everything else — the numbers, the
+// words, the borders, the plus — has to come from a widget, so that it scales
+// with the metric scale, follows the theme, and reaches the accessibility tree
+// like the rest of the interface.
+func TestNothingInThisPackageDrawsAPixel(t *testing.T) {
+	primitives := []string{".StrokeRect(", ".FillRect(", ".FillRoundRect(",
+		".StrokeRoundRect(", ".PutPixel(", ".Text("}
+	// canvas.go is the compositor: its whole job is to move captured pixels.
+	// render.go maps that picture into the framebuffer, likewise.
+	allowed := map[string]bool{"canvas.go": true, "render.go": true}
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") ||
+			strings.HasSuffix(name, "_test.go") || allowed[name] {
+			continue
+		}
+		b, err := os.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range primitives {
+			if bytes.Contains(b, []byte(p)) {
+				t.Errorf("%s calls %s — draw it with a toolkit widget, or add one "+
+					"to the toolkit if there is none that fits", name, p)
+			}
+		}
 	}
 }
