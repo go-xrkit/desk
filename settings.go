@@ -78,19 +78,16 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 			pick = i
 		}
 	}
-	// A LIST and not a drop-down.
+	// A drop-down, which is what a one-of-seven choice is.
 	//
-	// A DropDown's popover is the HOST's to render — the toolkit says so in as
-	// many words: Draw paints only the closed control, and the host must call
-	// DrawPopover and route clicks through PopoverClick. This window did
-	// neither, so the control opened onto nothing and nothing could be chosen.
-	// It was reported exactly that way.
-	//
-	// A list needs none of that, shows every choice at once, and matches the
-	// row above it. Seven numbers is a short list.
-	count := toolkit.NewListBox(counts)
-	count.Selected().Set(pick)
-	box.Add(toolkit.Item{Size: fieldH(len(counts)), Widget: toolkit.NewFormField(
+	// It was briefly a list, because a DropDown's popover is the HOST's to draw
+	// and this window drew nothing: the control opened onto empty surface and
+	// nothing could be chosen. That was the wrong repair -- it worked round a
+	// gap in the toolkit by giving up the control. The gap is closed instead:
+	// toolkit.PopoverHost is the host half, once, for every application, and
+	// RunSettings wraps the root in one.
+	count := toolkit.NewDropDown(counts, pick)
+	box.Add(toolkit.Item{Size: fieldH(1), Widget: toolkit.NewFormField(
 		"Screens on the band: 3, 6 and 9 fold into a gallery three columns wide",
 		count)})
 
@@ -243,7 +240,7 @@ func settingsHeight(cfg Config, attached []glasses.USB) int {
 	if rows == 0 {
 		rows = 1
 	}
-	h := fieldH(rows) + fieldH(len(screenCounts)) + toolkit.Scaled(24) +
+	h := fieldH(rows) + fieldH(1) + toolkit.Scaled(24) +
 		fieldH(len(wrapShortcuts(whatWeGet(&cfg))))
 	return h + 4*spacing + buttons + margins
 }
@@ -318,4 +315,76 @@ func ShouldChoose(cfg Config, screen string, attached []glasses.USB) bool {
 		return false
 	}
 	return len(headsetNames(attached)) > 1
+}
+
+// FitScale is the largest magnification, at or below want, whose window still
+// fits in maxW x maxH pixels. size reports the window's pixel size at a given
+// scale.
+//
+// Legibility and fitting are two different questions and they disagree. What
+// makes the type comfortable on a 2160-row panel is a scale of three; what fits
+// on the 1200-row display macOS may well put the window on is nothing like
+// that. A window magnified past its screen is worse than a small one: the
+// buttons are outside the frame, so the settings cannot be saved at all, and
+// nothing on screen says why.
+//
+// The measurement is handed in rather than computed here because the size
+// depends on the FONT installed at that scale -- a row is a glyph high plus
+// padding -- and installing a face is the display half's business. That also
+// makes this the testable half: a synthetic size function proves the search
+// without a window, a display or a font.
+//
+// The step down is proportional, not a fixed decrement: if the window came out
+// twice too tall, the useful next candidate is half the scale, not one notch
+// less. It always shrinks -- the factor is a size over a smaller limit -- and it
+// is bounded anyway, because this runs while a person waits for a window.
+func FitScale(want float64, maxW, maxH int, size func(float64) (int, int)) float64 {
+	if want < 1 {
+		want = 1
+	}
+	scale := want
+	for range fitTries {
+		w, h := size(scale)
+		if (maxW <= 0 || w <= maxW) && (maxH <= 0 || h <= maxH) {
+			return scale
+		}
+		if scale <= 1 {
+			// Already at the bottom: an unmagnified window that still does not
+			// fit is what the machine has, and shrinking the type further would
+			// buy nothing a person could read.
+			return 1
+		}
+		next := scale
+		if maxH > 0 && h > maxH {
+			next = min(next, scale*float64(maxH)/float64(h))
+		}
+		if maxW > 0 && w > maxW {
+			next = min(next, scale*float64(maxW)/float64(w))
+		}
+		if next < 1 {
+			next = 1
+		}
+		scale = next
+	}
+	return scale
+}
+
+// fitTries bounds the search. Four rounds is generous for a proportional step:
+// the first guess is normally right and the second corrects for rounding.
+const fitTries = 4
+
+// SettingsRoom is the fraction of a display's usable area the settings window
+// may occupy. A dialogue that reaches the very edges of the screen reads as a
+// mistake, and on macOS the bottom edge is where the Dock lives.
+const SettingsRoom = 0.9
+
+// settingsSurface is what the window is actually given: the form, wrapped in the
+// toolkit's popover host.
+//
+// It is one line, and it is here rather than inline in the display half so a
+// test can prove the drop-down works through the SAME wrapper the window uses.
+// Without the wrapper the control opens onto nothing -- a defect no bounds test
+// and no render of the closed form can see, which is how it shipped once.
+func settingsSurface(root toolkit.Widget) toolkit.Widget {
+	return toolkit.NewPopoverHost(root)
 }

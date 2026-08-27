@@ -163,9 +163,9 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	// Pick the second headset, the third screen count, and turn the menu bar
 	// covering off — through the widgets, the way a person would.
 	c := root.(*toolkit.Container)
-	// Two lists now: the glasses first, the screen count second, in the order
-	// the window lays them out.
+	// One list -- the glasses -- and one drop-down for the screen count.
 	var lists []*toolkit.ListBox
+	var count *toolkit.DropDown
 	var check *toolkit.CheckButton
 	// Down the tree, because the controls are inside form fields: the window a
 	// person sees is what is at the leaves, not what the root holds.
@@ -174,6 +174,8 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 		switch v := w.(type) {
 		case *toolkit.ListBox:
 			lists = append(lists, v)
+		case *toolkit.DropDown:
+			count = v
 		case *toolkit.CheckButton:
 			check = v
 		}
@@ -185,12 +187,12 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	}
 	walk(root)
 	_ = c
-	if len(lists) != 2 || check == nil {
-		t.Fatalf("the window has %d lists and check=%v; want the glasses, the "+
-			"screen count, and the menu bar", len(lists), check != nil)
+	if len(lists) != 1 || count == nil || check == nil {
+		t.Fatalf("the window has %d lists, count=%v, check=%v; want the glasses, "+
+			"the screen count and the menu bar", len(lists), count != nil, check != nil)
 	}
 	lists[0].Selected().Set(1) // the second headset
-	lists[1].Selected().Set(2) // the third screen count
+	count.Select(2)            // the third screen count, as a click would
 	check.Checked().Set(false)
 
 	read()
@@ -428,5 +430,124 @@ func TestSettingsScale(t *testing.T) {
 		} else {
 			last = s
 		}
+	}
+}
+
+// TestTheScreenCountCanBeChosenWithTheMouse is the defect a person reported as
+// "la combobox n'est pas fonctionelle": the control opened and nothing could be
+// selected.
+//
+// It goes through settingsSurface, which is what the window is given, and drives
+// the widgets the way a mouse does -- open the list, click the third row -- so
+// it fails if the wrapper is ever dropped again. The negative control clicks the
+// identical point on the bare form, where nothing happens.
+func TestTheScreenCountCanBeChosenWithTheMouse(t *testing.T) {
+	pick := func(surface func(toolkit.Widget) toolkit.Widget) int {
+		cfg := &Config{}
+		root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
+		top := surface(root)
+		top.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
+
+		var count *toolkit.DropDown
+		var walk func(toolkit.Widget)
+		walk = func(w toolkit.Widget) {
+			if d, ok := w.(*toolkit.DropDown); ok {
+				count = d
+			}
+			if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
+				for _, kid := range p.Children() {
+					walk(kid)
+				}
+			}
+		}
+		walk(top)
+		if count == nil {
+			t.Fatal("the window has no drop-down for the screen count")
+		}
+
+		// Click the control to open it, then the third row of the list it puts up.
+		b := count.Bounds()
+		top.OnEvent(toolkit.Event{Kind: toolkit.EventClick, X: b.X + 4, Y: b.Y + b.H/2})
+		if !count.Open().Get() {
+			t.Fatal("clicking the control did not open the list")
+		}
+		pb := count.PopoverBounds()
+		row := pb.H / len(count.Options)
+		top.OnEvent(toolkit.Event{
+			Kind: toolkit.EventClick,
+			X:    pb.X + 4,
+			Y:    pb.Y + 2*row + row/2,
+		})
+		read()
+		return cfg.Screens()
+	}
+
+	if got, want := pick(settingsSurface), screenCounts[2]; got != want {
+		t.Errorf("clicking the third option chose %d screens, want %d", got, want)
+	}
+	bare := func(w toolkit.Widget) toolkit.Widget { return w }
+	if got := pick(bare); got == screenCounts[2] {
+		t.Error("negative control: the bare form routed the click on its own, so " +
+			"this test no longer proves the popover host is needed")
+	}
+}
+
+// TestFitScale: the magnification has to give way to the display.
+//
+// Legibility asks for one number and the screen allows another. What made this
+// worth a function of its own is that getting it wrong is silent: a window
+// magnified past its display keeps its Save button below the frame, so the
+// settings cannot be saved and nothing on screen says why.
+func TestFitScale(t *testing.T) {
+	// A window whose size is exactly proportional to the scale.
+	linear := func(w, h int) func(float64) (int, int) {
+		return func(s float64) (int, int) {
+			return int(float64(w) * s), int(float64(h) * s)
+		}
+	}
+
+	// It fits at the scale asked for: nothing to do.
+	if got := FitScale(3, 2000, 2000, linear(560, 570)); got != 3 {
+		t.Errorf("a window that fits was still shrunk to %.2f", got)
+	}
+	// Too tall: comes back at or under the room available.
+	got := FitScale(3, 4000, 1000, linear(560, 570))
+	if got >= 3 {
+		t.Errorf("a window three times too tall kept its scale %.2f", got)
+	}
+	if _, h := linear(560, 570)(got); h > 1000 {
+		t.Errorf("at scale %.2f the window is %d tall, past the 1000 available", got, h)
+	}
+	// Too wide, with all the height in the world.
+	got = FitScale(4, 800, 0, linear(560, 570))
+	if w, _ := linear(560, 570)(got); w > 800 {
+		t.Errorf("at scale %.2f the window is %d wide, past the 800 available", got, w)
+	}
+	// A display too small for even the unmagnified window: it stops at 1 rather
+	// than shrinking the type into illegibility.
+	if got := FitScale(3, 10, 10, linear(560, 570)); got != 1 {
+		t.Errorf("an impossible display gave scale %.2f, want 1", got)
+	}
+	// No display known: no constraint, so legibility wins outright.
+	if got := FitScale(3, 0, 0, linear(560, 570)); got != 3 {
+		t.Errorf("with no room given the scale became %.2f", got)
+	}
+	// Below 1 is not a magnification anybody asked for.
+	if got := FitScale(0.25, 0, 0, linear(560, 570)); got != 1 {
+		t.Errorf("a scale under 1 was honoured: %.2f", got)
+	}
+	// A size that does not shrink with the scale still terminates, on the
+	// fallback decrement, instead of looping.
+	stuck := func(float64) (int, int) { return 5000, 5000 }
+	if got := FitScale(3, 100, 100, stuck); got < 1 || got > 3 {
+		t.Errorf("a window that ignores the scale gave %.2f", got)
+	}
+
+	// And a size that will not fit within the rounds allowed comes back with
+	// the best candidate reached rather than looping forever: the search is
+	// bounded because it runs while a person waits for a window.
+	constant := func(float64) (int, int) { return 0, 400 }
+	if got := FitScale(3, 0, 300, constant); got < 1 || got >= 3 {
+		t.Errorf("the bounded search gave %.2f", got)
 	}
 }

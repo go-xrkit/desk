@@ -65,8 +65,29 @@ func TestRenderTheSettingsWindowForAnEightKPanel(t *testing.T) {
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
 	w, h := toolkit.Scaled(SettingsWidth), settingsHeight(*cfg, attached)
-	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	form, _ := settingsRoot(cfg, attached, nil, func() {})
+	root := settingsSurface(form)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
+
+	// With the screen-count list OPEN, because that is the state a person
+	// reported as broken and the one no earlier picture ever showed.
+	var count *toolkit.DropDown
+	var find func(toolkit.Widget)
+	find = func(x toolkit.Widget) {
+		if d, ok := x.(*toolkit.DropDown); ok {
+			count = d
+		}
+		if p, ok := x.(interface{ Children() []toolkit.Widget }); ok {
+			for _, kid := range p.Children() {
+				find(kid)
+			}
+		}
+	}
+	find(root)
+	if count == nil {
+		t.Fatal("no drop-down in the window")
+	}
+	count.Open().Set(true)
 
 	// Nothing is drawn under the bottom edge of the window it was sized for.
 	if deep := deepest(root); deep > h {
