@@ -189,3 +189,47 @@ func TestTheRealPlatformIsWhatShips(t *testing.T) {
 		t.Fatal("registering an empty combination succeeded")
 	}
 }
+
+// TestThereIsAlwaysAWayOut.
+//
+// The desk takes a whole display and puts a picture over it. The pointer that
+// wanders onto that display is invisible -- the picture is a capture of somewhere
+// else, so it does not show where the mouse is -- and the window does not hold
+// the keyboard, on purpose, because the applications on the screens need it.
+//
+// Somebody in that position has nothing to click and nothing to press. It was
+// measured on a pair of glasses, and the way out was UNPLUGGING THEM. So quitting
+// is system-wide, and this is the test that says it must stay so.
+func TestThereIsAlwaysAWayOut(t *testing.T) {
+	want := map[Action]bool{ActionQuit: false, ActionSettings: false}
+	keys := map[string]string{}
+	for _, s := range DefaultShortcuts() {
+		if _, ok := want[s.Does]; ok {
+			want[s.Does] = true
+		}
+		// And no two of them are the same combination, which would leave one of
+		// the pair unreachable however carefully it was chosen.
+		k := s.Want.String()
+		if was, seen := keys[k]; seen {
+			t.Errorf("%s is claimed by both %s and %s", k, was, s.Does)
+		}
+		keys[k] = s.Does.String()
+	}
+	for a, found := range want {
+		if !found {
+			t.Errorf("no system-wide shortcut asks for %v, so a person whose "+
+				"pointer is lost on the glasses cannot reach it", a)
+		}
+	}
+}
+
+// TestEveryShortcutIsAnActionTheDeskAnswers: a combination claimed for an action
+// nothing acts on takes a key from the whole machine and gives nothing back.
+func TestEveryShortcutIsAnActionTheDeskAnswers(t *testing.T) {
+	for _, s := range DefaultShortcuts() {
+		if s.Does == ActionNone || s.Does.String() == "none" {
+			t.Errorf("%s is claimed for %v, which the desk does not answer",
+				s.Want.String(), s.Does)
+		}
+	}
+}
