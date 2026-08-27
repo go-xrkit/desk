@@ -12,12 +12,209 @@ import (
 	"github.com/go-xrkit/xrkit/glasses"
 )
 
+// Sizes of the settings window and its controls, in LOGICAL pixels: everything
+// here goes through [toolkit.Scaled] at use, so one knob magnifies the whole
+// window and nothing is a device-pixel constant.
+const (
+	// SettingsWidth is how wide the window is. Its HEIGHT is measured, not
+	// declared -- see settingsSize.
+	SettingsWidth = 560
+	// SettingsPadX and SettingsPadY are the window's margins.
+	SettingsPadX = 16
+	SettingsPadY = 12
+	// ButtonBarH is the band the Save/Close row keeps at the bottom. It is a
+	// BorderLayout region, so the content above it can never reach into it --
+	// which is what a fixed-height run of fields used to do when the window was
+	// made smaller: the buttons ended up drawn over the text.
+	ButtonBarH = 40
+	// ButtonW is one button.
+	ButtonW = 96
+	// ControlW, ControlNarrowW and ControlH size the trailing control of a
+	// settings row. A SettingRow right-aligns a control at the size the control
+	// carries, so these are given to the widget rather than to the row.
+	ControlW       = 220
+	ControlNarrowW = 96
+	ControlH       = 28
+	// SwitchW and SwitchH size a switch, which is wider than it is tall.
+	SwitchW = 44
+	SwitchH = 24
+	// PageSpacing is the gap between the cards on the page.
+	PageSpacing = 12
+)
+
+// settingsPage builds the measurable half of the window: the cards, the controls
+// in them, and the function that reads the controls back into the settings.
+//
+// It is separate from [settingsRoot] because it is the part that can say how big
+// it is. A page of [toolkit.SettingsGroup] cards measures itself -- each row
+// reports its own height, the group sums them -- so the window's height is asked
+// of the tree rather than computed from a table of pixel constants. That table
+// was the defect: it is right at one window size and wrong at every other.
+func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func()) {
+	// Which glasses, when several are attached.
+	names := headsetNames(attached)
+	chosen := 0
+	for i, n := range names {
+		if n == cfg.Model() {
+			chosen = i
+		}
+	}
+	glassesPick := toolkit.NewDropDown(names, chosen)
+	glassesPick.SetBounds(toolkit.Rect{
+		W: toolkit.Scaled(ControlW), H: toolkit.Scaled(ControlH)})
+
+	// How many screens. Capped at MaxScreens, which is why the list stops at
+	// nine: a window that offered more would offer something the settings file
+	// then refuses.
+	counts := make([]string, len(screenCounts))
+	pick := 0
+	for i, n := range screenCounts {
+		counts[i] = strconv.Itoa(n)
+		if n == cfg.Screens() {
+			pick = i
+		}
+	}
+	countPick := toolkit.NewDropDown(counts, pick)
+	countPick.SetBounds(toolkit.Rect{
+		W: toolkit.Scaled(ControlNarrowW), H: toolkit.Scaled(ControlH)})
+
+	// The menu bar, which is the thing everyone asks about.
+	//
+	// A switch rather than a check button: it is a setting that is on or off,
+	// and it sits in the trailing slot of a row whose words are the label. No
+	// apostrophe and no dashes anywhere in this window's text -- the built-in
+	// font has neither, and "the glasses' own menu bar" came out as a hole in
+	// the middle of a sentence. The system face has them, but the window falls
+	// back to the built-in one on a platform that offers no face at all.
+	immersive := toolkit.NewSwitch(cfg.Immersive())
+	immersive.SetBounds(toolkit.Rect{
+		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
+
+	glassesRow := &toolkit.SettingRow{
+		Title:    "Glasses",
+		Subtitle: "which headset when several are attached",
+		Control:  glassesPick,
+	}
+	if len(names) == 0 {
+		glassesRow.Subtitle = "none on the bus; name one with -screen"
+		glassesRow.Control = nil
+	}
+	deskCard := toolkit.NewSettingsGroup("The desk",
+		glassesRow,
+		&toolkit.SettingRow{
+			Title:    "Screens on the band",
+			Subtitle: "3, 6 and 9 fold into a gallery three columns wide",
+			Control:  countPick,
+		},
+		&toolkit.SettingRow{
+			Title:    "Cover the local menu bar and Dock",
+			Subtitle: "the glasses own the whole panel",
+			Control:  immersive,
+		},
+	)
+
+	// What the machine will actually grant, one row per action, the combination
+	// in the trailing slot. Shown and not logged: of the three ways a shortcut
+	// can already be taken, only two are detectable, so what was asked for and
+	// what was granted are different questions.
+	keysCard := toolkit.NewSettingsGroup(
+		"Shortcuts this machine granted, not what was asked for",
+		shortcutRows(cfg)...)
+
+	l := toolkit.NewBoxLayout()
+	l.Vertical = true
+	l.Spacing = toolkit.Scaled(PageSpacing)
+	page := toolkit.NewContainer(l)
+	// Natural, not a size: each card is as tall as its own rows say, re-measured
+	// every time the window changes shape.
+	page.Add(toolkit.Item{Widget: deskCard, Natural: true})
+	page.Add(toolkit.Item{Widget: keysCard, Natural: true})
+
+	read := func() {
+		if i := glassesPick.Selected().Get(); len(names) > 0 && i >= 0 && i < len(names) {
+			cfg.Glasses = &ConfigGlasses{Model: &names[i]}
+		}
+		if i := countPick.Selected().Get(); i >= 0 && i < len(screenCounts) {
+			n := screenCounts[i]
+			if cfg.Ribbon == nil {
+				cfg.Ribbon = &ConfigRibbon{}
+			}
+			cfg.Ribbon.Screens = &n
+		}
+		// The block exists by now: the screen count above always makes one.
+		on := immersive.On().Get()
+		cfg.Ribbon.Immersive = &on
+	}
+	return page, read
+}
+
+// shortcutRows is one row per shortcut the machine granted, its combination in
+// the trailing slot.
+func shortcutRows(cfg *Config) []*toolkit.SettingRow {
+	return shortcutRowsFrom(whatWeGet(cfg))
+}
+
+// shortcutRowsFrom is the same thing from a report already in hand: whatWeGet
+// has to CLAIM the shortcuts to find out what it would get, which needs a real
+// window server, so the shaping of the answer is separated from the asking.
+func shortcutRowsFrom(report string) []*toolkit.SettingRow {
+	var out []*toolkit.SettingRow
+	for _, line := range strings.Split(strings.TrimSpace(report), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		title, keys, ok := strings.Cut(line, ":")
+		if !ok {
+			// A refusal rather than a grant: it has no combination to put in the
+			// trailing slot, so the sentence is the label -- across BOTH of the
+			// row's text lines, because a refusal is three times the length of a
+			// grant and a row draws each line without wrapping it.
+			head, tail := splitToFit(strings.TrimSpace(line), cardRoom())
+			out = append(out, &toolkit.SettingRow{Title: head, Subtitle: tail})
+			continue
+		}
+		// The combination goes in the trailing slot; anything the machine adds
+		// in brackets -- what was ASKED for, when it had to be substituted --
+		// goes under the name instead.
+		//
+		// It used to be one string, and the gallery's line is "the granted
+		// combination (asked for the other one, it was taken)": three times the
+		// width of the slot, so the row drew it straight over its own title and
+		// neither could be read. A row places its control at the size the
+		// control carries -- it does not clip it.
+		keys = strings.TrimSpace(keys)
+		aside := ""
+		if i := strings.Index(keys, " ("); i >= 0 {
+			aside = strings.Trim(strings.TrimSpace(keys[i:]), "()")
+			keys = strings.TrimSpace(keys[:i])
+		}
+		row := &toolkit.SettingRow{Title: strings.TrimSpace(title), Subtitle: aside}
+		if w := toolkit.TextWidth(keys) + toolkit.Scaled(8); w <= valueRoom() {
+			value := toolkit.NewLabel(keys)
+			value.SetBounds(toolkit.Rect{W: w, H: toolkit.Scaled(ControlH)})
+			row.Control = value
+		} else {
+			// Still too wide for half a card: it goes under the name, where
+			// there is a whole line for it, rather than over the name.
+			row.Subtitle = strings.TrimSpace(keys + " " + aside)
+		}
+		out = append(out, row)
+	}
+	return out
+}
+
 // settingsRoot builds the widget tree and returns it with the function that
 // reads the controls back into the settings.
 //
 // It is separate from [RunSettings] so that what the window DOES is not tangled
 // with opening one: this half needs no display, and a caller with a headless
 // machine can still ask what the controls would produce.
+//
+// The arrangement is what stops the window breaking when it is resized: the
+// buttons own a BorderLayout band at the bottom, which the content cannot reach
+// into, and the content is a measured page inside a ScrollView, so a window too
+// small for it scrolls instead of overlapping. It was a stack of fixed-height
+// fields, and shrinking the window drew the buttons over the text.
 func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any),
 	closeWindow func()) (toolkit.Widget, func()) {
 
@@ -28,120 +225,14 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		logf = func(string, ...any) {}
 	}
 
-	// Vertical, and every row sized. A BoxLayout is HORIZONTAL by default and
-	// gives an item with no config an EQUAL FLEX SHARE — so the first version of
-	// this put eleven controls side by side, each a tenth of the window wide.
-	// It was reported, accurately, as looking like nothing.
-	col := toolkit.NewBoxLayout()
-	col.Vertical = true
-	col.Spacing = toolkit.Scaled(12)
-	box := toolkit.NewContainer(col)
-
-	// Which glasses, when several are attached. A list rather than a drop-down:
-	// the whole point is to SEE that there are two and which one is which.
-	names := headsetNames(attached)
-	list := toolkit.NewListBox(names)
-	chosen := -1
-	for i, n := range names {
-		if n == cfg.Model() {
-			chosen = i
-		}
-	}
-	// Nothing chosen yet selects the first, so that what the window SHOWS and
-	// what it would save are the same thing. A list with a highlight on nothing
-	// and a Save that then records nothing is a window that quietly disagrees
-	// with itself.
-	if chosen < 0 && len(names) > 0 {
-		chosen = 0
-	}
-	if chosen >= 0 {
-		list.Selected().Set(chosen)
-	}
-	// Sized to its rows, not given the slack. A list of two headsets stretched
-	// over half the window is a large empty box with its caption stranded at
-	// the bottom, which is what this looked like the first time.
-	if len(names) == 0 {
-		box.Add(toolkit.Item{Size: fieldH(1), Widget: toolkit.NewFormField(
-			"Glasses on the bus: none; name one with -screen",
-			toolkit.NewLabel("nothing attached"))})
-	} else {
-		box.Add(toolkit.Item{Size: fieldH(len(names)), Widget: toolkit.NewFormField(
-			"Glasses: which headset when several are attached", list)})
-	}
-
-	// How many screens.
-	counts := make([]string, len(screenCounts))
-	pick := 0
-	for i, n := range screenCounts {
-		counts[i] = strconv.Itoa(n)
-		if n == cfg.Screens() {
-			pick = i
-		}
-	}
-	// A drop-down, which is what a one-of-seven choice is.
-	//
-	// It was briefly a list, because a DropDown's popover is the HOST's to draw
-	// and this window drew nothing: the control opened onto empty surface and
-	// nothing could be chosen. That was the wrong repair -- it worked round a
-	// gap in the toolkit by giving up the control. The gap is closed instead:
-	// toolkit.PopoverHost is the host half, once, for every application, and
-	// RunSettings wraps the root in one.
-	count := toolkit.NewDropDown(counts, pick)
-	box.Add(toolkit.Item{Size: fieldH(1), Widget: toolkit.NewFormField(
-		"Screens on the band: 3, 6 and 9 fold into a gallery three columns wide",
-		count)})
-
-	// The menu bar, which is the thing everyone asks about.
-	// No apostrophe and no dashes anywhere in this window's words. The
-	// toolkit's font has neither an apostrophe nor an em dash, so "the glasses'
-	// own menu bar" rendered as "the glasses  own menu bar" — a hole in the
-	// middle of a sentence, which is what "hard to read" was made of.
-	immersive := toolkit.NewCheckButton(
-		"Cover the local menu bar and Dock on the glasses", cfg.Immersive())
-	box.Add(toolkit.Item{Widget: immersive, Size: toolkit.Scaled(24)})
-
-	// What the machine will actually grant. Shown, not logged: of the three
-	// ways a shortcut can already be taken, only two are detectable.
-	shortcuts := toolkit.NewContainer(func() *toolkit.BoxLayout {
-		l := toolkit.NewBoxLayout()
-		l.Vertical = true
-		l.Spacing = 2
-		return l
-	}())
-	lines := 0
-	for _, line := range wrapShortcuts(whatWeGet(cfg)) {
-		shortcuts.Add(toolkit.Item{Widget: toolkit.NewLabel(line), Size: rowH()})
-		lines++
-	}
-	// No Help caption anywhere: the toolkit draws one in theme.Border, which on
-	// the dark theme is very nearly the background. Whatever it said could not
-	// be read, so it is said in the label instead.
-	box.Add(toolkit.Item{Size: fieldH(lines), Widget: toolkit.NewFormField(
-		"Shortcuts this machine granted, not what was asked for",
-		shortcuts)})
-
-	read := func() {
-		if i := list.Selected().Get(); len(names) > 0 && i >= 0 && i < len(names) {
-			cfg.Glasses = &ConfigGlasses{Model: &names[i]}
-		}
-		if i := count.Selected().Get(); i >= 0 && i < len(screenCounts) {
-			n := screenCounts[i]
-			if cfg.Ribbon == nil {
-				cfg.Ribbon = &ConfigRibbon{}
-			}
-			cfg.Ribbon.Screens = &n
-		}
-		// The block exists by now: the screen count above always makes one, and
-		// the drop-down always has a selection.
-		on := immersive.Checked().Get()
-		cfg.Ribbon.Immersive = &on
-	}
+	page, read := settingsPage(cfg, attached)
+	scroll := toolkit.NewScrollView(page)
 
 	row := toolkit.NewBoxLayout()
 	row.Spacing = toolkit.Scaled(8)
 	row.Pack = toolkit.PackEnd
 	buttons := toolkit.NewContainer(row)
-	buttons.Add(toolkit.Item{Size: toolkit.Scaled(96), Widget: toolkit.NewButton("Save", func() {
+	buttons.Add(toolkit.Item{Size: toolkit.Scaled(ButtonW), Widget: toolkit.NewButton("Save", func() {
 		read()
 		path, err := cfg.Save()
 		if err != nil {
@@ -151,13 +242,34 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		logf("saved to %s", path)
 		closeWindow()
 	})})
-	buttons.Add(toolkit.Item{Widget: toolkit.NewButton("Close", func() { closeWindow() }), Size: toolkit.Scaled(96)})
-	// The buttons are pinned to the bottom; the fields take what is above them.
-	frame := toolkit.NewContainer(toolkit.BorderLayout{})
-	frame.Add(toolkit.Item{Widget: box, Region: toolkit.RegionCenter})
-	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth, Size: toolkit.Scaled(40)})
+	buttons.Add(toolkit.Item{Size: toolkit.Scaled(ButtonW),
+		Widget: toolkit.NewButton("Close", func() { closeWindow() })})
 
-	return pad(frame, toolkit.Scaled(20), toolkit.Scaled(16)), read
+	frame := toolkit.NewContainer(toolkit.BorderLayout{})
+	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth,
+		Size: toolkit.Scaled(ButtonBarH)})
+	frame.Add(toolkit.Item{Widget: scroll, Region: toolkit.RegionCenter})
+
+	pad := toolkit.NewPadding(frame, 0)
+	pad.Left, pad.Right = SettingsPadX, SettingsPadX
+	pad.Top, pad.Bottom = SettingsPadY, SettingsPadY
+	return pad, read
+}
+
+// settingsSize is how big the window wants to be, in the pixels the tree is laid
+// out in: the page's own measurement, plus the two things around it.
+//
+// The page is ASKED. What is added is the margin and the button band, which are
+// two constants rather than a table of row heights -- and if the answer is too
+// tall for the display, FitScale shrinks the whole window through the metric
+// scale rather than clipping anything.
+func settingsSize(cfg Config, attached []glasses.USB) (int, int) {
+	w := toolkit.Scaled(SettingsWidth)
+	page, _ := settingsPage(&cfg, attached)
+	inner := w - 2*toolkit.Scaled(SettingsPadX)
+	_, h := page.Measure(inner, 0)
+	return w, h + toolkit.Scaled(ButtonBarH) + 2*toolkit.Scaled(SettingsPadY) +
+		toolkit.Scaled(PageSpacing)
 }
 
 // headsetNames is what the catalogue calls each headset on the bus.
@@ -192,114 +304,33 @@ func whatWeGet(cfg *Config) string {
 // panel the scale takes it to thirty-nine.
 const SettingsFontPx = 13
 
-// SettingsWidth is how wide the settings window is, in LOGICAL pixels. Its
-// HEIGHT depends on what the machine has to say; see settingsHeight.
-const SettingsWidth = 560
-
 // SettingsScale is how much to magnify the settings window on a display of this
-// height, so its type is about the same SIZE TO LOOK AT everywhere.
+// height.
 //
-// A 5x7 bitmap glyph on a 2160-row panel is three millimetres tall. That window
-// was reported as too small on an 8K screen and it was: unscaled, it was built
-// for a 720-row display and shown on one three times that.
+// It is a LEGIBILITY choice and not a HiDPI derivation, which is worth being
+// clear about: the back-end allocates one framebuffer pixel per logical point,
+// so a widget tree is already the right size in the platform's own terms on
+// every display. Nothing here has to compensate for anything.
 //
-// One knob, and the toolkit's own: [toolkit.SetMetricScale] re-sizes every
-// widget's metrics AND the built-in font together, which is why the numbers
-// below go through [toolkit.Scaled] rather than being pixel constants.
+// What it compensates for is a person sitting in front of a very large panel. On
+// the 8K screen this was reported against, the platform's own answer is a
+// backing factor of one, so interface type comes out at its nominal size on a
+// panel four times the area of a laptop's. A modest magnification reads better
+// there; a proportional one does not -- scaling by pixel height gave a factor of
+// three, and a dialogue magnified three times is a poster.
+//
+// So: three steps, and the largest is half again. [FitScale] shrinks whatever
+// this asks for until the window fits the display, so the worst case of getting
+// this wrong is a window that is smaller than it might have been.
 func SettingsScale(displayH int) float64 {
-	const builtFor = 720
-	if displayH < builtFor {
+	switch {
+	case displayH >= 1440:
+		return 1.5
+	case displayH >= 1000:
+		return 1.25
+	default:
 		return 1
 	}
-	s := float64(displayH) / builtFor
-	if s > 4 {
-		// Past this a window stops being a window and becomes a poster; a person
-		// on a very tall panel would rather have a small dialogue than one they
-		// have to scroll.
-		return 4
-	}
-	return s
-}
-
-// rowH is one line of a list or a caption, in device pixels at the current
-// scale, and fieldH is a form field holding n of them: its label, its child, and
-// the padding the toolkit puts between.
-func rowH() int { return toolkit.Scaled(20) }
-
-// settingsHeight is how tall the window has to be for THIS machine's settings.
-//
-// It is computed rather than fixed. How much this window has to say depends on
-// the machine: one that grants no global shortcut at all reports three long
-// refusals instead of three short grants, and a window sized for the short
-// version puts its Save button below the frame — measured on Linux, where
-// exactly that happened. A window whose buttons have fallen off the end is
-// worse than an ugly one.
-func settingsHeight(cfg Config, attached []glasses.USB) int {
-	spacing, buttons, margins := toolkit.Scaled(12), toolkit.Scaled(40), toolkit.Scaled(32)
-	rows := len(headsetNames(attached))
-	if rows == 0 {
-		rows = 1
-	}
-	h := fieldH(rows) + fieldH(1) + toolkit.Scaled(24) +
-		fieldH(len(wrapShortcuts(whatWeGet(&cfg))))
-	return h + 4*spacing + buttons + margins
-}
-
-func fieldH(n int) int {
-	if n < 1 {
-		n = 1
-	}
-	// The label's own height from the toolkit, not a guess at it: a form field
-	// draws its label, a gap, then its child, and only the toolkit knows how
-	// tall the first two are at this scale.
-	return toolkit.FormFieldLabelH() + toolkit.Scaled(FormFieldSlack) + n*rowH()
-}
-
-// FormFieldSlack is the padding a form field puts round its child, in logical
-// pixels: the gap under the label plus its own vertical inset, doubled.
-const FormFieldSlack = 18
-
-// pad wraps a widget in a margin, because a window whose text starts at its
-// own left edge reads as spilled rather than laid out.
-func pad(child toolkit.Widget, x, y int) toolkit.Widget {
-	c := toolkit.NewContainer(toolkit.BorderLayout{})
-	c.Add(toolkit.Item{Widget: toolkit.NewContainer(nil), Region: toolkit.RegionNorth, Size: y})
-	c.Add(toolkit.Item{Widget: toolkit.NewContainer(nil), Region: toolkit.RegionSouth, Size: y})
-	c.Add(toolkit.Item{Widget: toolkit.NewContainer(nil), Region: toolkit.RegionWest, Size: x})
-	c.Add(toolkit.Item{Widget: toolkit.NewContainer(nil), Region: toolkit.RegionEast, Size: x})
-	c.Add(toolkit.Item{Widget: child, Region: toolkit.RegionCenter})
-	return c
-}
-
-// shortcutCols is how many characters of a shortcut line fit the window.
-//
-// Measured from the render rather than guessed: the line saying which
-// combination the gallery got ran off the right edge at "it was taken)", so
-// the reader was told everything except the part that mattered.
-const shortcutCols = 58
-
-// wrapShortcuts breaks the shortcut report into lines that fit.
-//
-// It breaks at the parenthesis, because that is where the sentence divides:
-// what was granted, then what was asked for. Anywhere else would split a
-// combination in half, and half a combination is worse than none.
-func wrapShortcuts(report string) []string {
-	var out []string
-	for _, line := range strings.Split(strings.TrimRight(report, "\n"), "\n") {
-		if line == "" {
-			continue
-		}
-		if len(line) <= shortcutCols {
-			out = append(out, line)
-			continue
-		}
-		if i := strings.Index(line, " ("); i > 0 {
-			out = append(out, line[:i], "    "+line[i+1:])
-			continue
-		}
-		out = append(out, line)
-	}
-	return out
 }
 
 // ShouldChoose reports whether to put the settings window in front of somebody
@@ -387,4 +418,53 @@ const SettingsRoom = 0.9
 // and no render of the closed form can see, which is how it shipped once.
 func settingsSurface(root toolkit.Widget) toolkit.Widget {
 	return toolkit.NewPopoverHost(root)
+}
+
+// valueRoom is the widest a settings row's trailing value may be: a little under
+// half the card.
+//
+// A SettingRow right-aligns its control at whatever size the control carries and
+// does not clip it, which is the right behaviour for a switch or a drop-down and
+// the wrong one for a line of text that turns out to be longer than the row. So
+// the length is checked here, where there is somewhere else to put it.
+func valueRoom() int {
+	return toolkit.Scaled(SettingsWidth-2*SettingsPadX) * 45 / 100
+}
+
+// cardRoom is the width a settings row has for one line of text.
+func cardRoom() int {
+	return toolkit.Scaled(SettingsWidth - 2*SettingsPadX - 2*toolkit.SettingRowPadX)
+}
+
+// splitToFit breaks a sentence into the two text lines a settings row has, at
+// the word boundary nearest the middle, and returns it whole with an empty
+// second line when it already fits.
+//
+// The nearest boundary to the MIDDLE rather than the last one that fits, because
+// two lines of similar length read as a sentence that was laid out and a long
+// line with one word under it reads as a mistake. A single word too wide for the
+// row is returned as it stands: cutting a combination in half is worse than
+// letting it overhang, and a row is not the place to hyphenate.
+func splitToFit(s string, room int) (string, string) {
+	if room <= 0 || toolkit.TextWidth(s) <= room {
+		return s, ""
+	}
+	best, bestGap := -1, 0
+	mid := len(s) / 2
+	for i, r := range s {
+		if r != ' ' {
+			continue
+		}
+		gap := i - mid
+		if gap < 0 {
+			gap = -gap
+		}
+		if best < 0 || gap < bestGap {
+			best, bestGap = i, gap
+		}
+	}
+	if best < 0 {
+		return s, ""
+	}
+	return s[:best], strings.TrimSpace(s[best+1:])
 }

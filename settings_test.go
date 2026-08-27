@@ -17,10 +17,31 @@ import (
 // The window the settings open at.
 var settingsW = SettingsWidth
 
-func settingsH(cfg Config, attached []glasses.USB) int { return settingsHeight(cfg, attached) }
+func settingsH(cfg Config, attached []glasses.USB) int {
+	_, h := settingsSize(cfg, attached)
+	return h
+}
+
+// found collects every widget of one kind in the tree, in visual order.
+func found[T toolkit.Widget](root toolkit.Widget) []T {
+	var out []T
+	var walk func(toolkit.Widget)
+	walk = func(w toolkit.Widget) {
+		if v, ok := w.(T); ok {
+			out = append(out, v)
+		}
+		if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
+			for _, kid := range p.Children() {
+				walk(kid)
+			}
+		}
+	}
+	walk(root)
+	return out
+}
 
 // arranged builds the settings tree, gives it a window's worth of space, and
-// returns every leaf's rectangle with a name for it.
+// returns every settings row's rectangle.
 //
 // This is how a layout is checked without a person looking at one. A widget's
 // bounds are the layout's whole output, and they are computed with no display,
@@ -29,50 +50,18 @@ func settingsH(cfg Config, attached []glasses.USB) int { return settingsHeight(c
 func arranged(t *testing.T, cfg *Config, attached []glasses.USB) ([]toolkit.Rect, int) {
 	t.Helper()
 	root, _ := settingsRoot(cfg, attached, nil, func() {})
-	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, attached)})
-	// Past the margin: the root is the padding, and the rows are in the column
-	// it holds. Reading the padding's own children would report four empty
-	// spacers and one very large box, which is true and says nothing.
-	c, ok := root.(*toolkit.Container)
-	if !ok {
-		t.Fatalf("the root is a %T, not a container", root)
+	h := settingsH(*cfg, attached)
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: h})
+
+	rows := found[*toolkit.SettingRow](root)
+	if len(rows) == 0 {
+		t.Fatal("the window holds no settings rows")
 	}
-	// Down to the column of fields: the root is the margin, which holds the
-	// frame, which holds a scroll view and the buttons.
-	var column *toolkit.Container
-	var walk func(toolkit.Widget)
-	walk = func(w toolkit.Widget) {
-		if inner, ok := w.(*toolkit.Container); ok {
-			for _, kid := range inner.Children() {
-				if _, isField := kid.(*toolkit.FormField); isField {
-					column = inner
-					return
-				}
-			}
-		}
-		if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
-			for _, kid := range p.Children() {
-				if column == nil {
-					walk(kid)
-				}
-			}
-		}
+	out := make([]toolkit.Rect, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, r.Bounds())
 	}
-	walk(c)
-	if column == nil {
-		t.Fatal("the window holds no column of fields")
-	}
-	// The spacer that keeps the buttons at the bottom is not a control and has
-	// nothing to read; it holds whatever height is left over, which is exactly
-	// what the assertions below say a ROW must not do.
-	var out []toolkit.Rect
-	for _, w := range column.Children() {
-		if c, ok := w.(*toolkit.Container); ok && len(c.Children()) == 0 {
-			continue
-		}
-		out = append(out, w.Bounds())
-	}
-	return out, settingsH(*cfg, attached)
+	return out, h
 }
 
 // TestTheSettingsAreAColumnAndNotARow.
@@ -89,8 +78,8 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 	cfg := &Config{}
 	rects, height := arranged(t, cfg, []glasses.USB{oneS, luma})
 	if len(rects) < 4 {
-		t.Fatalf("the column has %d rows; it should have the glasses, the screen "+
-			"count, the menu bar and the shortcuts", len(rects))
+		t.Fatalf("the window has %d rows; it should have the glasses, the screen "+
+			"count, the menu bar and a row per shortcut", len(rects))
 	}
 	for i, r := range rects {
 		if r.W <= 0 || r.H <= 0 {
@@ -98,12 +87,14 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 			continue
 		}
 		if r.X < 0 || r.Y < 0 || r.X+r.W > settingsW || r.Y+r.H > height {
-			t.Errorf("row %d is outside the window: %+v", i, r)
+			t.Errorf("row %d is outside the %dx%d window: %+v",
+				i, settingsW, height, r)
 		}
 		// And inside the margin, not flush against the frame: text starting at a
 		// window's own edge reads as spilled rather than laid out.
-		if r.X < 8 {
-			t.Errorf("row %d starts at x=%d, against the window frame", i, r.X)
+		if r.X < toolkit.Scaled(SettingsPadX) {
+			t.Errorf("row %d starts at x=%d, inside the %d margin",
+				i, r.X, toolkit.Scaled(SettingsPadX))
 		}
 		// A row spans the window. Anything much narrower is the horizontal
 		// layout coming back.
@@ -124,32 +115,77 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 	}
 }
 
-// TestTheGlassesRowIsSizedToItsHeadsets: it is a list of what is attached, and
-// a list of two stretched over half the window is a large empty box with its
-// label stranded at the top. Everything else here is a control of a known
-// height.
-func TestTheGlassesRowIsSizedToItsHeadsets(t *testing.T) {
-	two, _ := arranged(t, &Config{}, []glasses.USB{oneS, luma})
-	none, _ := arranged(t, &Config{}, nil)
-	if len(two) != len(none) {
-		t.Fatalf("%d rows with glasses, %d without", len(two), len(none))
-	}
-	if two[0].H <= none[0].H {
-		t.Errorf("the glasses row is %d tall with two headsets and %d with none",
-			two[0].H, none[0].H)
-	}
-	if got, want := two[0].H, fieldH(2); got != want {
-		t.Errorf("two headsets give a row %d tall, want %d", got, want)
-	}
-	for i := 1; i < len(two); i++ {
-		if two[i].H != none[i].H {
-			t.Errorf("row %d changed height (%d then %d) because the list did",
-				i, two[i].H, none[i].H)
+// TestTheButtonsCannotBeDrawnOverTheContent, at the size the window opens at and
+// at half of it.
+//
+// This is the defect a person found by dragging the window smaller: the buttons
+// came down over the shortcut text. The cause was a stack of fixed-height fields
+// -- right at one size and wrong at every other -- so the fix is structural and
+// this is the assertion that holds it. The buttons own a BorderLayout band that
+// the content cannot enter; the content is a measured page in a ScrollView, so a
+// window too small for it scrolls.
+func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
+	cfg := &Config{}
+	attached := []glasses.USB{oneS, luma}
+	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	w, h := settingsSize(*cfg, attached)
+
+	for _, size := range []toolkit.Rect{
+		{W: w, H: h},
+		{W: w, H: h / 2},
+		{W: w / 2, H: h / 3},
+		{W: toolkit.Scaled(200), H: toolkit.Scaled(120)},
+	} {
+		root.SetBounds(size)
+
+		bars := found[*toolkit.Button](root)
+		if len(bars) != 2 {
+			t.Fatalf("%+v: the window has %d buttons", size, len(bars))
+		}
+		views := found[*toolkit.ScrollView](root)
+		if len(views) != 1 {
+			t.Fatalf("%+v: the window has %d scroll views", size, len(views))
+		}
+		view := views[0].Bounds()
+
+		for _, b := range bars {
+			if bb := b.Bounds(); bb.Y < view.Y+view.H {
+				t.Errorf("at %+v the %q button starts at y=%d, inside the content "+
+					"which ends at y=%d", size, b.Label().Get(), bb.Y, view.Y+view.H)
+			}
+			if bb := b.Bounds(); bb.Y+bb.H > size.H {
+				t.Errorf("at %+v the %q button ends at y=%d, past the window",
+					size, b.Label().Get(), bb.Y+bb.H)
+			}
 		}
 	}
-	// And a field is never shorter than one row, whatever it is asked for.
-	if fieldH(0) != fieldH(1) || fieldH(-3) != fieldH(1) {
-		t.Error("a field with nothing in it is not one row tall")
+}
+
+// TestTheWindowIsSizedToWhatItsPageMeasures, not to a table of constants.
+//
+// The height used to be a sum of field heights the caller worked out. Asking the
+// page means the number cannot drift from the tree: add a row, or change the
+// font, and the window follows.
+func TestTheWindowIsSizedToWhatItsPageMeasures(t *testing.T) {
+	cfg := &Config{}
+	attached := []glasses.USB{oneS, luma}
+	page, _ := settingsPage(cfg, attached)
+	w, h := settingsSize(*cfg, attached)
+
+	_, want := page.Measure(w-2*toolkit.Scaled(SettingsPadX), 0)
+	chrome := toolkit.Scaled(ButtonBarH) + 2*toolkit.Scaled(SettingsPadY) +
+		toolkit.Scaled(PageSpacing)
+	if h != want+chrome {
+		t.Errorf("the window is %d tall; the page measures %d and the chrome is %d",
+			h, want, chrome)
+	}
+	if want <= 0 {
+		t.Error("the page measures nothing at all")
+	}
+	// A machine with more to say gets a taller window: the shortcut card has a
+	// row per shortcut, so this is not a constant in disguise.
+	if h <= chrome {
+		t.Errorf("the window is %d tall and its chrome alone is %d", h, chrome)
 	}
 }
 
@@ -161,39 +197,20 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 
 	// Pick the second headset, the third screen count, and turn the menu bar
-	// covering off — through the widgets, the way a person would.
-	c := root.(*toolkit.Container)
-	// One list -- the glasses -- and one drop-down for the screen count.
-	var lists []*toolkit.ListBox
-	var count *toolkit.DropDown
-	var check *toolkit.CheckButton
-	// Down the tree, because the controls are inside form fields: the window a
-	// person sees is what is at the leaves, not what the root holds.
-	var walk func(toolkit.Widget)
-	walk = func(w toolkit.Widget) {
-		switch v := w.(type) {
-		case *toolkit.ListBox:
-			lists = append(lists, v)
-		case *toolkit.DropDown:
-			count = v
-		case *toolkit.CheckButton:
-			check = v
-		}
-		if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
-			for _, kid := range p.Children() {
-				walk(kid)
-			}
-		}
+	// covering off, through the widgets, the way a person would.
+	//
+	// Two drop-downs in visual order (the headset, then the count) and one
+	// switch: a settings row puts its control in the trailing slot, so what a
+	// person sees is at the leaves and not at the root.
+	picks := found[*toolkit.DropDown](root)
+	switches := found[*toolkit.Switch](root)
+	if len(picks) != 2 || len(switches) != 1 {
+		t.Fatalf("the window has %d drop-downs and %d switches; want the glasses, "+
+			"the screen count and the menu bar", len(picks), len(switches))
 	}
-	walk(root)
-	_ = c
-	if len(lists) != 1 || count == nil || check == nil {
-		t.Fatalf("the window has %d lists, count=%v, check=%v; want the glasses, "+
-			"the screen count and the menu bar", len(lists), count != nil, check != nil)
-	}
-	lists[0].Selected().Set(1) // the second headset
-	count.Select(2)            // the third screen count, as a click would
-	check.Checked().Set(false)
+	picks[0].Select(1) // the second headset
+	picks[1].Select(2) // the third screen count, as a click would
+	switches[0].On().Set(false)
 
 	read()
 	if got := cfg.Model(); got != "VITURE Luma Ultra" {
@@ -411,10 +428,11 @@ func TestSettingsScale(t *testing.T) {
 		{"nothing known about the display", 0, 1},
 		{"a small panel is left alone", 600, 1},
 		{"the size it was drawn for", 720, 1},
-		{"a 1440p display", 1440, 2},
-		{"the 8K panel this was reported on", 2160, 3},
-		{"exactly at the clamp", 2880, 4},
-		{"past the clamp", 4320, 4},
+		{"a laptop panel", 900, 1},
+		{"a 1200-row display", 1200, 1.25},
+		{"a 1440p display", 1440, 1.5},
+		{"the 8K panel this was reported on", 2160, 1.5},
+		{"a very tall panel is not magnified further", 4320, 1.5},
 	} {
 		if got := SettingsScale(c.h); got != c.want {
 			t.Errorf("%s (%d rows): scale %.2f, want %.2f", c.what, c.h, got, c.want)
@@ -549,5 +567,110 @@ func TestFitScale(t *testing.T) {
 	constant := func(float64) (int, int) { return 0, 400 }
 	if got := FitScale(3, 0, 300, constant); got < 1 || got >= 3 {
 		t.Errorf("the bounded search gave %.2f", got)
+	}
+}
+
+// TestShortcutRows: one row per shortcut, the combination in the trailing slot,
+// and a refusal wrapped across the two text lines a row has.
+//
+// The two shapes matter because they are what the machine actually says. A
+// GRANT is "gallery: Control-Option-Command-Space" -- a name and a combination,
+// which is a row with a value. A REFUSAL is a sentence three times as long with
+// no combination in it at all, and a row draws its title on one line, so it has
+// to be broken up or it runs off the card.
+func TestShortcutRows(t *testing.T) {
+	rows := shortcutRowsFrom("previous: Option-Command-Left\n" +
+		"gallery: Control-Option-Command-Space\n")
+	if len(rows) != 2 {
+		t.Fatalf("two grants gave %d rows", len(rows))
+	}
+	if rows[0].Title != "previous" {
+		t.Errorf("the first row is titled %q", rows[0].Title)
+	}
+	if rows[0].Control == nil {
+		t.Fatal("a granted shortcut has no combination in its trailing slot")
+	}
+	// The value is sized to its own text: a row right-aligns a control at the
+	// size the control carries, so a value with no size would be given the
+	// default 48-pixel slot and be cut off.
+	if b := rows[0].Control.Bounds(); b.W <= 0 || b.H <= 0 {
+		t.Errorf("the combination is %+v, so the row cannot place it", b)
+	}
+
+	// A refusal: no colon, so no value, and the sentence is wrapped over the
+	// row's two lines rather than run off the end.
+	long := "no global shortcut for previous next or the gallery, " +
+		strings.Repeat("every combination was refused ", 3)
+	rows = shortcutRowsFrom(long)
+	if len(rows) != 1 {
+		t.Fatalf("one refusal gave %d rows", len(rows))
+	}
+
+	// A grant whose combination is still too wide for half a card goes under the
+	// name, where there is a whole line for it, rather than over the name.
+	wide := shortcutRowsFrom("gallery: " + strings.Repeat("Control-Option-Command-", 6))
+	if len(wide) != 1 {
+		t.Fatalf("one long grant gave %d rows", len(wide))
+	}
+	if wide[0].Control != nil {
+		t.Error("a combination too wide for the slot was put in it anyway")
+	}
+	if !strings.Contains(wide[0].Subtitle, "Control-Option-Command-") {
+		t.Errorf("the combination was dropped rather than moved: %q", wide[0].Subtitle)
+	}
+
+	// A refusal that has nothing to wrap is a single line, not two.
+	if got := shortcutRowsFrom("nothing was granted"); len(got) != 1 || got[0].Subtitle != "" {
+		t.Errorf("a short refusal gave %d rows with subtitle %q",
+			len(got), got[0].Subtitle)
+	}
+
+	// A blank line contributes nothing rather than an empty row.
+	if got := shortcutRowsFrom("a: b\n\n\nc: d\n"); len(got) != 2 {
+		t.Errorf("blank lines gave %d rows", len(got))
+	}
+	if got := shortcutRowsFrom("   \n"); len(got) != 0 {
+		t.Errorf("nothing but whitespace gave %d rows", len(got))
+	}
+}
+
+// TestSplitToFit: a sentence too long for one line of a settings row is broken
+// across the two the row has, at the word boundary nearest the MIDDLE.
+//
+// Nearest the middle rather than the last boundary that fits, because two lines
+// of similar length read as a sentence that was laid out, and a long line with
+// one word under it reads as a mistake. This matters for exactly one kind of
+// text: a machine that grants no shortcut at all reports a refusal three times
+// the length of a grant.
+func TestSplitToFit(t *testing.T) {
+	// Room enough: returned whole, with nothing on the second line.
+	if head, tail := splitToFit("previous", 10_000); head != "previous" || tail != "" {
+		t.Errorf("a short sentence was split into %q and %q", head, tail)
+	}
+	// No room known: the same, rather than a sentence cut to nothing.
+	if head, tail := splitToFit("previous", 0); head != "previous" || tail != "" {
+		t.Errorf("with no room given the sentence became %q and %q", head, tail)
+	}
+
+	// Broken near the middle, both halves non-empty, and nothing lost.
+	s := "no global shortcut for the gallery, every combination was already taken"
+	head, tail := splitToFit(s, toolkit.TextWidth(s)/2)
+	if head == "" || tail == "" {
+		t.Fatalf("the sentence was not split: %q / %q", head, tail)
+	}
+	if head+" "+tail != s {
+		t.Errorf("the split lost or changed text: %q + %q", head, tail)
+	}
+	// Near the middle: neither half is more than twice the other.
+	if len(head) > 2*len(tail) || len(tail) > 2*len(head) {
+		t.Errorf("the split is lopsided: %d and %d characters", len(head), len(tail))
+	}
+
+	// One word with no boundary in it is left whole: cutting a combination in
+	// half is worse than letting it overhang, and a row is not the place to
+	// hyphenate.
+	long := strings.Repeat("Control-Option-Command-", 4)
+	if head, tail := splitToFit(long, 10); head != long || tail != "" {
+		t.Errorf("an unbreakable word was cut: %q / %q", head, tail)
 	}
 }

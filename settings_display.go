@@ -109,7 +109,7 @@ func RunSettings(opt SettingsOptions) error {
 				toolkit.SetFont(f)
 			}
 		}
-		return toolkit.Scaled(SettingsWidth), settingsHeight(cfg, attached)
+		return settingsSize(cfg, attached)
 	}
 	scale := FitScale(want, maxW, maxH, size)
 	w, h := size(scale)

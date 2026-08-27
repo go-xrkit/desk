@@ -11,7 +11,7 @@ require (
 	github.com/go-macos/virtualdisplay v0.1.0
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-widgets/painter v0.11.0
-	github.com/go-widgets/toolkit v0.262.0
+	github.com/go-widgets/toolkit v0.267.0
 	github.com/go-widgets/window v0.53.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/xrkit v0.5.0

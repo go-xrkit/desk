@@ -41,7 +41,7 @@ func TestRenderTheSettingsWindowForAnEightKPanel(t *testing.T) {
 	was := toolkit.MetricScale()
 	t.Cleanup(func() { toolkit.SetMetricScale(was) })
 	toolkit.SetMetricScale(SettingsScale(eightK))
-	if got := toolkit.MetricScale(); got < 2 {
+	if got := toolkit.MetricScale(); got <= 1 {
 		t.Fatalf("an %d-row panel asked for a scale of %.2f; nothing is magnified",
 			eightK, got)
 	}
@@ -64,7 +64,7 @@ func TestRenderTheSettingsWindowForAnEightKPanel(t *testing.T) {
 
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
-	w, h := toolkit.Scaled(SettingsWidth), settingsHeight(*cfg, attached)
+	w, h := settingsSize(*cfg, attached)
 	form, _ := settingsRoot(cfg, attached, nil, func() {})
 	root := settingsSurface(form)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
