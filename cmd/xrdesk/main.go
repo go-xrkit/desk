@@ -236,6 +236,17 @@ func run() int {
 				return f, nil
 			}
 
+			// One key, and the pointer is on the screen being looked at. Without it the
+			// applications on these displays cannot be reached: the picture is a
+			// capture, so dragging the mouse towards it is dragging it blind.
+			d.OnPoint = func(pos int) {
+				if err := desk.BringPointer(screens.IDs, pos); err != nil {
+					fmt.Printf("%v\n", err)
+					return
+				}
+				fmt.Printf("the pointer is on screen %d\n", pos+1)
+			}
+
 			d.OnCycle = func(pos int) {
 				o, ok := inv.Cycle(pos)
 				if !ok {
