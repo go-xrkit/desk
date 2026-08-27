@@ -75,6 +75,19 @@ const (
 	ActionCycle
 	// ActionQuit ends the session.
 	ActionQuit
+	// ActionSettings asks for the settings window.
+	//
+	// It ENDS the ribbon, like ActionQuit, and says so through
+	// [Desk.WantsSettings] -- because the two windows cannot be on screen at
+	// once. A back-end holds one window: the ribbon covers a display entirely
+	// and takes the keyboard, and a settings window opened behind it would be a
+	// dialogue nobody can see waiting for an answer nobody can give.
+	//
+	// So the desk stops, the settings are changed, and the desk starts again on
+	// them. Which is also the only order in which a changed setting can take
+	// effect: the screen count, the headset and the shortcuts are all read on the
+	// way in.
+	ActionSettings
 )
 
 // String renders an action for a log.
@@ -102,6 +115,8 @@ func (a Action) String() string {
 		return "down"
 	case ActionQuit:
 		return "quit"
+	case ActionSettings:
+		return "settings"
 	default:
 		return "none"
 	}
@@ -153,6 +168,9 @@ type Desk struct {
 	OnCycle func(pos int)
 
 	quit bool
+	// settings is set with quit when the desk stopped to show the settings
+	// window rather than to end the session. See [Desk.WantsSettings].
+	settings bool
 	// badge says which screen the viewer has arrived at, for a moment. Nil when
 	// it has been turned off.
 	badge *badge
@@ -226,6 +244,18 @@ func (d *Desk) Quit() bool {
 	return d.quit
 }
 
+// WantsSettings reports whether the desk stopped in order to show the settings
+// rather than to end the session.
+//
+// It is a separate question from [Desk.Quit] because both are true at once: the
+// ribbon has to come down either way, and only the caller knows what to put in
+// its place.
+func (d *Desk) WantsSettings() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.settings
+}
+
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle func(int)
@@ -255,6 +285,8 @@ func (d *Desk) Do(a Action) {
 			d.err = d.nav.ToggleGallery(d.grid)
 		case ActionQuit:
 			d.quit = true
+		case ActionSettings:
+			d.quit, d.settings = true, true
 		}
 		d.mu.Unlock()
 		if add != nil {
@@ -283,6 +315,8 @@ func (d *Desk) Do(a Action) {
 		cycle, pos = d.OnCycle, d.nav.Focus()
 	case ActionQuit:
 		d.quit = true
+	case ActionSettings:
+		d.quit, d.settings = true, true
 	}
 	d.mu.Unlock()
 	if cycle != nil {

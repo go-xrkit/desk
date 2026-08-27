@@ -95,171 +95,221 @@ func run() int {
 			settings = again
 		}
 	}
-	if *count == 0 {
-		*count = settings.Screens()
-	}
-	if *screen == "" {
-		*screen = settings.Model()
+
+	// The menu-bar item, once for the whole process.
+	//
+	// It outlives every session, which is the point: a desk that has stopped to
+	// show its settings, or has not started yet, is exactly when a person needs
+	// somewhere to click. Choosing a row sends an action into the queue the run
+	// loop reads.
+	actions := make(chan desk.Action, desk.TrayQueue)
+	if tray, err := desk.OpenTray(logf, actions); err != nil {
+		logf("%v", err)
+	} else {
+		defer func() { _ = tray.Close() }()
 	}
 
-	ss, err := window.Screens()
-	if err != nil {
-		fmt.Printf("cannot list displays: %v\n", err)
-		return 1
-	}
-	ds := make([]glasses.Display, len(ss))
-	for i, s := range ss {
-		ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
-	}
-	chosen, err := glasses.ChooseDisplay(ds, *screen)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return 1
-	}
-	fmt.Printf("on %s\n", chosen)
-	if advice := glasses.ScalingAdvice(chosen); advice != "" {
-		logf("%s", advice)
-	}
+	// What the command line asked for, kept apart from what the settings say: a
+	// session after the settings window has to re-apply the same precedence, and
+	// overwriting the flags on the first pass would lose the question.
+	flagCount, flagScreen := *count, *screen
 
-	plan, err := desk.NewPlan(chosen, desk.Options{
-		Screens: *count, FOVDeg: *fov,
-		USB: desk.EvidenceFor(chosen, *screen != "", desk.Peripherals()),
-	})
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return 1
-	}
-	logf("%s", plan)
-
-	// Ctrl-C must reach the same exit as the quit key, or a session left running
-	// keeps virtual displays the person never asked for.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
-	screens, err := desk.Provide(ctx, plan, logf)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return 1
-	}
-	defer func() {
-		if err := screens.Close(); err != nil {
-			fmt.Printf("WARNING: could not remove every virtual display: %v\n", err)
-		}
-	}()
-
-	// The applications, before the pixels. A screen with nothing on it is what
-	// the first version of this showed a person wearing the glasses, and it
-	// read as broken rather than as empty.
-	if places := settings.Placements(); len(places) > 0 {
-		done, err := desk.Send(desk.TheBench(), screens.IDs, places)
-		for _, line := range done {
-			logf("%s", line)
-		}
+	// One session: the plan, the displays, the captures, the ribbon. It returns
+	// true when it stopped to show the settings, and everything it made is
+	// released before the settings window opens -- a desk holding six virtual
+	// displays while a person changes how many there should be is a desk that
+	// then has to be told twice.
+	session := func(n int, model string, settings desk.Config) (again bool, code int) {
+		ss, err := window.Screens()
 		if err != nil {
-			// Not fatal. A desk of six applications where one is not running
-			// should show the other five.
-			for _, line := range strings.Split(err.Error(), "\n") {
+			fmt.Printf("cannot list displays: %v\n", err)
+			return false, 1
+		}
+		ds := make([]glasses.Display, len(ss))
+		for i, s := range ss {
+			ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
+		}
+		chosen, err := glasses.ChooseDisplay(ds, model)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return false, 1
+		}
+		fmt.Printf("on %s\n", chosen)
+		if advice := glasses.ScalingAdvice(chosen); advice != "" {
+			logf("%s", advice)
+		}
+
+		plan, err := desk.NewPlan(chosen, desk.Options{
+			Screens: n, FOVDeg: *fov,
+			USB: desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
+		})
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return false, 1
+		}
+		logf("%s", plan)
+
+		// Ctrl-C must reach the same exit as the quit key, or a session left running
+		// keeps virtual displays the person never asked for.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+
+		screens, err := desk.Provide(ctx, plan, logf)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return false, 1
+		}
+		defer func() {
+			if err := screens.Close(); err != nil {
+				fmt.Printf("WARNING: could not remove every virtual display: %v\n", err)
+			}
+		}()
+
+		// The applications, before the pixels. A screen with nothing on it is what
+		// the first version of this showed a person wearing the glasses, and it
+		// read as broken rather than as empty.
+		if places := settings.Placements(); len(places) > 0 {
+			done, err := desk.Send(desk.TheBench(), screens.IDs, places)
+			for _, line := range done {
 				logf("%s", line)
 			}
-		}
-	}
-
-	feeds, err := desk.Capture(ctx, plan, screens, logf)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return 1
-	}
-	d, err := desk.New(plan, feeds)
-	if err != nil {
-		fmt.Printf("%v\n", err)
-		return 1
-	}
-	defer d.Close()
-
-	// What a ribbon position shows is chosen while it runs. The inventory is the
-	// list; Cycle is that list reduced to one key.
-	if offers, err := desk.Sources(ctx, screens); err != nil {
-		logf("cannot list what could be shown: %v", err)
-	} else if inv, err := desk.NewInventory(plan.Count(), offers); err != nil {
-		logf("inventory: %v", err)
-	} else {
-		// Fill the ribbon the way one key would, so a session starts with
-		// something on every position rather than with a ring of holes.
-		for i := 0; i < plan.Count(); i++ {
-			if o, ok := inv.Cycle(i); ok {
-				logf("screen %d: %s", i+1, o.Name)
-			}
-		}
-		// The gallery's "add a screen" cell. Making a display is the platform's
-		// business, so the desk asks rather than doing it.
-		d.OnAdd = func() (desk.Feed, error) {
-			id, err := screens.Add(plan.ScreenW, plan.ScreenH)
 			if err != nil {
-				return nil, err
+				// Not fatal. A desk of six applications where one is not running
+				// should show the other five.
+				for _, line := range strings.Split(err.Error(), "\n") {
+					logf("%s", line)
+				}
 			}
-			f, err := desk.OpenOffer(ctx, plan, desk.Offer{
-				ID:   desk.DisplayOfferID(id),
-				Name: fmt.Sprintf("XR screen %d", len(screens.IDs)),
-				Kind: desk.KindDisplay,
-				W:    plan.ScreenW, H: plan.ScreenH,
-			})
-			if err != nil {
-				return nil, err
-			}
-			fmt.Printf("added screen %d\n", len(screens.IDs))
-			return f, nil
 		}
 
-		d.OnCycle = func(pos int) {
-			o, ok := inv.Cycle(pos)
-			if !ok {
-				old, _ := d.SetFeed(pos, nil)
+		feeds, err := desk.Capture(ctx, plan, screens, logf)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return false, 1
+		}
+		d, err := desk.New(plan, feeds)
+		if err != nil {
+			fmt.Printf("%v\n", err)
+			return false, 1
+		}
+		defer d.Close()
+
+		// What a ribbon position shows is chosen while it runs. The inventory is the
+		// list; Cycle is that list reduced to one key.
+		if offers, err := desk.Sources(ctx, screens); err != nil {
+			logf("cannot list what could be shown: %v", err)
+		} else if inv, err := desk.NewInventory(plan.Count(), offers); err != nil {
+			logf("inventory: %v", err)
+		} else {
+			// Fill the ribbon the way one key would, so a session starts with
+			// something on every position rather than with a ring of holes.
+			for i := 0; i < plan.Count(); i++ {
+				if o, ok := inv.Cycle(i); ok {
+					logf("screen %d: %s", i+1, o.Name)
+				}
+			}
+			// The gallery's "add a screen" cell. Making a display is the platform's
+			// business, so the desk asks rather than doing it.
+			d.OnAdd = func() (desk.Feed, error) {
+				id, err := screens.Add(plan.ScreenW, plan.ScreenH)
+				if err != nil {
+					return nil, err
+				}
+				f, err := desk.OpenOffer(ctx, plan, desk.Offer{
+					ID:   desk.DisplayOfferID(id),
+					Name: fmt.Sprintf("XR screen %d", len(screens.IDs)),
+					Kind: desk.KindDisplay,
+					W:    plan.ScreenW, H: plan.ScreenH,
+				})
+				if err != nil {
+					return nil, err
+				}
+				fmt.Printf("added screen %d\n", len(screens.IDs))
+				return f, nil
+			}
+
+			d.OnCycle = func(pos int) {
+				o, ok := inv.Cycle(pos)
+				if !ok {
+					old, _ := d.SetFeed(pos, nil)
+					closeFeed(old)
+					fmt.Printf("screen %d: nothing\n", pos+1)
+					return
+				}
+				f, err := desk.OpenOffer(ctx, plan, o)
+				if err != nil {
+					fmt.Printf("screen %d: %v\n", pos+1, err)
+					return
+				}
+				old, err := d.SetFeed(pos, f)
+				if err != nil {
+					fmt.Printf("screen %d: %v\n", pos+1, err)
+					closeFeed(f)
+					return
+				}
 				closeFeed(old)
-				fmt.Printf("screen %d: nothing\n", pos+1)
-				return
+				fmt.Printf("screen %d: %s\n", pos+1, o.Name)
 			}
-			f, err := desk.OpenOffer(ctx, plan, o)
-			if err != nil {
-				fmt.Printf("screen %d: %v\n", pos+1, err)
-				return
-			}
-			old, err := d.SetFeed(pos, f)
-			if err != nil {
-				fmt.Printf("screen %d: %v\n", pos+1, err)
-				closeFeed(f)
-				return
-			}
-			closeFeed(old)
-			fmt.Printf("screen %d: %s\n", pos+1, o.Name)
 		}
+
+		fmt.Printf("arrow keys or h/l turn the ribbon, space promotes, tab or c changes what a screen shows, q quits\n")
+		start := time.Now()
+		opts := desk.RunOptions{
+			Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
+			NoGlobal:  *noGlobal,
+			Badge:     settings.BadgeSeconds(),
+			Windowed:  !settings.Immersive(),
+			Shortcuts: settings.ShortcutsOr(desk.DefaultShortcuts()),
+			Hotkeys:   settings.HotkeyOptions(),
+			// The menu bar is an input like any other: same actions, same loop.
+			Actions: actions,
+		}
+		if *snap {
+			opts.Snapshot = func(pix []byte, w, h int) {
+				path, err := writeSnapshot(pix, w, h)
+				if err != nil {
+					fmt.Printf("snapshot: %v\n", err)
+					return
+				}
+				fmt.Printf("first frame written to %s\n", path)
+			}
+		}
+		if err := desk.Run(ctx, plan, d, opts); err != nil {
+			fmt.Printf("%v\n", err)
+			return false, 1
+		}
+		fmt.Printf("ran for %s\n", time.Since(start).Round(time.Millisecond))
+		return d.WantsSettings(), 0
 	}
 
-	fmt.Printf("arrow keys or h/l turn the ribbon, space promotes, tab or c changes what a screen shows, q quits\n")
-	start := time.Now()
-	opts := desk.RunOptions{
-		Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
-		NoGlobal:  *noGlobal,
-		Badge:     settings.BadgeSeconds(),
-		Windowed:  !settings.Immersive(),
-		Shortcuts: settings.ShortcutsOr(desk.DefaultShortcuts()),
-		Hotkeys:   settings.HotkeyOptions(),
-	}
-	if *snap {
-		opts.Snapshot = func(pix []byte, w, h int) {
-			path, err := writeSnapshot(pix, w, h)
-			if err != nil {
-				fmt.Printf("snapshot: %v\n", err)
-				return
-			}
-			fmt.Printf("first frame written to %s\n", path)
+	for {
+		n, model := flagCount, flagScreen
+		if n == 0 {
+			n = settings.Screens()
+		}
+		if model == "" {
+			model = settings.Model()
+		}
+		again, code := session(n, model, settings)
+		if !again {
+			return code
+		}
+		// Asked for from the glasses or from the menu bar. The desk is down, so
+		// the settings window has the screen to itself and what it changes is
+		// read on the way back in -- which is the only order in which a new
+		// screen count or a different headset can mean anything.
+		if err := desk.RunSettings(desk.SettingsOptions{
+			Logf: logf, DisplayH: tallestDisplay(),
+		}); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		if fresh, err := desk.LoadConfig(); err == nil {
+			settings = fresh
+		} else {
+			logf("%v", err)
 		}
 	}
-	if err := desk.Run(ctx, plan, d, opts); err != nil {
-		fmt.Printf("%v\n", err)
-		return 1
-	}
-	fmt.Printf("ran for %s\n", time.Since(start).Round(time.Millisecond))
-	return 0
 }
 
 // writeSnapshot saves the picture the glasses were shown, OUTSIDE any

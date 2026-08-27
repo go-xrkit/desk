@@ -38,6 +38,15 @@ type RunOptions struct {
 	// [DefaultLadder].
 	Hotkeys *hotkey.Options
 
+	// Actions are actions from somewhere other than the keyboard: a menu-bar
+	// item, a script, a remote. They are treated exactly like a global shortcut
+	// -- the same actions, the same loop -- because the difference between
+	// pressing a key and choosing a menu row is the caller's business and not
+	// this loop's.
+	//
+	// Nil is no such source, which is the default.
+	Actions <-chan Action
+
 	// Badge is how long the screen's number stays up after the band moves, in
 	// seconds. Zero turns it off.
 	Badge float64
@@ -196,6 +205,8 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			case <-deadline:
 				d.Do(ActionQuit)
 			case a := <-global:
+				d.Do(a)
+			case a := <-opt.Actions:
 				d.Do(a)
 			case now := <-t.C:
 				dt := now.Sub(last).Seconds()
