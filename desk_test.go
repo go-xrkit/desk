@@ -864,9 +864,9 @@ func TestTheCeilingOnScreens(t *testing.T) {
 
 	// Nothing the settings window offers is above the ceiling, so a person
 	// cannot pick something the file would then refuse.
-	for _, n := range screenCounts {
-		if n < 1 || n > MaxScreens {
-			t.Errorf("the window offers %d screens, outside 1..%d", n, MaxScreens)
-		}
+	// The gallery is where a screen is added, so the ceiling has to be what the
+	// gallery enforces: Grow refuses to go past it.
+	if got := base.WithScreens(MaxScreens).WithScreens(MaxScreens + 1).Count(); got != MaxScreens {
+		t.Errorf("growing past the ceiling gave %d screens", got)
 	}
 }

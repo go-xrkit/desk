@@ -129,6 +129,11 @@ func RunSettings(opt SettingsOptions) error {
 		Height: h,
 		Screen: target,
 		Theme:  toolkit.DefaultDark(),
+		// Not resizable: it is exactly as big as what it has to say, so there is
+		// nothing to gain from dragging it and something to lose -- a smaller
+		// frame has nowhere to put the difference, and finding somewhere means a
+		// scrollbar in a dialogue that never needs to scroll.
+		FixedSize: true,
 	})
 	if err != nil {
 		return fmt.Errorf("desk: cannot open the settings window: %w", err)

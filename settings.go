@@ -5,7 +5,6 @@
 package desk
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/go-widgets/toolkit"
@@ -29,12 +28,11 @@ const (
 	ButtonBarH = 40
 	// ButtonW is one button.
 	ButtonW = 96
-	// ControlW, ControlNarrowW and ControlH size the trailing control of a
+	// ControlW and ControlH size the trailing control of a
 	// settings row. A SettingRow right-aligns a control at the size the control
 	// carries, so these are given to the widget rather than to the row.
-	ControlW       = 220
-	ControlNarrowW = 96
-	ControlH       = 28
+	ControlW = 220
+	ControlH = 28
 	// SwitchW and SwitchH size a switch, which is wider than it is tall.
 	SwitchW = 44
 	SwitchH = 24
@@ -63,20 +61,14 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	glassesPick.SetBounds(toolkit.Rect{
 		W: toolkit.Scaled(ControlW), H: toolkit.Scaled(ControlH)})
 
-	// How many screens. Capped at MaxScreens, which is why the list stops at
-	// nine: a window that offered more would offer something the settings file
-	// then refuses.
-	counts := make([]string, len(screenCounts))
-	pick := 0
-	for i, n := range screenCounts {
-		counts[i] = strconv.Itoa(n)
-		if n == cfg.Screens() {
-			pick = i
-		}
-	}
-	countPick := toolkit.NewDropDown(counts, pick)
-	countPick.SetBounds(toolkit.Rect{
-		W: toolkit.Scaled(ControlNarrowW), H: toolkit.Scaled(ControlH)})
+	// How many screens is NOT here.
+	//
+	// It was a drop-down, and it is the gallery's now: the adder tile puts a
+	// screen on the band where a person can see the band, which is the moment
+	// they know whether they want another one. A number chosen in a dialogue
+	// before any of it is on screen is a guess, and two ways to set one thing is
+	// one way too many. `-screens` and the settings file still carry it, for a
+	// script and for somebody who has decided.
 
 	// The menu bar, which is the thing everyone asks about.
 	//
@@ -101,11 +93,6 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	}
 	deskCard := toolkit.NewSettingsGroup("The desk",
 		glassesRow,
-		&toolkit.SettingRow{
-			Title:    "Screens on the band",
-			Subtitle: "3, 6 and 9 fold into a gallery three columns wide",
-			Control:  countPick,
-		},
 		&toolkit.SettingRow{
 			Title:    "Cover the local menu bar and Dock",
 			Subtitle: "the glasses own the whole panel",
@@ -134,14 +121,9 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 		if i := glassesPick.Selected().Get(); len(names) > 0 && i >= 0 && i < len(names) {
 			cfg.Glasses = &ConfigGlasses{Model: &names[i]}
 		}
-		if i := countPick.Selected().Get(); i >= 0 && i < len(screenCounts) {
-			n := screenCounts[i]
-			if cfg.Ribbon == nil {
-				cfg.Ribbon = &ConfigRibbon{}
-			}
-			cfg.Ribbon.Screens = &n
+		if cfg.Ribbon == nil {
+			cfg.Ribbon = &ConfigRibbon{}
 		}
-		// The block exists by now: the screen count above always makes one.
 		on := immersive.On().Get()
 		cfg.Ribbon.Immersive = &on
 	}
@@ -210,11 +192,12 @@ func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 // with opening one: this half needs no display, and a caller with a headless
 // machine can still ask what the controls would produce.
 //
-// The arrangement is what stops the window breaking when it is resized: the
-// buttons own a BorderLayout band at the bottom, which the content cannot reach
-// into, and the content is a measured page inside a ScrollView, so a window too
-// small for it scrolls instead of overlapping. It was a stack of fixed-height
-// fields, and shrinking the window drew the buttons over the text.
+// The buttons own a BorderLayout band at the bottom, which the content cannot
+// reach into. That was the defect: a stack of fixed-height fields overflowed
+// when the window was made smaller and the buttons were drawn over the text.
+// The window is not resizable any more (window.Config.FixedSize) because it is
+// exactly as big as what it has to say, so the band and the measured page are
+// enough and nothing has to scroll.
 func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any),
 	closeWindow func()) (toolkit.Widget, func()) {
 
@@ -225,8 +208,11 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		logf = func(string, ...any) {}
 	}
 
+	// No scroll view, because the window cannot be resized: it opens at the size
+	// its page measures, so there is never anything out of view. One was there
+	// while the window was resizable, and its gutter took a strip of width from
+	// every row to hold a scrollbar that could not appear.
 	page, read := settingsPage(cfg, attached)
-	scroll := toolkit.NewScrollView(page)
 
 	row := toolkit.NewBoxLayout()
 	row.Spacing = toolkit.Scaled(8)
@@ -248,7 +234,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 	frame := toolkit.NewContainer(toolkit.BorderLayout{})
 	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth,
 		Size: toolkit.Scaled(ButtonBarH)})
-	frame.Add(toolkit.Item{Widget: scroll, Region: toolkit.RegionCenter})
+	frame.Add(toolkit.Item{Widget: page, Region: toolkit.RegionCenter})
 
 	pad := toolkit.NewPadding(frame, 0)
 	pad.Left, pad.Right = SettingsPadX, SettingsPadX
@@ -319,15 +305,17 @@ const SettingsFontPx = 13
 // there; a proportional one does not -- scaling by pixel height gave a factor of
 // three, and a dialogue magnified three times is a poster.
 //
-// So: three steps, and the largest is half again. [FitScale] shrinks whatever
+// So: three steps, and the largest is a third again -- reported as still a
+// little too big at half again, on the panel it was measured on. [FitScale]
+// shrinks whatever
 // this asks for until the window fits the display, so the worst case of getting
 // this wrong is a window that is smaller than it might have been.
 func SettingsScale(displayH int) float64 {
 	switch {
 	case displayH >= 1440:
-		return 1.5
+		return 1.35
 	case displayH >= 1000:
-		return 1.25
+		return 1.2
 	default:
 		return 1
 	}

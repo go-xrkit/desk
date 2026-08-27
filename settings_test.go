@@ -115,15 +115,18 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 	}
 }
 
-// TestTheButtonsCannotBeDrawnOverTheContent, at the size the window opens at and
-// at half of it.
+// TestTheButtonsCannotBeDrawnOverTheContent.
 //
 // This is the defect a person found by dragging the window smaller: the buttons
 // came down over the shortcut text. The cause was a stack of fixed-height fields
-// -- right at one size and wrong at every other -- so the fix is structural and
-// this is the assertion that holds it. The buttons own a BorderLayout band that
-// the content cannot enter; the content is a measured page in a ScrollView, so a
-// window too small for it scrolls.
+// -- right at one size and wrong at every other.
+//
+// Two things answer it now, and this holds both. The buttons own a BorderLayout
+// band that the content cannot enter, whatever size the frame is given; and the
+// window is not resizable, so the only size that matters is the one it opens at,
+// where the page has been measured to fit. The smaller sizes below are therefore
+// not a promise about resizing -- they are there because a band that only holds
+// at one size is not a band.
 func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
@@ -138,26 +141,57 @@ func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 	} {
 		root.SetBounds(size)
 
-		bars := found[*toolkit.Button](root)
-		if len(bars) != 2 {
-			t.Fatalf("%+v: the window has %d buttons", size, len(bars))
+		buttons := found[*toolkit.Button](root)
+		if len(buttons) != 2 {
+			t.Fatalf("%+v: the window has %d buttons", size, len(buttons))
 		}
-		views := found[*toolkit.ScrollView](root)
-		if len(views) != 1 {
-			t.Fatalf("%+v: the window has %d scroll views", size, len(views))
+		cards := found[*toolkit.SettingsGroup](root)
+		if len(cards) != 2 {
+			t.Fatalf("%+v: the window has %d cards", size, len(cards))
 		}
-		view := views[0].Bounds()
 
-		for _, b := range bars {
-			if bb := b.Bounds(); bb.Y < view.Y+view.H {
-				t.Errorf("at %+v the %q button starts at y=%d, inside the content "+
-					"which ends at y=%d", size, b.Label().Get(), bb.Y, view.Y+view.H)
+		// The band is the bottom of the frame, and every button is in it.
+		band := size.H - toolkit.Scaled(SettingsPadY) - toolkit.Scaled(ButtonBarH)
+		for _, b := range buttons {
+			bb := b.Bounds()
+			if bb.Y < band {
+				t.Errorf("at %+v the %q button starts at y=%d, above its band at %d",
+					size, b.Label().Get(), bb.Y, band)
 			}
-			if bb := b.Bounds(); bb.Y+bb.H > size.H {
+			if bb.Y+bb.H > size.H {
 				t.Errorf("at %+v the %q button ends at y=%d, past the window",
 					size, b.Label().Get(), bb.Y+bb.H)
 			}
 		}
+		// And at the size the window OPENS at, no card reaches into the band.
+		//
+		// Only at that size: the page is measured to fit it, and the window
+		// cannot be made smaller. A frame deliberately forced below its content
+		// has nowhere to put the difference -- there is no scroll view any more,
+		// on purpose -- so asserting it here would be asserting something the
+		// design does not claim.
+		if size.W != w || size.H != h {
+			continue
+		}
+		for i, c := range cards {
+			cb := c.Bounds()
+			if cb.H > 0 && cb.Y+cb.H > band {
+				t.Errorf("at the window's own size %+v, card %d ends at y=%d, "+
+					"inside the button band at %d", size, i, cb.Y+cb.H, band)
+			}
+		}
+	}
+}
+
+// TestTheWindowHasNothingToScroll: it opens at the size its content measures and
+// cannot be resized, so a scroll view would be a gutter taking a strip of width
+// from every row to hold a scrollbar that can never appear.
+func TestTheWindowHasNothingToScroll(t *testing.T) {
+	cfg := &Config{}
+	attached := []glasses.USB{oneS, luma}
+	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	if views := found[*toolkit.ScrollView](root); len(views) != 0 {
+		t.Errorf("the window holds %d scroll views", len(views))
 	}
 }
 
@@ -204,20 +238,16 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	// person sees is at the leaves and not at the root.
 	picks := found[*toolkit.DropDown](root)
 	switches := found[*toolkit.Switch](root)
-	if len(picks) != 2 || len(switches) != 1 {
-		t.Fatalf("the window has %d drop-downs and %d switches; want the glasses, "+
-			"the screen count and the menu bar", len(picks), len(switches))
+	if len(picks) != 1 || len(switches) != 1 {
+		t.Fatalf("the window has %d drop-downs and %d switches; want the glasses "+
+			"and the menu bar", len(picks), len(switches))
 	}
 	picks[0].Select(1) // the second headset
-	picks[1].Select(2) // the third screen count, as a click would
 	switches[0].On().Set(false)
 
 	read()
 	if got := cfg.Model(); got != "VITURE Luma Ultra" {
 		t.Errorf("model is %q, want the one that was selected", got)
-	}
-	if got, want := cfg.Screens(), screenCounts[2]; got != want {
-		t.Errorf("screens is %d, want %d", got, want)
 	}
 	if cfg.Immersive() {
 		t.Error("the menu bar covering was left on")
@@ -283,6 +313,14 @@ func TestSaveAndCloseAreWiredUp(t *testing.T) {
 		t.Fatalf("the window has buttons %v", b)
 	}
 
+	// Turn the menu-bar covering off first, so what Save writes can be told
+	// apart from the defaults it started with.
+	sw := found[*toolkit.Switch](root)
+	if len(sw) != 1 {
+		t.Fatalf("the window has %d switches", len(sw))
+	}
+	sw[0].On().Set(false)
+
 	b["Save"].OnClick()
 	if closed != 1 {
 		t.Errorf("Save left the window open")
@@ -291,8 +329,13 @@ func TestSaveAndCloseAreWiredUp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("what Save wrote does not load: %v", err)
 	}
-	if got.Model() != "VITURE Luma Ultra" || got.Screens() != screenCounts[0] {
-		t.Errorf("Save wrote %q, %d screens", got.Model(), got.Screens())
+	if got.Model() != "VITURE Luma Ultra" {
+		t.Errorf("Save wrote %q", got.Model())
+	}
+	// The menu-bar setting made the round trip too, so Save writes the whole
+	// form and not one field of it.
+	if got.Immersive() {
+		t.Error("the menu-bar switch was turned off and came back on")
 	}
 
 	b["Close"].OnClick()
@@ -429,10 +472,10 @@ func TestSettingsScale(t *testing.T) {
 		{"a small panel is left alone", 600, 1},
 		{"the size it was drawn for", 720, 1},
 		{"a laptop panel", 900, 1},
-		{"a 1200-row display", 1200, 1.25},
-		{"a 1440p display", 1440, 1.5},
-		{"the 8K panel this was reported on", 2160, 1.5},
-		{"a very tall panel is not magnified further", 4320, 1.5},
+		{"a 1200-row display", 1200, 1.2},
+		{"a 1440p display", 1440, 1.35},
+		{"the 8K panel this was reported on", 2160, 1.35},
+		{"a very tall panel is not magnified further", 4320, 1.35},
 	} {
 		if got := SettingsScale(c.h); got != c.want {
 			t.Errorf("%s (%d rows): scale %.2f, want %.2f", c.what, c.h, got, c.want)
@@ -451,60 +494,50 @@ func TestSettingsScale(t *testing.T) {
 	}
 }
 
-// TestTheScreenCountCanBeChosenWithTheMouse is the defect a person reported as
-// "la combobox n'est pas fonctionelle": the control opened and nothing could be
+// TestTheHeadsetCanBeChosenWithTheMouse is the defect a person reported as "la
+// combobox n'est pas fonctionelle": the control opened and nothing could be
 // selected.
 //
 // It goes through settingsSurface, which is what the window is given, and drives
-// the widgets the way a mouse does -- open the list, click the third row -- so
-// it fails if the wrapper is ever dropped again. The negative control clicks the
-// identical point on the bare form, where nothing happens.
-func TestTheScreenCountCanBeChosenWithTheMouse(t *testing.T) {
-	pick := func(surface func(toolkit.Widget) toolkit.Widget) int {
+// the widgets the way a mouse does -- open the list, click the second row -- so
+// it fails if the popover host is ever dropped again. The negative control
+// clicks the identical point on the bare form, where nothing happens.
+func TestTheHeadsetCanBeChosenWithTheMouse(t *testing.T) {
+	pick := func(surface func(toolkit.Widget) toolkit.Widget) string {
 		cfg := &Config{}
 		root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
 		top := surface(root)
 		top.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 
-		var count *toolkit.DropDown
-		var walk func(toolkit.Widget)
-		walk = func(w toolkit.Widget) {
-			if d, ok := w.(*toolkit.DropDown); ok {
-				count = d
-			}
-			if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
-				for _, kid := range p.Children() {
-					walk(kid)
-				}
-			}
+		picks := found[*toolkit.DropDown](top)
+		if len(picks) != 1 {
+			t.Fatalf("the window has %d drop-downs, want the glasses", len(picks))
 		}
-		walk(top)
-		if count == nil {
-			t.Fatal("the window has no drop-down for the screen count")
-		}
+		choose := picks[0]
 
-		// Click the control to open it, then the third row of the list it puts up.
-		b := count.Bounds()
+		// Click the control to open it, then the second row of the list it puts
+		// up.
+		b := choose.Bounds()
 		top.OnEvent(toolkit.Event{Kind: toolkit.EventClick, X: b.X + 4, Y: b.Y + b.H/2})
-		if !count.Open().Get() {
+		if !choose.Open().Get() {
 			t.Fatal("clicking the control did not open the list")
 		}
-		pb := count.PopoverBounds()
-		row := pb.H / len(count.Options)
+		pb := choose.PopoverBounds()
+		row := pb.H / len(choose.Options)
 		top.OnEvent(toolkit.Event{
 			Kind: toolkit.EventClick,
 			X:    pb.X + 4,
-			Y:    pb.Y + 2*row + row/2,
+			Y:    pb.Y + row + row/2,
 		})
 		read()
-		return cfg.Screens()
+		return cfg.Model()
 	}
 
-	if got, want := pick(settingsSurface), screenCounts[2]; got != want {
-		t.Errorf("clicking the third option chose %d screens, want %d", got, want)
+	if got, want := pick(settingsSurface), "VITURE Luma Ultra"; got != want {
+		t.Errorf("clicking the second option chose %q, want %q", got, want)
 	}
 	bare := func(w toolkit.Widget) toolkit.Widget { return w }
-	if got := pick(bare); got == screenCounts[2] {
+	if got := pick(bare); got == "VITURE Luma Ultra" {
 		t.Error("negative control: the bare form routed the click on its own, so " +
 			"this test no longer proves the popover host is needed")
 	}
