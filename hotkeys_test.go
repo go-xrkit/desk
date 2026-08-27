@@ -233,3 +233,87 @@ func TestEveryShortcutIsAnActionTheDeskAnswers(t *testing.T) {
 		}
 	}
 }
+
+// TestTheWindowKeysAndTheGlobalOnesAgree.
+//
+// Every action the desk offers on a key in its own window is offered on a
+// system-wide combination too, and the two use the SAME key where a key exists.
+//
+// It is not tidiness. The window deliberately does not hold the keyboard -- the
+// applications on the screens need it -- so a shortcut that only works in the
+// window works nowhere a person actually is. And a person who learns [ and ] in
+// one place and finds them somewhere else has learnt nothing.
+//
+// The exceptions are named rather than skipped: the gallery's own arrows, and
+// the actions that only mean something inside it.
+func TestTheWindowKeysAndTheGlobalOnesAgree(t *testing.T) {
+	// Which key, if any, the window offers for each action.
+	window := map[Action]string{}
+	for _, code := range []string{
+		"Escape", "q", "ArrowLeft", "h", "ArrowRight", "l", " ", "f", "Tab", "c",
+		"g", "Enter", "Return", "ArrowUp", "k", "ArrowDown", "j",
+		"-", "_", "+", "=", "[", "{", "]", "}", "m", "M",
+	} {
+		if a := KeyAction(code); a != ActionNone {
+			if _, seen := window[a]; !seen {
+				window[a] = code
+			}
+		}
+	}
+
+	global := map[Action]hotkey.Combo{}
+	for _, s := range DefaultShortcuts() {
+		global[s.Does] = s.Want
+	}
+
+	// The ones the band needs while another application has the keyboard.
+	for _, a := range []Action{
+		ActionPrev, ActionNext, ActionGalleryOpen, ActionGalleryClose,
+		ActionChoose, ActionCloser, ActionFurther, ActionFlatter, ActionRounder,
+		ActionPoint, ActionQuit,
+	} {
+		if _, ok := global[a]; !ok {
+			t.Errorf("%v has no system-wide combination, so it cannot be used "+
+				"while the applications have the keyboard", a)
+		}
+	}
+
+	// And where both exist, the KEY is the same one -- with one named exception.
+	//
+	// The gallery TOGGLE is "g" in the window and Space system-wide, and that is
+	// deliberate: Space is what a person reaches for blind, it was the first
+	// choice before the Finder was found to own the plain combination, and the
+	// toggle is not how the gallery is meant to be used from outside anyway --
+	// open and leave have their own two keys, precisely because a system-wide
+	// shortcut is pressed without seeing which state the gallery is in.
+	exempt := map[Action]bool{ActionGallery: true}
+	for a, code := range window {
+		combo, ok := global[a]
+		if !ok || exempt[a] {
+			continue
+		}
+		if len([]rune(code)) != 1 {
+			continue // a named key: Escape, Tab, the arrows
+		}
+		if got := combo.Key.Name(); !strings.EqualFold(got, code) &&
+			!strings.EqualFold(got, keyWord(code)) {
+			t.Errorf("%v is %q in the window and %q system-wide", a, code, got)
+		}
+	}
+}
+
+// keyWord is the spelled name of a one-character key, for the two the hotkey
+// package spells rather than prints.
+func keyWord(code string) string {
+	switch code {
+	case "-", "_":
+		return "Minus"
+	case "+", "=":
+		return "Equal"
+	case "[", "{":
+		return "LeftBracket"
+	case "]", "}":
+		return "RightBracket"
+	}
+	return code
+}
