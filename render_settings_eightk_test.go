@@ -69,13 +69,13 @@ func TestRenderTheSettingsWindowForAnEightKPanel(t *testing.T) {
 	root := settingsSurface(form)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 
-	// With the screen-count list OPEN, because that is the state a person
-	// reported as broken and the one no earlier picture ever showed.
-	var count *toolkit.DropDown
+	// With the SECOND headset chosen, so the picture shows what a selected tile
+	// looks like: that is the whole point of tiles over a list of names.
+	var tiles *toolkit.IconGrid
 	var find func(toolkit.Widget)
 	find = func(x toolkit.Widget) {
-		if d, ok := x.(*toolkit.DropDown); ok {
-			count = d
+		if g, ok := x.(*toolkit.IconGrid); ok {
+			tiles = g
 		}
 		if p, ok := x.(interface{ Children() []toolkit.Widget }); ok {
 			for _, kid := range p.Children() {
@@ -84,10 +84,10 @@ func TestRenderTheSettingsWindowForAnEightKPanel(t *testing.T) {
 		}
 	}
 	find(root)
-	if count == nil {
-		t.Fatal("no drop-down in the window")
+	if tiles == nil {
+		t.Fatal("no glasses tiles in the window")
 	}
-	count.Open().Set(true)
+	tiles.SetSelected(1)
 
 	// Nothing is drawn under the bottom edge of the window it was sized for.
 	if deep := deepest(root); deep > h {

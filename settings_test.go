@@ -236,13 +236,13 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	// Two drop-downs in visual order (the headset, then the count) and one
 	// switch: a settings row puts its control in the trailing slot, so what a
 	// person sees is at the leaves and not at the root.
-	picks := found[*toolkit.DropDown](root)
+	tiles := found[*toolkit.IconGrid](root)
 	switches := found[*toolkit.Switch](root)
-	if len(picks) != 1 || len(switches) != 1 {
-		t.Fatalf("the window has %d drop-downs and %d switches; want the glasses "+
-			"and the menu bar", len(picks), len(switches))
+	if len(tiles) != 1 || len(switches) != 1 {
+		t.Fatalf("the window has %d grids and %d switches; want the glasses tiles "+
+			"and the menu bar", len(tiles), len(switches))
 	}
-	picks[0].Select(1) // the second headset
+	tiles[0].SetSelected(1) // the second headset
 	switches[0].On().Set(false)
 
 	read()
@@ -494,52 +494,57 @@ func TestSettingsScale(t *testing.T) {
 	}
 }
 
-// TestTheHeadsetCanBeChosenWithTheMouse is the defect a person reported as "la
-// combobox n'est pas fonctionelle": the control opened and nothing could be
-// selected.
+// TestTheHeadsetCanBeChosenWithTheMouse: a click on the second tile chooses the
+// second headset, and it arrives in the settings.
 //
-// It goes through settingsSurface, which is what the window is given, and drives
-// the widgets the way a mouse does -- open the list, click the second row -- so
-// it fails if the popover host is ever dropped again. The negative control
-// clicks the identical point on the bare form, where nothing happens.
+// A control nobody can operate is the defect this window has had twice -- a
+// drop-down whose popover no host drew, and then a click that never left a
+// scroll view. Both were invisible to every test that only built the tree, so
+// this one drives the widgets the way a mouse does, through the same surface the
+// window is given.
 func TestTheHeadsetCanBeChosenWithTheMouse(t *testing.T) {
-	pick := func(surface func(toolkit.Widget) toolkit.Widget) string {
-		cfg := &Config{}
-		root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
-		top := surface(root)
-		top.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
+	cfg := &Config{}
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
+	top := settingsSurface(root)
+	w, h := settingsSize(*cfg, []glasses.USB{oneS, luma})
+	top.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 
-		picks := found[*toolkit.DropDown](top)
-		if len(picks) != 1 {
-			t.Fatalf("the window has %d drop-downs, want the glasses", len(picks))
-		}
-		choose := picks[0]
-
-		// Click the control to open it, then the second row of the list it puts
-		// up.
-		b := choose.Bounds()
-		top.OnEvent(toolkit.Event{Kind: toolkit.EventClick, X: b.X + 4, Y: b.Y + b.H/2})
-		if !choose.Open().Get() {
-			t.Fatal("clicking the control did not open the list")
-		}
-		pb := choose.PopoverBounds()
-		row := pb.H / len(choose.Options)
-		top.OnEvent(toolkit.Event{
-			Kind: toolkit.EventClick,
-			X:    pb.X + 4,
-			Y:    pb.Y + row + row/2,
-		})
-		read()
-		return cfg.Model()
+	grids := found[*toolkit.IconGrid](top)
+	if len(grids) != 1 {
+		t.Fatalf("the window has %d grids, want the glasses tiles", len(grids))
+	}
+	tiles := grids[0]
+	if got := tiles.Selected().Get(); got != 0 {
+		t.Fatalf("the window opened with tile %d selected, want the first", got)
 	}
 
-	if got, want := pick(settingsSurface), "VITURE Luma Ultra"; got != want {
-		t.Errorf("clicking the second option chose %q, want %q", got, want)
+	// A point in the second tile, asked of the grid rather than guessed at.
+	//
+	// IndexAt takes WIDGET-LOCAL coordinates, like OnEvent -- so the search runs
+	// in local space and the click is sent at the grid's origin plus that. Asking
+	// it in surface coordinates finds a point that means a different cell, which
+	// is a mistake worth leaving written down.
+	b := tiles.Bounds()
+	lx, ly := -1, -1
+	for y := 0; y < b.H && ly < 0; y++ {
+		for x := 0; x < b.W; x++ {
+			if tiles.IndexAt(x, y) == 1 {
+				lx, ly = x, y
+				break
+			}
+		}
 	}
-	bare := func(w toolkit.Widget) toolkit.Widget { return w }
-	if got := pick(bare); got == "VITURE Luma Ultra" {
-		t.Error("negative control: the bare form routed the click on its own, so " +
-			"this test no longer proves the popover host is needed")
+	if ly < 0 {
+		t.Fatalf("the grid %+v has no second cell to click", b)
+	}
+	top.OnEvent(toolkit.Event{Kind: toolkit.EventClick, X: b.X + lx, Y: b.Y + ly})
+
+	if got := tiles.Selected().Get(); got != 1 {
+		t.Fatalf("clicking the second tile selected %d", got)
+	}
+	read()
+	if got, want := cfg.Model(), "VITURE Luma Ultra"; got != want {
+		t.Errorf("the settings say %q, want %q", got, want)
 	}
 }
 
