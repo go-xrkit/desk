@@ -46,6 +46,7 @@ func run() int {
 	screen := flag.String("screen", "", "which display to take over, matched by name")
 	fov := flag.Float64("fov", 0, "horizontal field of view in degrees, when the catalogue does not know")
 	count := flag.Int("screens", 0, fmt.Sprintf("how many screens on the ribbon, 1 to %d (0 = the setting, or six)", desk.MaxScreens))
+	distance := flag.Float64("distance", 0, fmt.Sprintf("how far the band sits, 1 to %g screens across the view (0 = the setting, or one)", desk.MaxDistance))
 	forDur := flag.Duration("for", 0, "stop after this long; 0 runs until you quit")
 	quiet := flag.Bool("quiet", false, "say less")
 	noGlobal := flag.Bool("no-global", false,
@@ -112,14 +113,14 @@ func run() int {
 	// What the command line asked for, kept apart from what the settings say: a
 	// session after the settings window has to re-apply the same precedence, and
 	// overwriting the flags on the first pass would lose the question.
-	flagCount, flagScreen := *count, *screen
+	flagCount, flagScreen, flagDistance := *count, *screen, *distance
 
 	// One session: the plan, the displays, the captures, the ribbon. It returns
 	// true when it stopped to show the settings, and everything it made is
 	// released before the settings window opens -- a desk holding six virtual
 	// displays while a person changes how many there should be is a desk that
 	// then has to be told twice.
-	session := func(n int, model string, settings desk.Config) (again bool, code int) {
+	session := func(n int, model string, dist float64, settings desk.Config) (again bool, code int) {
 		ss, err := window.Screens()
 		if err != nil {
 			fmt.Printf("cannot list displays: %v\n", err)
@@ -283,14 +284,17 @@ func run() int {
 	}
 
 	for {
-		n, model := flagCount, flagScreen
+		n, model, dist := flagCount, flagScreen, flagDistance
 		if n == 0 {
 			n = settings.Screens()
 		}
 		if model == "" {
 			model = settings.Model()
 		}
-		again, code := session(n, model, settings)
+		if dist == 0 {
+			dist = settings.Distance()
+		}
+		again, code := session(n, model, dist, settings)
 		if !again {
 			return code
 		}

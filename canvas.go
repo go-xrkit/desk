@@ -165,3 +165,46 @@ func (c *Canvas) Compose(blits []ribbon.Blit, sources []Source, background [4]by
 		c.Blit(b, sources[b.Screen])
 	}
 }
+
+// Slant draws one turned screen: a column at a time, each from its own source
+// row range.
+//
+// It is the slow path and it says so. [Canvas.Blit] copies whole runs of a row
+// because every row of a rectangle reads the same columns; a trapezoid's columns
+// each have their own height, so there is no run to copy and the pixels are
+// gathered one at a time. That is the four-byte-copy cost the fast path exists to
+// avoid, which is why the screen in FRONT of the viewer -- the one turned by
+// nothing, and the only one whose pixels a person is reading -- goes through Blit
+// and only its neighbours come here.
+//
+// Rows outside, columns inside: the writes then run along the canvas in order,
+// and it is the reads that jump. One of the two has to, and a sequential write is
+// worth more than a sequential read on every machine this has been measured on.
+func (c *Canvas) Slant(s Slant, src Source) {
+	d := s.Dst
+	if d.W <= 0 || d.H <= 0 || src.W <= 0 || src.H <= 0 || len(s.Cols) != d.W {
+		return
+	}
+	if d.X < 0 || d.Y < 0 || d.X+d.W > c.W || d.Y+d.H > c.H {
+		return
+	}
+	for y := d.Y; y < d.Y+d.H; y++ {
+		drow := c.Pix[(y*c.W)*4 : (y*c.W+c.W)*4]
+		for i, col := range s.Cols {
+			if col.Src < 0 || int32(y) < col.Y0 || int32(y) >= col.Y1 {
+				continue
+			}
+			// Which source row this destination row shows, from the column's own
+			// height. The division is per pixel and it is the price of the shape:
+			// a column of a turned panel is a different length from its
+			// neighbour, so there is no per-blit table to precompute.
+			sy := int(int64(int32(y)-col.Y0) * int64(src.H) / int64(col.Y1-col.Y0))
+			srow := src.row(sy)
+			if srow == nil {
+				continue
+			}
+			o := (d.X + i) * 4
+			copy(drow[o:o+4], srow[int(col.Src)*4:int(col.Src)*4+4])
+		}
+	}
+}

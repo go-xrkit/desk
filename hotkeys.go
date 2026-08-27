@@ -54,6 +54,13 @@ func DefaultShortcuts() []Shortcut {
 		// selection with the global arrows and then have nothing to confirm it
 		// with, because Enter would go wherever the keyboard was pointing.
 		{hotkey.Combo{Key: hotkey.KeyReturn, Mods: mods | hotkey.Control}, ActionChoose},
+		// Nearer and further, system-wide with the rest.
+		//
+		// On the two keys a keyboard puts smaller and larger on, which is the one
+		// pair a person does not have to be told. Registered by CODE, so they are
+		// the same two positions on a French keyboard whatever is printed there.
+		{hotkey.Combo{Key: hotkey.KeyMinus, Mods: mods | hotkey.Control}, ActionFurther},
+		{hotkey.Combo{Key: hotkey.KeyEqual, Mods: mods | hotkey.Control}, ActionCloser},
 	}
 }
 
