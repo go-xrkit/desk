@@ -38,6 +38,13 @@ const (
 	SwitchH = 24
 	// PageSpacing is the gap between the cards on the page.
 	PageSpacing = 12
+	// GlassesIconPx is the drawn headset in a glasses tile. Bigger than a
+	// toolbar icon, because the tile is the thing being chosen rather than a
+	// decoration beside a word.
+	GlassesIconPx = 40
+	// GlassesTileW is the floor on a tile's width, in logical pixels: enough for
+	// the longest model name in the catalogue rather than for the icon.
+	GlassesTileW = 150
 )
 
 // settingsPage builds the measurable half of the window: the cards, the controls
@@ -49,17 +56,46 @@ const (
 // of the tree rather than computed from a table of pixel constants. That table
 // was the defect: it is right at one window size and wrong at every other.
 func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func()) {
-	// Which glasses, when several are attached.
+	// Which glasses, when several are attached: a tile each, not a list.
+	//
+	// A list of two names says which two are on the bus and nothing else, and
+	// picking hardware from a line of text is the one job a picture is actually
+	// better at. So each headset is a tile with a drawn pair of glasses and its
+	// model underneath, and the chosen one is the selected cell.
+	//
+	// DRAWN, not photographed. A photograph of a manufacturer's product is the
+	// manufacturer's picture, and this application has nowhere to fetch one from:
+	// it runs with no network and ships no artwork.
+	// toolkit.DrawIconGlasses is in the stock icon set for exactly this.
 	names := headsetNames(attached)
+	cells := make([]toolkit.IconCell, 0, len(names))
+	for _, n := range names {
+		cells = append(cells, toolkit.IconCell{
+			Icon:  toolkit.DrawIconGlasses,
+			Label: n,
+			Key:   n,
+		})
+	}
+	tiles := toolkit.NewIconGrid(cells...)
+	tiles.SetIconSize(toolkit.Scaled(GlassesIconPx))
+	// Wide enough for a model name: a tile whose label is elided to "VITURE ..."
+	// has lost the one thing it exists to say.
+	tiles.MinCellW = GlassesTileW
+	tiles.Empty = "none on the bus; name one with -screen"
 	chosen := 0
 	for i, n := range names {
 		if n == cfg.Model() {
 			chosen = i
 		}
 	}
-	glassesPick := toolkit.NewDropDown(names, chosen)
-	glassesPick.SetBounds(toolkit.Rect{
-		W: toolkit.Scaled(ControlW), H: toolkit.Scaled(ControlH)})
+	if len(names) > 0 {
+		// Nothing chosen yet selects the first, so what the window SHOWS and
+		// what it would save are the same thing. A grid with no highlight and a
+		// Save that then records nothing is a window disagreeing with itself.
+		tiles.SetSelected(chosen)
+	}
+	glassesCard := toolkit.NewFrame(tiles)
+	glassesCard.Title = "Glasses: which headset when several are attached"
 
 	// How many screens is NOT here.
 	//
@@ -82,17 +118,7 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	immersive.SetBounds(toolkit.Rect{
 		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
 
-	glassesRow := &toolkit.SettingRow{
-		Title:    "Glasses",
-		Subtitle: "which headset when several are attached",
-		Control:  glassesPick,
-	}
-	if len(names) == 0 {
-		glassesRow.Subtitle = "none on the bus; name one with -screen"
-		glassesRow.Control = nil
-	}
 	deskCard := toolkit.NewSettingsGroup("The desk",
-		glassesRow,
 		&toolkit.SettingRow{
 			Title:    "Cover the local menu bar and Dock",
 			Subtitle: "the glasses own the whole panel",
@@ -114,11 +140,12 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	page := toolkit.NewContainer(l)
 	// Natural, not a size: each card is as tall as its own rows say, re-measured
 	// every time the window changes shape.
+	page.Add(toolkit.Item{Widget: glassesCard, Natural: true})
 	page.Add(toolkit.Item{Widget: deskCard, Natural: true})
 	page.Add(toolkit.Item{Widget: keysCard, Natural: true})
 
 	read := func() {
-		if i := glassesPick.Selected().Get(); len(names) > 0 && i >= 0 && i < len(names) {
+		if i := tiles.Selected().Get(); len(names) > 0 && i >= 0 && i < len(names) {
 			cfg.Glasses = &ConfigGlasses{Model: &names[i]}
 		}
 		if cfg.Ribbon == nil {
