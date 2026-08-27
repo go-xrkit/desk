@@ -216,7 +216,9 @@ func buttonsOf(root toolkit.Widget) map[string]*toolkit.Button {
 	var walk func(toolkit.Widget)
 	walk = func(w toolkit.Widget) {
 		if b, ok := w.(*toolkit.Button); ok {
-			out[b.Label] = b
+			// The label is an Observable now: the toolkit made every widget's
+			// reactive state one, which is the rule this fleet asked for.
+			out[b.Label().Get()] = b
 		}
 		if p, ok := w.(interface{ Children() []toolkit.Widget }); ok {
 			for _, kid := range p.Children() {

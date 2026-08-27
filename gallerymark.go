@@ -20,7 +20,7 @@ import (
 // very little wallpaper.
 var SelectionInk = toolkit.RGB(0xFF, 0x8C, 0x1A)
 
-// SelectionWidth is how thick that border is.
+// SelectionWidth is how thick that border is, in logical pixels.
 //
 // Thick. A one-pixel ring round a tile that subtends a hand's width in a
 // headset is a rumour; this is the whole answer to "which one am I about to
@@ -42,6 +42,10 @@ type marks struct {
 	theme *toolkit.Theme
 	badge *toolkit.Badge
 	says  *toolkit.Toast
+	// chosen borders the selected cell, and offer outlines the cell that adds a
+	// screen. Both are toolkit widgets: this package draws no pixel of its own.
+	chosen *toolkit.SelectionBox
+	offer  *toolkit.SelectionBox
 }
 
 func newMarks(theme *toolkit.Theme) *marks {
@@ -49,8 +53,16 @@ func newMarks(theme *toolkit.Theme) *marks {
 		theme = toolkit.DefaultDark()
 	}
 	says := toolkit.NewToast("", toolkit.ToastInfo)
-	says.Visible = true // for as long as the gallery is
-	return &marks{theme: theme, badge: toolkit.NewBadge(""), says: says}
+	says.Visible().Set(true) // for as long as the gallery is
+	offer := toolkit.NewSelectionBox(theme.OnSurface)
+	offer.Weight = adderWidth
+	return &marks{
+		theme:  theme,
+		badge:  toolkit.NewBadge(""),
+		says:   says,
+		chosen: toolkit.NewSelectionBox(SelectionInk),
+		offer:  offer,
+	}
 }
 
 // draw numbers each cell of g, borders sel, and says what Enter would do.
@@ -69,8 +81,8 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 			// no captured desktop behind this one, so the cell has to draw its
 			// own edges or it is a plus floating in a void — which is what it
 			// was the first time.
-			p.StrokeRect(painter.Rect{X: x, Y: y, W: w, H: h},
-				m.theme.OnSurface, adderWidth)
+			m.offer.SetBounds(toolkit.Rect{X: x, Y: y, W: w, H: h})
+			m.offer.Draw(p, m.theme)
 			m.plus(p, x, y, w, h)
 		} else {
 			m.badge.Text = strconv.Itoa(i + 1)
@@ -84,21 +96,18 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 		}
 
 		if i == sel {
-			// INSIDE the cell, not around it: a border drawn outside would sit
-			// in the gap, where the neighbouring screen's edge is, and on the
-			// outermost cells it would fall off the picture altogether.
-			p.StrokeRect(painter.Rect{X: x, Y: y, W: w, H: h}, SelectionInk, SelectionWidth)
+			m.chosen.Weight = SelectionWidth
+			// What a screen reader is told about the selection. The border has
+			// no name of its own; what is chosen is the desktop underneath it.
+			m.chosen.Label = m.saying(g, sel)
+			m.chosen.SetBounds(toolkit.Rect{X: x, Y: y, W: w, H: h})
+			m.chosen.Draw(p, m.theme)
 		}
 	}
 
 	// And in words, at the bottom of the VIEW.
-	switch {
-	case g.IsAdder(sel):
-		m.says.Text = "add a screen  (Enter)"
-	case sel >= 0 && sel < g.Screens():
-		m.says.Text = "screen " + strconv.Itoa(sel+1) + " of " +
-			strconv.Itoa(g.Screens()) + "  (Enter to go there)"
-	default:
+	m.says.Text = m.saying(g, sel)
+	if m.says.Text == "" {
 		return
 	}
 	m.says.AnchorIn(toolkit.Rect{X: 0, Y: 0, W: c.W, H: c.H}, toolkit.BottomCenter, 0)
@@ -165,4 +174,21 @@ func plusScale(h int) int {
 		s = 1
 	}
 	return s
+}
+
+// saying is what the selection is, in words: shown at the bottom of the view,
+// and handed to the border as the name a screen reader announces.
+//
+// One function for both, because they must never disagree — a line saying
+// "screen 3" while the accessibility tree says "add a screen" is worse than
+// either alone.
+func (m *marks) saying(g *Grid, sel int) string {
+	switch {
+	case g.IsAdder(sel):
+		return "add a screen  (Enter)"
+	case sel >= 0 && sel < g.Screens():
+		return "screen " + strconv.Itoa(sel+1) + " of " +
+			strconv.Itoa(g.Screens()) + "  (Enter to go there)"
+	}
+	return ""
 }

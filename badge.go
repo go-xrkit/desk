@@ -70,8 +70,8 @@ func (b *badge) show(screen, of int) {
 	// already knows what they are counting.
 	b.toast.Text = strconv.Itoa(screen + 1)
 	_ = of
-	b.toast.Visible = true
-	b.toast.Life = b.frames
+	b.toast.Visible().Set(true)
+	b.toast.Life().Set(b.frames)
 }
 
 // tick counts one frame off.
@@ -83,7 +83,7 @@ func (b *badge) tick() {
 }
 
 // up reports whether the badge is currently showing.
-func (b *badge) up() bool { return b != nil && b.toast.Visible }
+func (b *badge) up() bool { return b != nil && b.toast.Visible().Get() }
 
 // draw puts the number on the picture, BIG and in the middle.
 //
