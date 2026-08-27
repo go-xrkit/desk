@@ -169,3 +169,39 @@ func (s *Strip) Screens() int { return s.n }
 
 // Width is the whole band, in pixels.
 func (s *Strip) Width() int { return s.total }
+
+// Toward is how far the band has moved from the focused screen towards its
+// neighbour, in screens: 0 is the focused screen centred, 0.5 half way to the
+// next one, -0.25 a quarter of the way back to the last.
+//
+// It exists so that the turned band ([Fan]) and the flat one agree about where
+// the band IS, and it is expressed RELATIVE TO THE FOCUS on purpose. An absolute
+// position along the band would need the screens to be in band order, and they
+// are not: a ribbon may put screen zero anywhere on the circle, and this desk's
+// starts at 210 degrees. Asking "how far past the screen the navigator says we
+// are on" needs no such assumption -- and taking each screen's place from the
+// ribbon rather than assuming an even spread is what keeps this in step with the
+// navigator, which it once was not.
+func (s *Strip) Toward(yaw float64, focus int) float64 {
+	if focus < 0 || focus >= s.n || s.n < 2 {
+		return 0
+	}
+	slot := float64(s.total) / float64(s.n)
+	d := float64(s.Offset(yaw)-s.centre[focus]) / slot
+	// Round the seam: the SHORTEST way round, which is what "past" has to mean on
+	// a band that closes. Without it, a desk sitting on the screen either side of
+	// the join reports most of a band rather than a little of one.
+	//
+	// Half the band either side, not half a screen: mid-turn the navigator names
+	// the screen it is going TO, so the band can be most of a screen away from it
+	// -- and briefly, while a turn of several screens settles, further still.
+	half := float64(s.n) / 2
+	d = math.Mod(d, float64(s.n))
+	if d > half {
+		d -= float64(s.n)
+	}
+	if d < -half {
+		d += float64(s.n)
+	}
+	return d
+}

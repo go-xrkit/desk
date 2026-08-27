@@ -45,9 +45,17 @@ func (f *fakeFeed) Frame() (Source, bool) {
 
 func (f *fakeFeed) Close() error { f.closes++; return f.closeErr }
 
+// testPlan is the FLAT band: four screens, square on.
+//
+// Flat on purpose. Most of what this package does -- the navigator, the gallery,
+// the badge, the seam, promotion -- is the same whatever angle the screens are
+// at, and the flat band is the path whose pixels are a rectangle. The turned
+// band has its own tests, and one of them is that at a splay of nothing the two
+// draw the SAME pixels, which is what makes this substitution honest.
 func testPlan(t *testing.T) Plan {
 	t.Helper()
-	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}, Options{Screens: 4})
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 4, SplayDeg: -1})
 	if err != nil {
 		t.Fatalf("NewPlan = %v", err)
 	}
@@ -279,7 +287,9 @@ func TestFullscreenPromotesWhenScreensAreSmallerThanAView(t *testing.T) {
 	// as space. This is the shape promotion is FOR.
 	p = withCount(p, 12)
 	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
-		Options{Screens: 12})
+		// Flat: promotion is about a screen narrower than the view, and the flat
+		// band is the renderer whose pixels are a rectangle either way.
+		Options{Screens: 12, SplayDeg: -1})
 	if err != nil {
 		t.Fatalf("NewPlan = %v", err)
 	}
@@ -367,6 +377,9 @@ func TestActionString(t *testing.T) {
 		ActionGallery: "gallery", ActionChoose: "choose",
 		ActionGalleryOpen: "open the gallery", ActionGalleryClose: "leave the gallery",
 		ActionUp: "up", ActionDown: "down", Action(99): "none",
+		ActionCloser: "closer", ActionFurther: "further",
+		ActionFlatter: "flatter", ActionRounder: "rounder",
+		ActionSettings: "settings",
 	} {
 		if got := a.String(); got != want {
 			t.Errorf("Action(%d).String() = %q, want %q", a, got, want)
@@ -418,6 +431,8 @@ func TestKeyAction(t *testing.T) {
 		// Both spellings of each, because a keyboard has two plus keys and a
 		// person reaches for whichever is nearer.
 		"-": ActionFurther, "_": ActionFurther,
+		"[": ActionFlatter, "{": ActionFlatter,
+		"]": ActionRounder, "}": ActionRounder,
 		"+": ActionCloser, "=": ActionCloser,
 		"x": ActionNone, "": ActionNone, "PageUp": ActionNone,
 	} {
