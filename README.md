@@ -16,7 +16,7 @@ Pure Go, `CGO_ENABLED=0`, no vendor SDK.
 
 XR glasses show one screen. This puts a ring of them around you: real virtual
 displays that macOS extends the desktop onto, so ordinary applications run on
-them, captured and drawn as curved screens on a band at eye level. The keyboard
+them, captured and drawn as FLAT screens on a band at eye level. The keyboard
 turns the band; one key promotes a screen to fill the view.
 
 **One screen is one full view.** Each virtual display is created at exactly one
@@ -92,15 +92,17 @@ printed rather than hidden.
 
 | | |
 |---|---|
-| [`go-xrkit/xrkit`](https://github.com/go-xrkit/xrkit) | `glasses` names the headset and derives its field of view; `ribbon` places screens on the band and composites them by yaw; `warp` turns the panorama into two eyes |
+| [`go-xrkit/xrkit`](https://github.com/go-xrkit/xrkit) | `glasses` names the headset; `ribbon` places screens on the band and composites them by yaw |
 | [`go-macos/virtualdisplay`](https://github.com/go-macos/virtualdisplay) | creates the displays macOS extends onto |
 | [`go-macos/screencapture`](https://github.com/go-macos/screencapture) | streams their pixels |
 | [`go-widgets`](https://github.com/go-widgets) | the window, and every pixel of interface |
 
-The renderer never rebuilds its distortion table. Building one costs 56.5 ms and
-there are 16.6 ms in a frame — but on an equirectangular panorama a yaw is
-exactly a horizontal shift, so the yaw is applied when the screens are
-composited into the panorama, where it costs nothing at all.
+There is no distortion table, and no panorama. The screens used to be wrapped on
+a cylinder and unwrapped again through a per-pixel warp, which cost 2.8 ms of a
+16.6 ms frame to make something whose whole purpose is to look flat — and drew
+the screen you look at straight on with a bow in it, arguing with the depth the
+glasses already present. Worn once, that settled it. A yaw is now what it looks
+like: a horizontal offset into a band of flat pictures, which costs nothing.
 
 
 ### Which glasses are these
