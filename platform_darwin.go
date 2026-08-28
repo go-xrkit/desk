@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-macos/screencapture"
 	"github.com/go-macos/virtualdisplay"
@@ -30,6 +31,12 @@ type Screens struct {
 
 	virtual []*virtualdisplay.Display
 }
+
+// RemovalBudget is how long Close waits for macOS to stop listing the displays
+// it just released. Six 1920x1080 displays measured 1.9 s on macOS 26.6.2, so the
+// budget is several times that: it is a ceiling on a wait that normally ends
+// early, not a delay anyone pays in full.
+const RemovalBudget = 8 * time.Second
 
 // Add creates one more virtual display and appends it, returning its id.
 //
@@ -57,14 +64,27 @@ func (s *Screens) Add(w, h int) (uint64, error) {
 //
 // It matters more than most Close methods: a virtual display that outlives its
 // process is a display the person has to remove by hand.
+//
+// It WAITS for the removal to be observable, which is not the same as releasing
+// it. virtualdisplay.Close returns in microseconds and macOS keeps listing the
+// display for up to a couple of seconds afterwards, so a caller that releases
+// and then looks — the settings phase, which gives the screens back before
+// opening its window, or a person reading System Settings — would see screens
+// that are already dead. Waiting costs nothing on the way out, where the
+// process was going to sit through the same delay anyway.
 func (s *Screens) Close() error {
 	var first error
+	ids := make([]uint32, 0, len(s.virtual))
 	for _, d := range s.virtual {
+		ids = append(ids, d.ID())
 		if err := d.Close(); err != nil && first == nil {
 			first = err
 		}
 	}
 	s.virtual = nil
+	if err := virtualdisplay.WaitGone(RemovalBudget, ids...); err != nil && first == nil {
+		first = err
+	}
 	return first
 }
 
@@ -112,6 +132,11 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	s.Virtual = true
 	s.Why = fmt.Sprintf("%d virtual displays of %dx%d", len(s.IDs), plan.ScreenW, plan.ScreenH)
 	logf("%s", s.Why)
+	// Say where they can be SEEN. A person who goes looking for these in System
+	// Settings needs to know what they are called there, and that they last
+	// exactly as long as this process: the question "why do I not see the
+	// virtual screens in the display list?" is answered by both halves.
+	logf("macOS lists them as \"XR desk 1\"..\"XR desk %d\", for as long as this runs", len(s.IDs))
 	return s, nil
 }
 
