@@ -56,6 +56,8 @@ type fakeBench struct {
 	windows     map[string][]*fakeWindow
 	displaysErr error
 	windowsErr  error
+	listing     []accessibility.WindowInfo
+	listingErr  error
 }
 
 func (b *fakeBench) Trusted() bool { return b.trusted }
@@ -295,4 +297,28 @@ func TestTheFurnitureAllowanceCannotForgiveTheWrongScreen(t *testing.T) {
 	if len(done) != 0 {
 		t.Errorf("Send reported %v as done", done)
 	}
+}
+
+// Listing is what a gallery reads: the windows this fake has, attributed to
+// displays the same way the real one does.
+func (b *fakeBench) Listing() ([]accessibility.WindowInfo, error) {
+	if b.listingErr != nil {
+		return nil, b.listingErr
+	}
+	if b.listing != nil {
+		return b.listing, nil
+	}
+	// Derive one from the windows a test gave it, so a test that only cares
+	// about placement does not have to describe the machine twice.
+	var out []accessibility.WindowInfo
+	for app, ws := range b.windows {
+		for _, w := range ws {
+			info := accessibility.WindowInfo{App: app, Frame: w.frame}
+			if d, ok := accessibility.DisplayFor(w.frame, b.displays); ok {
+				info.Display = d.ID
+			}
+			out = append(out, info)
+		}
+	}
+	return out, nil
 }

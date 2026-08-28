@@ -89,6 +89,14 @@ func DefaultShortcuts() []Shortcut {
 		// The settings, for the same reason: the tray menu is the other way, and it
 		// needs a pointer.
 		{hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Control}, ActionSettings},
+		// The applications, on their own initial, and the spread beside it.
+		//
+		// These two matter more system-wide than most: choosing which application
+		// goes on which screen is the one thing a person does while looking AT
+		// the screens, so the keys have to work while the keyboard belongs to
+		// whatever is running on them.
+		{hotkey.Combo{Key: hotkey.KeyA, Mods: mods | hotkey.Control}, ActionApps},
+		{hotkey.Combo{Key: hotkey.KeyX, Mods: mods | hotkey.Control}, ActionSpread},
 	}
 }
 

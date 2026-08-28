@@ -29,3 +29,10 @@ func (noBench) Displays() ([]accessibility.Display, error) {
 func (noBench) Windows(string) ([]accessibility.Window, []string, error) {
 	return nil, nil, accessibility.ErrUnsupported
 }
+
+// Listing answers that it cannot, like the rest of this platform's bench: a
+// gallery of running applications is a gallery of things that could then be
+// MOVED, and nothing here can move one.
+func (noBench) Listing() ([]accessibility.WindowInfo, error) {
+	return nil, accessibility.ErrUnsupported
+}

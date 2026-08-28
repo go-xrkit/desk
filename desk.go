@@ -119,6 +119,26 @@ const (
 	// reported through OnPoint rather than acted on here -- the same seam as
 	// ActionCycle and for the same reason.
 	ActionPoint
+	// ActionApps opens the gallery of running APPLICATIONS, or closes it.
+	//
+	// It is the other gallery. The screen gallery answers "which desktop am I
+	// looking at"; this one answers "what is open, and where is it" — a grid of
+	// the applications that have a window, each saying which screen it is on.
+	//
+	// From it, ActionChoose puts the highlighted application on the screen the
+	// band is showing. That pairing is deliberate: a system-wide shortcut is
+	// pressed blind, and "put this where I am looking" needs no second key and
+	// no number typed at a picture the person may not be able to see.
+	ActionApps
+	// ActionSpread hands out one screen per application, in order, up to the
+	// ribbon's screen count.
+	//
+	// One key, and a desk of six empty desktops is a desk of six applications.
+	// Applications past the last screen are LEFT WHERE THEY ARE rather than
+	// wrapped onto a screen that already has one: two windows on one screen
+	// hides one of them, and a person who pressed one key cannot be expected to
+	// guess which.
+	ActionSpread
 )
 
 // String renders an action for a log.
@@ -158,6 +178,10 @@ func (a Action) String() string {
 		return "rounder"
 	case ActionPoint:
 		return "bring the pointer here"
+	case ActionApps:
+		return "the applications"
+	case ActionSpread:
+		return "spread the applications"
 	default:
 		return "none"
 	}
@@ -179,6 +203,13 @@ type Desk struct {
 	// then a projection of.
 	strip *Strip
 	grid  *Grid
+
+	// apps is the other gallery — what is RUNNING rather than what is on the
+	// band — and inApps whether it is up. It is not a ribbon mode: the band
+	// keeps its focus underneath, because "put this application on the screen I
+	// am looking at" needs that focus to still mean something.
+	apps   *appsView
+	inApps bool
 
 	canvas  *Canvas
 	feeds   []Feed
@@ -221,6 +252,25 @@ type Desk struct {
 	// visible: without it the pointer has to be dragged blind across displays
 	// whose contents are captures of somewhere else.
 	OnPoint func(pos int)
+
+	// OnApps, when set, answers what is running whenever the application
+	// gallery is opened. It is asked EVERY time rather than once, because the
+	// list is what a person opened the gallery to see: an application that
+	// quit two minutes ago must not still be offered a screen.
+	//
+	// A callback for the same reason as the others: enumerating windows talks to
+	// the window server, and there is no operating system in this file.
+	OnApps func() ([]App, error)
+
+	// OnPlace, when set, is handed the placements the viewer asked for — one
+	// from the application gallery, or a screen each from [ActionSpread].
+	//
+	// It is called without the desk's lock held, and it deliberately hands over
+	// [Placement]s rather than doing anything: the live path is then the same
+	// one the settings file uses at start-up, with the same menu-bar allowance
+	// and the same reporting, instead of a second placement path that would
+	// drift from it.
+	OnPlace func(places []Placement)
 
 	quit bool
 	// settings is set with quit when the desk stopped to show the settings
@@ -272,6 +322,7 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 		blits:      make([]ribbon.Blit, 0, len(feeds)+2),
 		slants:     make([]Slant, 0, 2*FanReach+1),
 		fan:        fan,
+		apps:       newAppsView(nil),
 		Background: DefaultBackground,
 	}, nil
 }
@@ -318,7 +369,50 @@ func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
 	var add func() (Feed, error)
 	pos := -1
+	var place []Placement
+	var list func() ([]App, error)
 	d.mu.Lock()
+
+	// The APPLICATION gallery comes first, and it is not a ribbon mode: the band
+	// keeps its focus underneath, because "put this one on the screen I am
+	// looking at" needs that focus to still mean something.
+	if d.inApps {
+		switch a {
+		case ActionPrev:
+			d.err = d.apps.move(ribbon.Left)
+		case ActionNext:
+			d.err = d.apps.move(ribbon.Right)
+		case ActionUp:
+			d.err = d.apps.move(ribbon.Up)
+		case ActionDown:
+			d.err = d.apps.move(ribbon.Down)
+		case ActionChoose:
+			// The screen the band is showing, which is why this gallery does not
+			// take the ribbon out of its mode.
+			if app, ok := d.apps.app(); ok {
+				place = []Placement{{App: app.Name, Pos: d.nav.Focus() + 1}}
+			} else {
+				d.err = ErrNoApps
+			}
+		case ActionSpread:
+			place = Spread(d.apps.apps, d.plan.Count())
+		case ActionApps, ActionGalleryClose:
+			// Open, so both of these leave. GalleryClose too: a person who
+			// pressed "leave the gallery" meant the picture in front of them,
+			// whichever gallery it is.
+			d.inApps = false
+		case ActionQuit:
+			d.quit = true
+		case ActionSettings:
+			d.quit, d.settings = true, true
+		}
+		d.mu.Unlock()
+		if place != nil && d.OnPlace != nil {
+			d.OnPlace(place)
+		}
+		return
+	}
+
 	// In the gallery the arrows move a selection in a grid; on the ribbon they
 	// turn the band. Same keys, and they must not mean both at once.
 	if d.nav.Mode() == ribbon.ModeGallery {
@@ -380,6 +474,16 @@ func (d *Desk) Do(a Action) {
 		// Not open, so both of these open it. ActionGalleryClose falls through
 		// to nothing, which is what leaving a gallery you are not in should do.
 		d.err = d.nav.ToggleGallery(d.grid)
+	case ActionApps:
+		// Ask what is running, outside the lock, and only then put the gallery
+		// up: a list read once at start-up would offer a screen to something
+		// that quit an hour ago.
+		list = d.OnApps
+	case ActionSpread:
+		// From the band, with whatever the last look at the gallery found. It
+		// asks for a fresh list too — one key that spreads a stale list would
+		// move the wrong windows.
+		list = d.OnApps
 	case ActionFullscreen:
 		d.nav.ToggleFullscreen()
 	case ActionCycle:
@@ -409,6 +513,38 @@ func (d *Desk) Do(a Action) {
 	if point != nil {
 		point(pos)
 	}
+	if list != nil {
+		d.refresh(list, a)
+	}
+}
+
+// refresh asks what is running and then either shows the gallery or spreads.
+//
+// Outside the lock, because enumerating windows talks to the window server and
+// holding the desk shut for it would stall the frame loop — the same reason
+// OnAdd is answered out here.
+func (d *Desk) refresh(list func() ([]App, error), a Action) {
+	apps, err := list()
+	d.mu.Lock()
+	if err != nil {
+		// The Accessibility grant is the usual reason, and it is worth seeing:
+		// a gallery that opened empty would look like "nothing is running".
+		d.err = err
+		d.mu.Unlock()
+		return
+	}
+	d.apps.set(apps)
+	var place []Placement
+	switch a {
+	case ActionApps:
+		d.inApps = true
+	case ActionSpread:
+		place = Spread(apps, d.plan.Count())
+	}
+	d.mu.Unlock()
+	if place != nil && d.OnPlace != nil {
+		d.OnPlace(place)
+	}
 }
 
 // Advance moves the ribbon towards where it is going, dt seconds later.
@@ -419,6 +555,7 @@ func (d *Desk) Badge(seconds float64, theme *toolkit.Theme) {
 	defer d.mu.Unlock()
 	d.badge = newBadge(seconds, theme)
 	d.marks = newMarks(theme)
+	d.apps = newAppsView(theme)
 }
 
 func (d *Desk) Advance(dt float64) {
@@ -497,6 +634,13 @@ func (d *Desk) Render() *Canvas {
 // which, and which would Enter take" -- and that has to be on the picture for as
 // long as the gallery is.
 func (d *Desk) mark(inGallery bool) {
+	// The application gallery covers everything, including the screen gallery
+	// underneath it: it is the picture the person is looking at, and two grids
+	// at once would be two selections at once.
+	if d.inApps {
+		d.apps.draw(d.canvas)
+		return
+	}
 	if inGallery {
 		// Which cell is which, and which one Enter would take. Without this the
 		// arrows move a selection that is nowhere on the picture.
@@ -566,6 +710,12 @@ func KeyAction(code string) Action {
 	// The pointer, on the key next to the one that means "here" in every editor.
 	case "m", "M":
 		return ActionPoint
+	// The applications, on their own initial, and the spread on the key next to
+	// it that no other action wanted.
+	case "a", "A":
+		return ActionApps
+	case "x", "X":
+		return ActionSpread
 	}
 	return ActionNone
 }
