@@ -22,10 +22,10 @@ github.com/go-freedesktop/screencast v0.1.0 h1:LZF4SAYUI79n31U1qfCXZ0+FdEN8c6/Vb
 github.com/go-freedesktop/screencast v0.1.0/go.mod h1:S2FPTvX9NmbDLHOqXm1MVmN74n8gzyrJBrSa+P7zZbo=
 github.com/go-freedesktop/x11 v0.2.0 h1:qHvov5jn7GG4QxeealqRJVj72/MjR5qi2IXqyD7N02A=
 github.com/go-freedesktop/x11 v0.2.0/go.mod h1:a+Fma9oOlsagw0CJKe+VHYxIl5/PzPSmlCVaYCtUSYA=
-github.com/go-gfx/gfx v0.6.0 h1:sQkGEmB9YLouHxrscwvS4OW6oELsTtrKtQqsNdJ8L8Q=
-github.com/go-gfx/gfx v0.6.0/go.mod h1:bFt/MWyYWRU3Ic9IaB8XOC9KLMMHRRmahMk4FaIGK7g=
-github.com/go-iconoir/iconoir v0.2.0 h1:2ANqG6gkvHMoCtpNgNhSeOsuGMnlWQ+Sl43EndujIC0=
-github.com/go-iconoir/iconoir v0.2.0/go.mod h1:BrOQ68YO5BMsF7y+/nht4shbgjVfh9CxBoQF35eNosw=
+github.com/go-gfx/gfx v0.11.0 h1:IwdTO1i7veITSvEFBSjYAqiwzNm7CryDlkQgTt/NsKI=
+github.com/go-gfx/gfx v0.11.0/go.mod h1:bFt/MWyYWRU3Ic9IaB8XOC9KLMMHRRmahMk4FaIGK7g=
+github.com/go-icons/iconoir v0.2.0 h1:I5AnDEIPgYfawTmwzemDRJjlYCUbFHuS8GJXrjADhXc=
+github.com/go-icons/iconoir v0.2.0/go.mod h1:Td/M2vy4xdVv4aOudAskV0nXR9Wv0MlhWvyRIzPBz5U=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 h1:nU+MGeyJzidGvCtx+HLZgHKG9GpUUomkQvB5nXLRWoc=
 github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734/go.mod h1:ObuOBKDEidGX0LqLKY/5nqj7JVN/hsCzHMAJd0TNc0k=
 github.com/go-logr/logr v1.4.3 h1:CjnDlHq8ikf6E492q6eKboGOC0T8CDaOvkHCIg8idEI=
@@ -70,8 +70,8 @@ github.com/go-widgets/mvvm v0.7.0 h1:I7E2Kd9H8K/vJfZClifBRCqnk0kQTjTnhjnuIdORAVk
 github.com/go-widgets/mvvm v0.7.0/go.mod h1:BBgSa7vTeNtYCo28qeowez9RlSSvViU73CcFj5vCvJ8=
 github.com/go-widgets/painter v0.11.0 h1:xsj4zTz8B43rOZnWrx7ZsaUBMgJyvgaE/Pq2FfcG2Sw=
 github.com/go-widgets/painter v0.11.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
-github.com/go-widgets/toolkit v0.271.0 h1:C4JezEdEgyo/titluWCs/pkeW3KK+LQbdAcocRfUp7k=
-github.com/go-widgets/toolkit v0.271.0/go.mod h1:eBfiAf9RI6uqmW6NoyFIBjNJgVmpjgVtVuJYS/8N5kI=
+github.com/go-widgets/toolkit v0.281.0 h1:B5qXnfQydIDcYsB43+j1H7S7v8KEZ/rWRwUoqe15LPw=
+github.com/go-widgets/toolkit v0.281.0/go.mod h1:IaRQFcV6FjxwzGXpHd3dpEoWZ+82f7dMPwtEZSH4nIg=
 github.com/go-widgets/window v0.55.0 h1:mbt4rR3Rc+KOYctr6svuGywgNe5txIx+6NK3Jc7/ZIY=
 github.com/go-widgets/window v0.55.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=

@@ -20,6 +20,8 @@ var (
 	ErrPosition = errors.New("desk: no such ribbon position")
 	// ErrAlreadyShown means the source is already on another position.
 	ErrAlreadyShown = errors.New("desk: that source is already on the ribbon")
+	// ErrNoApps means no application has a window to show.
+	ErrNoApps = errors.New("desk: no application with a window")
 )
 
 // Kind is what sort of thing a source is.

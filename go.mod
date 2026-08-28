@@ -13,7 +13,7 @@ require (
 	github.com/go-macos/virtualdisplay v0.2.1
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-widgets/painter v0.11.0
-	github.com/go-widgets/toolkit v0.271.0
+	github.com/go-widgets/toolkit v0.281.0
 	github.com/go-widgets/window v0.55.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/xrkit v0.6.0
@@ -31,8 +31,8 @@ require (
 	github.com/go-crdt/collab v0.25.0 // indirect
 	github.com/go-crdt/crdt v0.31.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
-	github.com/go-gfx/gfx v0.6.0 // indirect
-	github.com/go-iconoir/iconoir v0.2.0 // indirect
+	github.com/go-gfx/gfx v0.11.0 // indirect
+	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 // indirect
 	github.com/go-macos/objc v0.4.0 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
