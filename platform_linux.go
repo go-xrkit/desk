@@ -36,6 +36,9 @@ type Screens struct {
 // Close releases anything this created. There is nothing to release.
 func (s *Screens) Close() error { return nil }
 
+// Release is Close here: nothing was created, so nothing has to go.
+func (s *Screens) Release() error { return nil }
+
 // Provide gets the ribbon its screens.
 func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screens, error) {
 	if logf == nil {
