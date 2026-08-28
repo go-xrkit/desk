@@ -435,7 +435,9 @@ func TestKeyAction(t *testing.T) {
 		"]": ActionRounder, "}": ActionRounder,
 		"m": ActionPoint, "M": ActionPoint,
 		"+": ActionCloser, "=": ActionCloser,
-		"x": ActionNone, "": ActionNone, "PageUp": ActionNone,
+		"a": ActionApps, "A": ActionApps,
+		"x": ActionSpread, "X": ActionSpread,
+		"": ActionNone, "PageUp": ActionNone, "z": ActionNone,
 	} {
 		if got := KeyAction(code); got != want {
 			t.Errorf("KeyAction(%q) = %v, want %v", code, got, want)

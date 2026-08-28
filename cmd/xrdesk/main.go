@@ -285,6 +285,42 @@ func run() int {
 				fmt.Printf("the pointer is on screen %d\n", pos+1)
 			}
 
+			// What is running, asked every time the gallery opens: a list read
+			// once would offer a screen to something that quit an hour ago.
+			d.OnApps = func() ([]desk.App, error) {
+				b := desk.TheBench()
+				if !b.Trusted() {
+					return nil, fmt.Errorf("this application may not see another " +
+						"one's windows: grant it Accessibility in System Settings " +
+						"> Privacy & Security > Accessibility")
+				}
+				list, err := b.Listing()
+				if err != nil {
+					return nil, err
+				}
+				return desk.AppsFrom(list, screens.IDs), nil
+			}
+
+			// And the same placement path as the settings file: desk.Send, with
+			// its menu-bar allowance and its reporting. A second path here would
+			// drift from the one that runs at start-up.
+			d.OnPlace = func(places []desk.Placement) {
+				if !screens.Virtual {
+					fmt.Printf("not moving anything: these are the displays this "+
+						"Mac already has (%s)\n", screens.Why)
+					return
+				}
+				done, err := desk.Send(desk.TheBench(), screens.IDs, places)
+				for _, line := range done {
+					fmt.Printf("%s\n", line)
+				}
+				if err != nil {
+					for _, line := range strings.Split(err.Error(), "\n") {
+						fmt.Printf("%s\n", line)
+					}
+				}
+			}
+
 			d.OnCycle = func(pos int) {
 				o, ok := inv.Cycle(pos)
 				if !ok {

@@ -29,6 +29,16 @@ type Bench interface {
 	Windows(app string) ([]accessibility.Window, []string, error)
 	// Trusted reports whether this process may move another one's windows.
 	Trusted() bool
+	// Listing is every window on the machine, each attributed to the display it
+	// is mostly on. It holds no handles open, which is what makes it usable for
+	// a gallery: the list is read, shown and chosen from, and only the choice
+	// opens anything.
+	//
+	// Applications that AX declines to describe do not appear. That is the
+	// window server's answer rather than a gap here — Activity Monitor answers
+	// AXError -25204 to any question about its windows on the machine this was
+	// written on.
+	Listing() ([]accessibility.WindowInfo, error)
 }
 
 // Placement is one line of a desk: an application, and the position on the

@@ -28,6 +28,12 @@ func (macBench) Displays() ([]accessibility.Display, error) {
 	return accessibility.Displays()
 }
 
+// Listing is accessibility.List: every window on the machine, attributed to the
+// display it is mostly on, holding nothing open.
+func (macBench) Listing() ([]accessibility.WindowInfo, error) {
+	return accessibility.List()
+}
+
 // Windows lists the windows of every application whose name matches, and their
 // human-readable names alongside — "Safari — go-xrkit/desk" rather than a
 // pointer — so that what was moved can be reported to the person who asked.

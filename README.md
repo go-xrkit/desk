@@ -52,26 +52,54 @@ instead of fighting. Turning the band is a key press, and it is deliberate.
 
 In the window, and in the glasses:
 
-| key | on the ribbon | in the gallery |
-|---|---|---|
-| `←` `→` | turn the band | move the selection — it wraps, because the ribbon is a circle |
-| `↑` `↓` | nothing: a band has no rows | move a row — it clamps, because the fold has no seam |
-| `Enter` | — | go to the highlighted screen, the short way round |
-| `Space` / `f` | fill the view with the focused screen | — |
-| `g` | show every screen at once | put the ribbon back exactly as it was |
-| `Tab` / `c` | show the next source here | — |
-| `Escape` / `q` | quit | quit — a mode you cannot leave is a trap |
+| key | on the ribbon | in the screen gallery | in the application gallery |
+|---|---|---|---|
+| `←` `→` | turn the band | move the selection — it wraps, because the ribbon is a circle | move the selection, the same way |
+| `↑` `↓` | nothing: a band has no rows | move a row — it clamps, because the fold has no seam | move a row, the same way |
+| `Enter` | — | go to the highlighted screen, the short way round | **put the highlighted application on the screen the band is showing** |
+| `Space` / `f` | fill the view with the focused screen | — | — |
+| `g` | show every screen at once | put the ribbon back exactly as it was | — |
+| `a` | show what is RUNNING | — | put it away |
+| `x` | one application per screen, in order | — | the same |
+| `Tab` / `c` | show the next source here | — | — |
+| `Escape` / `q` | quit | quit — a mode you cannot leave is a trap | quit |
+
+The two galleries answer different questions. The screen one is *which desktop
+am I looking at*; the application one is *what is open, and where is it* — a
+grid of everything with a window, each tile saying which screen it is on. The
+band keeps its focus underneath it, and that is what makes `Enter` mean "here":
+no number to type at a picture you may not be able to see.
+
+`x` hands out one screen per application, in order, up to the ribbon's count.
+Anything past the last screen is **left where it is** rather than wrapped onto a
+screen that already has one: two windows on one screen hides one of them, and a
+person who pressed one key cannot be expected to guess which.
+
+Placing an application needs the **Accessibility** grant, and says so plainly
+when it has not got it. It goes through the same code as a `place` block in the
+settings file, so the live path and the start-up path cannot drift apart.
 
 ### And from anywhere else
 
-The point of a desk in glasses is that you are *using* the screens on it. So
-three of those keys are claimed **system-wide** and work while another
-application has the keyboard:
+The point of a desk in glasses is that you are *using* the screens on it. So the
+keys are claimed **system-wide** and work while another application has the
+keyboard — which is not a convenience here but the whole design: the desk's own
+window is deliberately passive and never takes the keyboard from what is running
+on the screens.
 
 | | |
 |---|---|
 | `⌥⌘←` `⌥⌘→` | turn the band |
-| `⌥⌘Space` | show every screen at once |
+| `⌃⌥⌘Space` | show every screen at once |
+| `⌃⌥⌘↑` `⌃⌥⌘↓` | open the gallery, leave it |
+| `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
+| **`⌃⌥⌘A`** | **show what is running** |
+| **`⌃⌥⌘X`** | **one application per screen** |
+| `⌃⌥⌘M` | bring the pointer to the screen being looked at |
+| `⌃⌥⌘-` `⌃⌥⌘=` | move the band away, and back |
+| `⌃⌥⌘[` `⌃⌥⌘]` | flatten the screens, turn them |
+| `⌃⌥⌘S` | the settings |
+| `⌃⌥⌘⎋` | quit |
 
 macOS only, for now: this goes through Carbon's `RegisterEventHotKey`, which
 asks for **no permission at all** — no accessibility prompt, no input
