@@ -105,6 +105,37 @@ glasses already present. Worn once, that settled it. A yaw is now what it looks
 like: a horizontal offset into a band of flat pictures, which costs nothing.
 
 
+### The screens only exist while it runs
+
+macOS lists them, by name, as `XR desk 1` … `XR desk n` — in System Settings ▸
+Displays, in `system_profiler SPDisplaysDataType`, and to anything else that
+enumerates displays. They sit to the LEFT of the main screen, at negative x, in
+ribbon order.
+
+They are created at start and removed at exit, deliberately: a virtual display
+that outlives its process is a display somebody has to remove by hand. So an
+empty display list means one of two things, and the program now says which:
+
+* **it is not running** — nothing was created, nothing remains;
+* **it never got that far** — with no display to show a desk on, `xrdesk` stops
+  before creating anything, and says so:
+
+```
+glasses: no display matches "VITURE Beast"; attached: "Built-in Retina Display" 2056x1329 (primary)
+nothing was created and nothing on this Mac was changed.
+  the virtual screens exist only while xrdesk runs, and only alongside a display to show them on
+  plug the glasses in, or name one of the displays above with -screen
+```
+
+⚠ **Releasing a display is asynchronous.** `virtualdisplay.Close` returns in
+microseconds; macOS keeps listing the display for up to **1.9 s** (six of them,
+macOS 26.6.2). `Screens.Close` therefore waits — measured, not slept — so that
+"released" and "gone from the list" are the same moment for anything that looks
+next: the settings phase, which gives the screens back before opening its
+window, or a person reading System Settings straight after quitting. Without
+that wait, six screens that were already dead still read as a leak; the
+integration test fails naming each one if the wait is removed.
+
 ### Which glasses are these
 
 Two questions, and they are not the same one: *is a headset attached*, and
@@ -226,6 +257,19 @@ runner has, so a total-coverage figure would be a number chosen to pass rather
 than a standard. The `_display.go` files are named, not listed, so the exemption
 is visible in the file name instead of buried in CI, and they stay deliberately
 thin -- wiring pieces that ARE covered.
+
+One test makes REAL displays, so it is behind a build tag and an environment
+variable — a runner has no window server, and a display left behind would appear
+on somebody's desktop:
+
+```
+XRDESK_INTEGRATION=1 go test -tags integration -v -run Integration ./...
+```
+
+It reads the SYSTEM's display list, not ours: six screens appear there under the
+names macOS shows, and are gone by the time `Close` returns. Remove the wait in
+`Screens.Close` and it fails naming each screen still listed — which is how the
+wait was shown to be doing something.
 
 ## Licence
 

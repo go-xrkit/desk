@@ -140,6 +140,13 @@ func run() int {
 		chosen, err := glasses.ChooseDisplay(ds, model)
 		if err != nil {
 			fmt.Printf("%v\n", err)
+			// Say what did NOT happen. There is no screen to show a desk on, so
+			// no virtual displays are created either -- and somebody who goes
+			// looking for them in System Settings would never find them, with
+			// nothing here having said why.
+			fmt.Println("nothing was created and nothing on this Mac was changed.")
+			fmt.Println("  the virtual screens exist only while xrdesk runs, and only alongside a display to show them on")
+			fmt.Println("  plug the glasses in, or name one of the displays above with -screen")
 			return false, 1
 		}
 		fmt.Printf("on %s\n", chosen)
