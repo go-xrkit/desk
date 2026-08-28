@@ -34,6 +34,9 @@ type Screens struct {
 // Close releases anything this created. There is nothing to release.
 func (s *Screens) Close() error { return nil }
 
+// Release is Close here: nothing was created, so nothing has to go.
+func (s *Screens) Release() error { return nil }
+
 // Provide gets the ribbon its screens.
 //
 // Consent is asked for HERE rather than at the first capture. MediaProjection

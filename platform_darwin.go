@@ -60,31 +60,47 @@ func (s *Screens) Add(w, h int) (uint64, error) {
 	return uint64(d.ID()), nil
 }
 
-// Close removes any display this created, and is safe to call twice.
+// Close removes any display this created and WAITS for the removal to be
+// observable, which is not the same as releasing it. Use it when something is
+// about to look at the display list — the settings phase gives the screens back
+// before opening its window. It is safe to call twice.
 //
-// It matters more than most Close methods: a virtual display that outlives its
-// process is a display the person has to remove by hand.
-//
-// It WAITS for the removal to be observable, which is not the same as releasing
-// it. virtualdisplay.Close returns in microseconds and macOS keeps listing the
-// display for up to a couple of seconds afterwards, so a caller that releases
-// and then looks — the settings phase, which gives the screens back before
-// opening its window, or a person reading System Settings — would see screens
-// that are already dead. Waiting costs nothing on the way out, where the
-// process was going to sit through the same delay anyway.
+// ⚠ On the way OUT, use [Screens.Release] instead. Waiting there was measured
+// costing eight full seconds and then printing a warning nobody could act on:
+// once AppKit has reconfigured the displays in this process — which opening the
+// desk's own window does — releasing a CGVirtualDisplay object no longer
+// removes the display, and it goes when the process does. virtualdisplay.Close
+// documents that as a property of the private API. A fresh process with the
+// same six displays, captures running and windows moved onto them, releases
+// them in under a tenth of a second, so the wait is right where it can work and
+// wrong where it cannot.
 func (s *Screens) Close() error {
-	var first error
 	ids := make([]uint32, 0, len(s.virtual))
 	for _, d := range s.virtual {
 		ids = append(ids, d.ID())
+	}
+	first := s.Release()
+	if err := virtualdisplay.WaitGone(RemovalBudget, ids...); err != nil && first == nil {
+		first = err
+	}
+	return first
+}
+
+// Release removes any display this created without waiting for macOS to stop
+// listing it, and is safe to call twice.
+//
+// It matters more than most teardowns: a virtual display that outlives its
+// process is a display the person has to remove by hand. What it does NOT do is
+// promise the desktop is already back — see [Screens.Close] for that, and for
+// why waiting is a bad idea on the way out.
+func (s *Screens) Release() error {
+	var first error
+	for _, d := range s.virtual {
 		if err := d.Close(); err != nil && first == nil {
 			first = err
 		}
 	}
 	s.virtual = nil
-	if err := virtualdisplay.WaitGone(RemovalBudget, ids...); err != nil && first == nil {
-		first = err
-	}
 	return first
 }
 

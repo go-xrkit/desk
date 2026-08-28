@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/go-freedesktop/screencast v0.1.0
-	github.com/go-macos/accessibility v0.1.0
+	github.com/go-macos/accessibility v0.3.0
 	github.com/go-macos/hotkey v0.5.0
 	github.com/go-macos/iokit v0.1.0
 	github.com/go-macos/pointer v0.1.0
