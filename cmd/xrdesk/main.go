@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -128,28 +129,41 @@ func run() int {
 	// displays while a person changes how many there should be is a desk that
 	// then has to be told twice.
 	session := func(n int, model string, dist, splay float64, settings desk.Config) (again bool, code int) {
-		ss, err := window.Screens()
-		if err != nil {
-			fmt.Printf("cannot list displays: %v\n", err)
-			return false, 1
-		}
-		ds := make([]glasses.Display, len(ss))
-		for i, s := range ss {
-			ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
-		}
-		chosen, err := glasses.ChooseDisplay(ds, model)
-		if err != nil {
+		// Ctrl-C must reach the same exit as the quit key, or a session left
+		// running keeps virtual displays the person never asked for. It is set
+		// up BEFORE the wait below, so a person who changes their mind about
+		// plugging the glasses in can stop the program.
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer stop()
+
+		// The glasses are a cable. Wait for them rather than making the order
+		// of two actions matter: this returns at once when the display is
+		// already there, and says nothing in that case.
+		chosen, err := desk.Await(ctx, desk.AwaitOptions{
+			Want: model, Actions: actions, Logf: logf,
+			List: func() ([]glasses.Display, error) {
+				ss, err := window.Screens()
+				if err != nil {
+					return nil, err
+				}
+				ds := make([]glasses.Display, len(ss))
+				for i, s := range ss {
+					ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
+				}
+				return ds, nil
+			},
+		})
+		switch {
+		case errors.Is(err, desk.ErrAwaitQuit), errors.Is(err, context.Canceled):
+			return false, 0
+		case errors.Is(err, desk.ErrAwaitSettings):
+			return true, 0
+		case err != nil:
 			fmt.Printf("%v\n", err)
-			// Say what did NOT happen. There is no screen to show a desk on, so
-			// no virtual displays are created either -- and somebody who goes
-			// looking for them in System Settings would never find them, with
-			// nothing here having said why.
-			fmt.Println("nothing was created and nothing on this Mac was changed.")
-			fmt.Println("  the virtual screens exist only while xrdesk runs, and only alongside a display to show them on")
-			fmt.Println("  plug the glasses in, or name one of the displays above with -screen")
 			return false, 1
 		}
 		fmt.Printf("on %s\n", chosen)
+
 		if advice := glasses.ScalingAdvice(chosen); advice != "" {
 			logf("%s", advice)
 		}
@@ -164,18 +178,24 @@ func run() int {
 		}
 		logf("%s", plan)
 
-		// Ctrl-C must reach the same exit as the quit key, or a session left running
-		// keeps virtual displays the person never asked for.
-		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-		defer stop()
-
 		screens, err := desk.Provide(ctx, plan, logf)
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			return false, 1
 		}
 		defer func() {
-			if err := screens.Close(); err != nil {
+			// Waiting for the removal is right when the desk is coming back —
+			// the settings window opens next and a person may well look at
+			// System Settings — and wrong on the way out, where it was measured
+			// costing eight seconds and printing a warning nobody can act on.
+			// See desk.Screens.Close.
+			var err error
+			if again {
+				err = screens.Close()
+			} else {
+				err = screens.Release()
+			}
+			if err != nil {
 				fmt.Printf("WARNING: could not remove every virtual display: %v\n", err)
 			}
 		}()
@@ -183,7 +203,18 @@ func run() int {
 		// The applications, before the pixels. A screen with nothing on it is what
 		// the first version of this showed a person wearing the glasses, and it
 		// read as broken rather than as empty.
-		if places := settings.Placements(); len(places) > 0 {
+		//
+		// ONLY onto screens this desk made. When the window server refuses a
+		// virtual display, Provide falls back to the displays the machine
+		// already has -- and placing an application then means picking up
+		// somebody's windows and rearranging their actual desktop, which no
+		// setting in a file about a headset asked for. Measured: a run where
+		// creation failed moved Firefox onto the main screen.
+		if places := settings.Placements(); len(places) > 0 && !screens.Virtual {
+			logf("not placing %d application(s): these are the displays this Mac "+
+				"already has (%s), and moving your windows about on them is not "+
+				"what a desk setting asks for", len(places), screens.Why)
+		} else if len(places) > 0 {
 			done, err := desk.Send(desk.TheBench(), screens.IDs, places)
 			for _, line := range done {
 				logf("%s", line)
