@@ -136,6 +136,19 @@ func run() int {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 		defer stop()
 
+		// -for bounds the WHOLE run, waiting included.
+		//
+		// It used to bound only the session, so `-for 3s` against a display that
+		// was not plugged in waited for ever: the three seconds never started,
+		// because nothing had. "Stop after this long" is what the flag says, and
+		// a run that never begins is exactly the case somebody automating this
+		// needs it to cover.
+		if *forDur > 0 {
+			var until context.CancelFunc
+			ctx, until = context.WithTimeout(ctx, *forDur)
+			defer until()
+		}
+
 		// The glasses are a cable. Wait for them rather than making the order
 		// of two actions matter: this returns at once when the display is
 		// already there, and says nothing in that case.
@@ -155,6 +168,12 @@ func run() int {
 		})
 		switch {
 		case errors.Is(err, desk.ErrAwaitQuit), errors.Is(err, context.Canceled):
+			return false, 0
+		case errors.Is(err, context.DeadlineExceeded):
+			// -for ran out while still waiting. Not a failure: the run did
+			// exactly what it was told, and saying so is better than a silent
+			// zero after nothing happened.
+			fmt.Printf("gave up waiting after %s; nothing was created\n", *forDur)
 			return false, 0
 		case errors.Is(err, desk.ErrAwaitSettings):
 			return true, 0
