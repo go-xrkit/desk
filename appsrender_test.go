@@ -286,3 +286,36 @@ func TestChoosingWithNowhereToSendItDoesNotPanic(t *testing.T) {
 	d.Do(ActionChoose)
 	d.Do(ActionSpread)
 }
+
+// TestATileShowsTheApplicationsOwnIconWhenItHasOne, and the drawn window when
+// it does not — including when what it "has" is unusable, which is the case a
+// consumer will produce by accident.
+func TestATileShowsTheApplicationsOwnIconWhenItHasOne(t *testing.T) {
+	red := make([]byte, 8*8*4)
+	for i := 0; i < len(red); i += 4 {
+		red[i], red[i+3] = 0xFF, 0xFF
+	}
+	apps := []App{
+		{Name: "With", Icon: &Icon{Pix: red, W: 8, H: 8}},
+		{Name: "Without"},
+		{Name: "Truncated", Icon: &Icon{Pix: red[:16], W: 8, H: 8}}, // fewer bytes than it claims
+		{Name: "Empty", Icon: &Icon{}},
+	}
+	v := newAppsView(nil)
+	v.set(apps)
+
+	if v.grid.Cells[0].Image == nil {
+		t.Error("the application with an icon is drawing a glyph")
+	} else if v.grid.Cells[0].Image.Alt != "With" {
+		t.Errorf("the image's Alt is %q, want the application's name", v.grid.Cells[0].Image.Alt)
+	}
+	for i, name := range []string{"Without", "Truncated", "Empty"} {
+		c := v.grid.Cells[i+1]
+		if c.Image != nil {
+			t.Errorf("%s: an unusable icon was handed to the toolkit anyway", name)
+		}
+		if c.Icon == nil {
+			t.Errorf("%s: no glyph either, so the tile is blank", name)
+		}
+	}
+}
