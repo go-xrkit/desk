@@ -40,8 +40,6 @@ github.com/go-macos/hotkey v0.5.1 h1:rZmKZps+JPbqttx9E0HTRULTAFd195pnOpRnCabIor8
 github.com/go-macos/hotkey v0.5.1/go.mod h1:uJExaEG7xtI7RndCv2QkaqH4UAYOx5jxZDjCY8lqWQ0=
 github.com/go-macos/iokit v0.1.0 h1:noPIXSMxCqC+sBT07i7arGkqYwzFBYSwocnbfFxGY5c=
 github.com/go-macos/iokit v0.1.0/go.mod h1:UjYu90FvAQ/cLIyt+GXTdlebs0ig9pPIqram+36oKYA=
-github.com/go-macos/objc v0.4.0 h1:SjL67emvTtDl2C++5HkIoegjFpayAMgd3IQTDYpCLXs=
-github.com/go-macos/objc v0.4.0/go.mod h1:00GJyieLzPcb65rPLVWNPPUCVm79nmmiEXUDsslRpOs=
 github.com/go-macos/objc v0.5.0 h1:/C091FfAlpHR8UAGWMVV9hM7AOPJejONu3TbpZYi9EQ=
 github.com/go-macos/objc v0.5.0/go.mod h1:00GJyieLzPcb65rPLVWNPPUCVm79nmmiEXUDsslRpOs=
 github.com/go-macos/pointer v0.1.0 h1:3EzOYpglD00NPPbfbvxATgPADhjx8FT+3kObqvAkkio=
