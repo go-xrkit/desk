@@ -4,13 +4,13 @@ go 1.26.4
 
 require (
 	github.com/go-freedesktop/screencast v0.1.0
-	github.com/go-macos/accessibility v0.3.0
-	github.com/go-macos/hotkey v0.5.0
+	github.com/go-macos/accessibility v0.3.1
+	github.com/go-macos/hotkey v0.5.1
 	github.com/go-macos/iokit v0.1.0
 	github.com/go-macos/pointer v0.1.0
-	github.com/go-macos/screencapture v0.1.0
+	github.com/go-macos/screencapture v0.1.1
 	github.com/go-macos/statusitem v0.1.0
-	github.com/go-macos/virtualdisplay v0.2.0
+	github.com/go-macos/virtualdisplay v0.2.1
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-widgets/painter v0.11.0
 	github.com/go-widgets/toolkit v0.271.0
