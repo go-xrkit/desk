@@ -58,7 +58,18 @@ func (v *appsView) set(apps []App) {
 	v.apps = apps
 	cells := make([]toolkit.IconCell, len(apps))
 	for i, a := range apps {
-		cells[i] = toolkit.IconCell{Icon: toolkit.DrawIconApp, Label: a.String()}
+		cell := toolkit.IconCell{Label: a.String()}
+		// The application's OWN icon when somebody looked it up, and a drawn
+		// window when not. An icon is how a person recognises a program -- the
+		// Dock, Command-Tab and Mission Control all show one -- and the glyph
+		// is the honest fallback rather than the intent.
+		if ic := a.Icon; ic != nil && len(ic.Pix) == ic.W*ic.H*4 && ic.W > 0 {
+			cell.Image = toolkit.NewImageFit(ic.Pix, ic.W, ic.H)
+			cell.Image.Alt = a.Name
+		} else {
+			cell.Icon = toolkit.DrawIconApp
+		}
+		cells[i] = cell
 	}
 	v.grid.Cells = cells
 	sel := 0

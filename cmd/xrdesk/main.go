@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-macos/appicon"
 	"github.com/go-widgets/window"
 	"github.com/go-xrkit/desk"
 	"github.com/go-xrkit/xrkit/glasses"
@@ -306,6 +307,11 @@ func run() int {
 
 			// What is running, asked every time the gallery opens: a list read
 			// once would offer a screen to something that quit an hour ago.
+			// 256 because that is a size an .icns really holds, and because a
+			// tile on a 1200-row panel is about that: bigger would be scaled
+			// down for nothing, smaller would be scaled up and look it.
+			const iconPx = 256
+			icons := map[int32]*desk.Icon{}
 			d.OnApps = func() ([]desk.App, error) {
 				b := desk.TheBench()
 				if !b.Trusted() {
@@ -317,7 +323,25 @@ func run() int {
 				if err != nil {
 					return nil, err
 				}
-				return desk.AppsFrom(list, screens.IDs), nil
+				apps := desk.AppsFrom(list, screens.IDs)
+				// Their own icons, which is how a person recognises a
+				// program. Cached by pid: the gallery is re-read every time
+				// it opens, and rasterising an .icns is the expensive part.
+				// It needs no permission, and an application that will not
+				// give one just keeps the drawn glyph.
+				for i := range apps {
+					if ic, ok := icons[apps[i].PID]; ok {
+						apps[i].Icon = ic
+						continue
+					}
+					var ic *desk.Icon
+					if px, err := appicon.ForPID(apps[i].PID, iconPx); err == nil {
+						ic = &desk.Icon{Pix: px.Pix, W: px.W, H: px.H}
+					}
+					icons[apps[i].PID] = ic
+					apps[i].Icon = ic
+				}
+				return apps, nil
 			}
 
 			// And the same placement path as the settings file: desk.Send, with

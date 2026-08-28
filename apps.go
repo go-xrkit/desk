@@ -18,9 +18,28 @@ import (
 // It is a description, like [Offer]: it holds no handle on anything, so a
 // gallery of applications can be built, shown and chosen from without opening a
 // window of any kind — and tested on a machine with none.
+// An Icon is an application's own icon, as straight RGBA, W*H*4 bytes.
+//
+// It is pixels rather than a path or a handle because this package has no
+// operating system in it: whoever fills it in knows how to ask -- on macOS that
+// is go-macos/appicon, which needs no permission -- and everything here just
+// draws it.
+type Icon struct {
+	Pix  []byte
+	W, H int
+}
+
 type App struct {
 	// Name is the application's own name, as the window server reports it.
 	Name string
+	// PID is the process it runs in, from the first window seen of it. Two
+	// processes with the same application name are one row in a gallery and one
+	// of these -- which is what a person means by "Firefox" whether or not it
+	// is two copies.
+	PID int32
+	// Icon is the application's own icon, or nil when nobody looked it up or
+	// the system would not give it. A gallery falls back to a drawn glyph.
+	Icon *Icon
 	// Windows is how many windows it has.
 	Windows int
 	// On is the ribbon positions its windows are on, ascending and without
@@ -81,7 +100,7 @@ func AppsFrom(list []accessibility.WindowInfo, ids []uint64) []App {
 		}
 		a := byName[w.App]
 		if a == nil {
-			a = &App{Name: w.App}
+			a = &App{Name: w.App, PID: int32(w.PID)}
 			byName[w.App] = a
 		}
 		a.Windows++

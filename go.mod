@@ -34,7 +34,8 @@ require (
 	github.com/go-gfx/gfx v0.11.0 // indirect
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 // indirect
-	github.com/go-macos/objc v0.4.0 // indirect
+	github.com/go-macos/appicon v0.1.0 // indirect
+	github.com/go-macos/objc v0.5.0 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
 	github.com/go-opentype/fonts v0.8.0 // indirect
 	github.com/go-opentype/opentype v0.6.0 // indirect
