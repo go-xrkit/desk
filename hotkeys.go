@@ -123,6 +123,17 @@ func DefaultShortcuts() []Shortcut {
 		// And the initial as well, for a keyboard where it does arrive.
 		{hotkey.Combo{Key: hotkey.KeyA, Mods: mods | hotkey.Control}, ActionApps},
 		{hotkey.Combo{Key: hotkey.KeyX, Mods: mods | hotkey.Control}, ActionSpread},
+		// What a screen SHOWS, system-wide.
+		//
+		// The desk already offers the machine's own display as a source beside
+		// its virtual ones -- so a ribbon position can MIRROR the Mac's screen,
+		// which is what somebody with one screen in the glasses wants to see.
+		// It was reachable only from the desk's own window, which deliberately
+		// never has the keyboard: a capability nobody could reach.
+		//
+		// On Tab, which is what every switcher on every system uses for "the
+		// next one of these".
+		{hotkey.Combo{Key: hotkey.KeyTab, Mods: mods | hotkey.Control}, ActionCycle},
 		// And taking one away, on the key that deletes.
 		{hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods | hotkey.Control}, ActionRemove},
 	}
