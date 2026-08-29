@@ -226,3 +226,19 @@ func (c *Canvas) ComposeSlants(slants []Slant, sources []Source, background [4]b
 		c.Slant(s, sources[s.Screen])
 	}
 }
+
+// Why everything drawn into a Canvas uses painter.NewPixelPainterBGRA
+//
+// A Canvas holds BGRA. That is not a choice: ScreenCaptureKit hands over BGRA,
+// a capture is the largest thing in a frame, and [Feed.Frame] must not copy it
+// — so the pixels go in as they arrive and the whole picture is swapped ONCE on
+// the way to the window, in view.draw.
+//
+// The toolkit writes RGBA. Measured: toolkit.RGB(0x11,0x22,0x33) lands as
+// 11 22 33. So every overlay drawn into this canvas with a plain pixel painter
+// had red and blue exchanged, and the orange selection ring was BLUE on the
+// glasses — where it is the only thing that says which screen is about to be
+// chosen, and where nobody could compare it with anything.
+//
+// go-widgets/painter v0.12.0 draws into a BGRA buffer directly, which costs two
+// byte stores per pixel WRITTEN and leaves the capture untouched.

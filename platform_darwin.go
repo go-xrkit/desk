@@ -172,7 +172,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 // nothing to do with why it got there. Listing displays needs no permission;
 // only reading their pixels does.
 func realScreens(_ context.Context, s *Screens, why string) (*Screens, error) {
-	ids, err := virtualdisplay.ActiveDisplayIDs()
+	ids, err := settledDisplayIDs()
 	if err != nil {
 		return nil, fmt.Errorf("desk: no virtual displays and cannot list real ones: %w", err)
 	}
@@ -323,4 +323,54 @@ func errPermission() error {
 		"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording " +
 		"to the application that launched this program — for a program started from a shell " +
 		"that is the terminal or editor, not the program itself — then restart it")
+}
+
+// settledDisplayIDs is the display list once it has stopped changing.
+//
+// Closing four virtual displays and asking CoreGraphics what is left, in the
+// same breath, got NOTHING back on a machine with two displays plainly attached
+// — and the desk gave up with "no displays at all" while the person was looking
+// at their screens. Removal is asynchronous, and a list read during a
+// reconfiguration is a list of whatever the window server has got to so far.
+//
+// Two identical readings in a row is the whole rule. It costs one poll when
+// nothing is happening, which is the normal case.
+func settledDisplayIDs() ([]uint32, error) {
+	deadline := time.Now().Add(RemovalBudget)
+	last := ""
+	for {
+		ids, err := virtualdisplay.ActiveDisplayIDs()
+		if err != nil {
+			return nil, err
+		}
+		now := fmt.Sprint(ids)
+		if now == last {
+			return ids, nil
+		}
+		if time.Now().After(deadline) {
+			// Whatever it says now: a list that will not settle is still better
+			// than none, and the caller reports what it found either way.
+			return ids, nil
+		}
+		last = now
+		time.Sleep(250 * time.Millisecond)
+	}
+}
+
+// Remove gives back the virtual display at pos, closing it.
+//
+// It refuses when these screens are not ours, exactly as [Screens.Add] does: a
+// desk that fell back to the machine's real displays cannot take one away, and
+// switching somebody's monitor off is not something to attempt on their behalf.
+func (s *Screens) Remove(pos int) error {
+	if !s.Virtual {
+		return fmt.Errorf("desk: these are real displays (%s), so one cannot be removed", s.Why)
+	}
+	if pos < 0 || pos >= len(s.virtual) {
+		return fmt.Errorf("desk: no screen %d of %d", pos, len(s.virtual))
+	}
+	d := s.virtual[pos]
+	s.virtual = append(s.virtual[:pos], s.virtual[pos+1:]...)
+	s.IDs = append(s.IDs[:pos], s.IDs[pos+1:]...)
+	return d.Close()
 }

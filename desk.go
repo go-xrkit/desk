@@ -139,6 +139,14 @@ const (
 	// hides one of them, and a person who pressed one key cannot be expected to
 	// guess which.
 	ActionSpread
+	// ActionRemove takes the selected screen off the band, in the gallery.
+	//
+	// The gallery is where a person looks at the desk they have, so it is where
+	// they will want one fewer as well as one more -- and the alternative is a
+	// settings file, which is not where anybody is when they run out of use for
+	// a screen. It means nothing outside the gallery and nothing on the cell
+	// that ADDS one.
+	ActionRemove
 )
 
 // String renders an action for a log.
@@ -182,6 +190,8 @@ func (a Action) String() string {
 		return "the applications"
 	case ActionSpread:
 		return "spread the applications"
+	case ActionRemove:
+		return "remove this screen"
 	default:
 		return "none"
 	}
@@ -252,6 +262,14 @@ type Desk struct {
 	// visible: without it the pointer has to be dragged blind across displays
 	// whose contents are captures of somewhere else.
 	OnPoint func(pos int)
+
+	// OnRemove, when set, is called after a screen has been taken off the band,
+	// with the position it was at and the feed that was on it.
+	//
+	// The desk has already shrunk by then: what is left is the platform work --
+	// closing the capture and giving the display back -- which this package does
+	// not do, for the same reason it does not create one.
+	OnRemove func(pos int, f Feed)
 
 	// OnApps, when set, answers what is running whenever the application
 	// gallery is opened. It is asked EVERY time rather than once, because the
@@ -364,11 +382,24 @@ func (d *Desk) WantsSettings() bool {
 	return d.settings
 }
 
+// InGallery reports whether a gallery covers the view -- either of them.
+//
+// It is what tells a caller when the BARE keys are worth claiming: while a
+// gallery is up the person is looking at the desk rather than working in an
+// application, and the arrows should mean what they look like they mean. See
+// [GalleryShortcuts].
+func (d *Desk) InGallery() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.inApps || d.nav.Mode() == ribbon.ModeGallery
+}
+
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
 	var add func() (Feed, error)
 	pos := -1
+	drop := -1
 	var place []Placement
 	var list func() ([]App, error)
 	d.mu.Lock()
@@ -391,11 +422,23 @@ func (d *Desk) Do(a Action) {
 			// take the ribbon out of its mode.
 			if app, ok := d.apps.app(); ok {
 				place = []Placement{{App: app.Name, Pos: d.nav.Focus() + 1}}
+				// And the gallery goes away, exactly as the screen gallery's
+				// choose does.
+				//
+				// Not tidiness: with it open the arrows move the SELECTION, so
+				// the band cannot be turned, so the only thing a second choose
+				// could do is put another application on the same screen — which
+				// hides one of them. Closing is what lets the next one go
+				// somewhere else, and it shows the person what just happened.
+				d.inApps = false
 			} else {
 				d.err = ErrNoApps
 			}
 		case ActionSpread:
 			place = Spread(d.apps.apps, d.plan.Count())
+			// Away, for the same reason as choose: what it did is on the BAND,
+			// and the list behind it now says where everything used to be.
+			d.inApps = false
 		case ActionApps, ActionGalleryClose:
 			// Open, so both of these leave. GalleryClose too: a person who
 			// pressed "leave the gallery" meant the picture in front of them,
@@ -431,6 +474,11 @@ func (d *Desk) Do(a Action) {
 				break
 			}
 			d.err = d.nav.Choose()
+		case ActionRemove:
+			// Not the adder: there is no screen behind it to take away.
+			if !d.grid.IsAdder(d.grid.Selected()) {
+				drop = d.grid.Selected()
+			}
 		case ActionGallery, ActionGalleryClose:
 			// Already open, so both of these leave it.
 			d.err = d.nav.ToggleGallery(d.grid)
@@ -461,6 +509,11 @@ func (d *Desk) Do(a Action) {
 			// enough that holding the desk shut for it would stall the frame
 			// loop, and Grow takes the lock itself.
 			d.grow(add)
+		}
+		if drop >= 0 {
+			// Same seam, same reason: Shrink takes the lock, and giving a
+			// display back talks to the window server.
+			d.drop(drop)
 		}
 		return
 	}
@@ -716,6 +769,11 @@ func KeyAction(code string) Action {
 		return ActionApps
 	case "x", "X":
 		return ActionSpread
+	// Taking a screen away, on the two keys every list on every system deletes
+	// with. Both, because a Mac keyboard's big one reports as Backspace and the
+	// full-size one has Delete beside it.
+	case "Backspace", "Delete":
+		return ActionRemove
 	}
 	return ActionNone
 }
@@ -929,6 +987,14 @@ func (d *Desk) reshape(plan Plan) error {
 	d.plan = plan
 	d.strip, d.grid, d.fan = strip, grid, fan
 	d.nav = ribbon.NewNav(r)
+	// CLAMPED, not just attempted. A band that lost a screen can leave the focus
+	// past the end, and GoTo refuses one it has no screen for -- leaving the new
+	// navigator where it starts, which is screen ONE. So a person who deletes
+	// the screen they were looking at was thrown back to the beginning of the
+	// band. The nearest remaining screen is what they meant.
+	if was >= plan.Count() {
+		was = plan.Count() - 1
+	}
 	_ = d.nav.GoTo(was)
 	d.nav.Advance(largeEnoughToArrive)
 	return nil
@@ -939,4 +1005,71 @@ func (d *Desk) Distance() float64 {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.plan.Distance()
+}
+
+// Shrink takes screen pos off the band and returns the feed that was on it.
+//
+// The feed is RETURNED rather than closed, exactly as [Desk.SetFeed] does: what
+// a caller wants to do with a capture it is no longer showing is the caller's
+// business, and a method that closed it would make "put it away" and "throw it
+// away" the same gesture.
+//
+// It refuses to take the last screen. A desk of nothing is not a desk, and
+// everything here — the ribbon, the gallery, the navigator — is built from a
+// plan of at least one; the person who wants none wants to quit.
+func (d *Desk) Shrink(pos int) (Feed, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if pos < 0 || pos >= len(d.feeds) {
+		return nil, fmt.Errorf("%w: screen %d of %d", ErrPosition, pos, len(d.feeds))
+	}
+	if len(d.feeds) == 1 {
+		return nil, fmt.Errorf("%w: the last screen cannot be taken away", ErrScreens)
+	}
+
+	// Through the same swap as Grow and a change of distance: one fewer screen
+	// is a different plan, and reshape touches nothing until everything it needs
+	// exists — so a refusal leaves the desk exactly as it was.
+	plan := d.plan.WithScreens(d.plan.Count() - 1)
+	// reshape cannot fail for a SMALLER plan. Everything it builds -- the
+	// ribbon, the strip, the gallery, the fan -- refuses only a count of
+	// nothing, and the last screen has already been refused above; a gallery
+	// that folded n cells folds n-1. TestShrinkingAnyDeskAlwaysWorks pins that
+	// down, rather than leaving a branch that can never be taken and therefore
+	// never be tested -- the same way Fullscreen is handled.
+	_ = d.reshape(plan)
+	gone := d.feeds[pos]
+	// Copied into fresh slices rather than shifted in place. append(s[:i],
+	// s[i+1:]...) rewrites the UNDERLYING ARRAY, which is the one the caller
+	// handed to New: a removal here would silently reorder their slice, and a
+	// test comparing what came back with what they passed in caught exactly
+	// that. One small allocation, on an action a person takes by hand.
+	feeds := make([]Feed, 0, len(d.feeds)-1)
+	feeds = append(append(feeds, d.feeds[:pos]...), d.feeds[pos+1:]...)
+	sources := make([]Source, 0, len(d.sources)-1)
+	sources = append(append(sources, d.sources[:pos]...), d.sources[pos+1:]...)
+	d.feeds, d.sources = feeds, sources
+	d.blits = make([]ribbon.Blit, 0, plan.Count()+2)
+	return gone, nil
+}
+
+// drop takes a screen off the band and hands what was on it to the caller.
+//
+// Whatever goes wrong is kept where a viewer can be shown it rather than
+// logged: they pressed a key expecting a screen to go, and one that stays with
+// no explanation is the worst of the outcomes.
+func (d *Desk) drop(pos int) {
+	f, err := d.Shrink(pos)
+	if err != nil {
+		d.mu.Lock()
+		d.err = err
+		d.mu.Unlock()
+		return
+	}
+	d.mu.Lock()
+	on := d.OnRemove
+	d.mu.Unlock()
+	if on != nil {
+		on(pos, f)
+	}
 }

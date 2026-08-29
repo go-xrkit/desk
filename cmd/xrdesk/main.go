@@ -42,6 +42,14 @@ func init() {
 	runtime.LockOSThread()
 }
 
+// retryAfter is how long xrdesk waits before trying again when the screens
+// could not be made.
+//
+// Long enough that a window server busy reconfiguring displays has finished,
+// short enough that a person who just plugged their glasses in does not think
+// nothing happened.
+const retryAfter = 3 * time.Second
+
 func main() { os.Exit(run()) }
 
 func run() int {
@@ -129,7 +137,7 @@ func run() int {
 	// released before the settings window opens -- a desk holding six virtual
 	// displays while a person changes how many there should be is a desk that
 	// then has to be told twice.
-	session := func(n int, model string, dist, splay float64, settings desk.Config) (again bool, code int) {
+	session := func(n int, model string, dist, splay float64, settings desk.Config) (again, wantSettings bool, code int) {
 		// Ctrl-C must reach the same exit as the quit key, or a session left
 		// running keeps virtual displays the person never asked for. It is set
 		// up BEFORE the wait below, so a person who changes their mind about
@@ -169,18 +177,18 @@ func run() int {
 		})
 		switch {
 		case errors.Is(err, desk.ErrAwaitQuit), errors.Is(err, context.Canceled):
-			return false, 0
+			return false, false, 0
 		case errors.Is(err, context.DeadlineExceeded):
 			// -for ran out while still waiting. Not a failure: the run did
 			// exactly what it was told, and saying so is better than a silent
 			// zero after nothing happened.
 			fmt.Printf("gave up waiting after %s; nothing was created\n", *forDur)
-			return false, 0
+			return false, false, 0
 		case errors.Is(err, desk.ErrAwaitSettings):
-			return true, 0
+			return true, true, 0
 		case err != nil:
 			fmt.Printf("%v\n", err)
-			return false, 1
+			return false, false, 1
 		}
 		fmt.Printf("on %s\n", chosen)
 
@@ -194,14 +202,28 @@ func run() int {
 		})
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			return false, 1
+			return false, false, 1
 		}
 		logf("%s", plan)
 
 		screens, err := desk.Provide(ctx, plan, logf)
 		if err != nil {
+			// Back to waiting rather than out of the program.
+			//
+			// Measured: the glasses were plugged in, the desk woke up, the fifth
+			// of six virtual displays never became active, the fallback found
+			// the display list mid-reconfiguration and empty, and xrdesk exited
+			// with "no displays at all" while the person was looking at their
+			// screens. Whatever the window server was busy with, the answer is
+			// to ask again in a moment, not to give up on the session.
 			fmt.Printf("%v\n", err)
-			return false, 1
+			fmt.Printf("waiting, and trying again in %v\n", retryAfter)
+			select {
+			case <-ctx.Done():
+				return false, false, 0
+			case <-time.After(retryAfter):
+			}
+			return true, false, 0
 		}
 		defer func() {
 			// Waiting for the removal is right when the desk is coming back —
@@ -251,12 +273,12 @@ func run() int {
 		feeds, err := desk.Capture(ctx, plan, screens, logf)
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			return false, 1
+			return false, false, 1
 		}
 		d, err := desk.New(plan, feeds)
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			return false, 1
+			return false, false, 1
 		}
 		defer d.Close()
 
@@ -274,6 +296,23 @@ func run() int {
 					logf("screen %d: %s", i+1, o.Name)
 				}
 			}
+			// And taking one away: the desk has already shrunk by the time this is
+			// called, so what is left is the platform work.
+			d.OnRemove = func(pos int, f desk.Feed) {
+				closeFeed(f)
+				if err := screens.Remove(pos); err != nil {
+					fmt.Printf("%v\n", err)
+					return
+				}
+				// The inventory keeps one row per POSITION, and there is one
+				// fewer now: clearing the last row is what stops it offering a
+				// screen that is not there.
+				if n := inv.Positions(); n > 0 {
+					_ = inv.Clear(n - 1)
+				}
+				fmt.Printf("screen %d is gone; %d left\n", pos+1, len(screens.IDs))
+			}
+
 			// The gallery's "add a screen" cell. Making a display is the platform's
 			// business, so the desk asks rather than doing it.
 			d.OnAdd = func() (desk.Feed, error) {
@@ -413,10 +452,11 @@ func run() int {
 		}
 		if err := desk.Run(ctx, plan, d, opts); err != nil {
 			fmt.Printf("%v\n", err)
-			return false, 1
+			return false, false, 1
 		}
 		fmt.Printf("ran for %s\n", time.Since(start).Round(time.Millisecond))
-		return d.WantsSettings(), 0
+		// The desk stopped. It asked for the settings, or it is simply done.
+		return d.WantsSettings(), d.WantsSettings(), 0
 	}
 
 	for {
@@ -437,9 +477,15 @@ func run() int {
 				sp = -1
 			}
 		}
-		again, code := session(n, model, dist, sp, settings)
+		again, wantSettings, code := session(n, model, dist, sp, settings)
 		if !again {
 			return code
+		}
+		if !wantSettings {
+			// The session asked to be run again without changing anything --
+			// the screens could not be made and it is waiting for the machine to
+			// be ready. Straight back in.
+			continue
 		}
 		// Asked for from the glasses or from the menu bar. The desk is down, so
 		// the settings window has the screen to itself and what it changes is

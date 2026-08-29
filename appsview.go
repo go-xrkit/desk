@@ -40,6 +40,18 @@ func newAppsView(theme *toolkit.Theme) *appsView {
 	if theme == nil {
 		theme = toolkit.DefaultDark()
 	}
+	// The two galleries agree on what "chosen" looks like.
+	//
+	// The screen gallery rings the chosen cell in [SelectionInk] -- orange,
+	// picked because it is the one thing on the picture that says which screen
+	// Enter would take. An IconGrid fields its selection in the theme ACCENT,
+	// which is blue, so the two galleries would answer the same question in two
+	// colours. A copy of the theme, with the accent set to the same ink, is the
+	// whole fix: everything else about the theme is untouched, and no widget is
+	// drawn by hand to get it.
+	mine := *theme
+	mine.Accent = SelectionInk
+	theme = &mine
 	g := toolkit.NewIconGrid()
 	g.SetIconSize(AppIconPx)
 	g.Empty = "nothing with a window to show — every application AX will describe is already here"
@@ -167,7 +179,7 @@ func (v *appsView) draw(c *Canvas) {
 	v.grid.MinCellW = w / DefaultColumns
 	v.grid.SetIconSize(appsIconPx(h, len(v.apps)))
 	v.grid.SetBounds(toolkit.Rect{X: pad, Y: pad, W: w, H: h})
-	v.grid.Draw(painter.NewPixelPainter(c.Pix, c.W, c.H), v.theme)
+	v.grid.Draw(painter.NewPixelPainterBGRA(c.Pix, c.W, c.H), v.theme)
 }
 
 // appsIconPx is the icon square: enough for the rows this many applications

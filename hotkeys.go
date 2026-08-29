@@ -27,16 +27,23 @@ type Shortcut struct {
 
 // DefaultShortcuts are what the ribbon needs from the whole machine.
 //
-// Option+Command with the arrows and the space bar, chosen because they are
-// what a person reaches for and because the arrows already mean "along the
-// band" inside the application. ⌥⌘Space is the Finder's search window on a
-// stock macOS, so the gallery always falls back — see [DefaultLadder], and see
-// [Hotkeys.Describe] for what was actually granted.
+// ONE prefix for all of them: Control+Option+Command. It was not so at first —
+// the band was on ⌥⌘← and ⌥⌘→ while everything added later took the third
+// modifier — and a person who had learnt the desk pressed ⌃⌥⌘← for the band and
+// got nothing at all. A set of shortcuts with two prefixes is a set nobody can
+// remember, and the one that gives way is the one with fewer keys on it.
+//
+// ⌥⌘← and ⌥⌘→ were also Safari's tab navigation, which the desk was quietly
+// taking for the length of a session.
+//
+// ⌥⌘Space is the Finder's search window on a stock macOS, so the gallery always
+// falls back — see [DefaultLadder], and [Hotkeys.Describe] for what was actually
+// granted.
 func DefaultShortcuts() []Shortcut {
 	const mods = hotkey.Option | hotkey.Command
 	return []Shortcut{
-		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods}, ActionPrev},
-		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods}, ActionNext},
+		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods | hotkey.Control}, ActionPrev},
+		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods | hotkey.Control}, ActionNext},
 		{hotkey.Combo{Key: hotkey.KeySpace, Mods: mods}, ActionGallery},
 		// Open and leave, each on its own key.
 		//
@@ -97,6 +104,8 @@ func DefaultShortcuts() []Shortcut {
 		// whatever is running on them.
 		{hotkey.Combo{Key: hotkey.KeyA, Mods: mods | hotkey.Control}, ActionApps},
 		{hotkey.Combo{Key: hotkey.KeyX, Mods: mods | hotkey.Control}, ActionSpread},
+		// And taking one away, on the key that deletes.
+		{hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods | hotkey.Control}, ActionRemove},
 	}
 }
 
@@ -222,4 +231,43 @@ func (h *Hotkeys) describe(render func(hotkey.Combo) string) string {
 		fmt.Fprintf(&b, "no global shortcut for %v\n", err)
 	}
 	return b.String()
+}
+
+// GalleryShortcuts are the BARE keys a gallery claims for as long as it is up.
+//
+// A person looking at a grid of screens or of applications should not have to
+// hold three modifiers to walk it — "quand on est dans la galerie se déplacer
+// avec juste les flèches devrait suffir", which is exactly right. So while a
+// gallery covers the view, the arrows, Return and Escape mean what they look
+// like they mean.
+//
+// They are claimed system-wide, because the desk's window deliberately does not
+// take the keyboard. That is a serious thing to do to a machine — a bare arrow
+// claimed for ever would break typing everywhere — so it is done only while a
+// gallery is up and undone the moment it closes. go-macos/hotkey v0.6.0 asks a
+// caller to say so with Options.BareKey rather than allowing it by accident.
+//
+// Nobody is typing into anything while a gallery covers their view.
+func GalleryShortcuts() []Shortcut {
+	return []Shortcut{
+		{hotkey.Combo{Key: hotkey.KeyLeftArrow}, ActionPrev},
+		{hotkey.Combo{Key: hotkey.KeyRightArrow}, ActionNext},
+		{hotkey.Combo{Key: hotkey.KeyUpArrow}, ActionUp},
+		{hotkey.Combo{Key: hotkey.KeyDownArrow}, ActionDown},
+		{hotkey.Combo{Key: hotkey.KeyReturn}, ActionChoose},
+		{hotkey.Combo{Key: hotkey.KeyEscape}, ActionGalleryClose},
+		{hotkey.Combo{Key: hotkey.KeyDelete}, ActionRemove},
+	}
+}
+
+// ClaimGallery claims [GalleryShortcuts] with no fallback ladder.
+//
+// No ladder on purpose: a bare arrow that could not be claimed must stay
+// unclaimed rather than becoming ⇧← , which is a selection in every text field
+// on the machine.
+func ClaimGallery() *Hotkeys {
+	return ClaimGlobal(GalleryShortcuts(), &hotkey.Options{
+		BareKey: true,
+		Ladder:  []hotkey.Modifier{}, // deliberately empty: no neighbour is acceptable
+	})
 }

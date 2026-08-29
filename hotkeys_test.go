@@ -52,11 +52,11 @@ func TestAGlobalPressTurnsTheRibbon(t *testing.T) {
 	h := ClaimGlobal(DefaultShortcuts(), nil)
 	defer h.Close()
 
-	const mods = hotkey.Option | hotkey.Command
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
 	for combo, want := range map[hotkey.Combo]Action{
-		{Key: hotkey.KeyLeftArrow, Mods: mods}:  ActionPrev,
-		{Key: hotkey.KeyRightArrow, Mods: mods}: ActionNext,
-		{Key: hotkey.KeySpace, Mods: mods}:      ActionGallery,
+		{Key: hotkey.KeyLeftArrow, Mods: mods}:                       ActionPrev,
+		{Key: hotkey.KeyRightArrow, Mods: mods}:                      ActionNext,
+		{Key: hotkey.KeySpace, Mods: hotkey.Option | hotkey.Command}: ActionGallery,
 	} {
 		f, ok := claims[combo]
 		if !ok {
@@ -126,8 +126,8 @@ func TestDescribeNamesWhatWasActuallyClaimed(t *testing.T) {
 
 	d := h.Describe()
 	for _, want := range []string{
-		"previous: ⌥⌘←\n",
-		"next: ⌥⇧⌘→ (asked for ⌥⌘→, it was taken)",
+		"previous: ⌃⌥⌘←\n",
+		"next: ⌃⌥⇧⌘→ (asked for ⌃⌥⌘→, it was taken)",
 		"no global shortcut for ⌥⌘Space (gallery): every candidate is spoken for",
 	} {
 		if !strings.Contains(d, want) {
@@ -316,4 +316,54 @@ func keyWord(code string) string {
 		return "RightBracket"
 	}
 	return code
+}
+
+// TestTheGallerysKeysAreBareAndClaimNoNeighbour.
+//
+// Bare, because a person looking at a grid should not hold three modifiers to
+// walk it. And with NO fallback ladder: a bare arrow that cannot be claimed
+// must stay unclaimed rather than becoming ⇧←, which is a selection in every
+// text field on the machine.
+func TestTheGallerysKeysAreBareAndClaimNoNeighbour(t *testing.T) {
+	want := map[hotkey.Key]Action{
+		hotkey.KeyLeftArrow:  ActionPrev,
+		hotkey.KeyRightArrow: ActionNext,
+		hotkey.KeyUpArrow:    ActionUp,
+		hotkey.KeyDownArrow:  ActionDown,
+		hotkey.KeyReturn:     ActionChoose,
+		hotkey.KeyEscape:     ActionGalleryClose,
+		hotkey.KeyDelete:     ActionRemove,
+	}
+	got := GalleryShortcuts()
+	if len(got) != len(want) {
+		t.Fatalf("%d gallery keys, want %d", len(got), len(want))
+	}
+	for _, s := range got {
+		if s.Want.Mods != 0 {
+			t.Errorf("%v carries a modifier; the whole point is that it does not", s.Want)
+		}
+		if w, ok := want[s.Want.Key]; !ok || w != s.Does {
+			t.Errorf("%v does %v, want %v", s.Want, s.Does, w)
+		}
+	}
+
+	// And the claim asks for a bare key on purpose, with no ladder.
+	claims := map[hotkey.Combo]*fakeClaim{}
+	withRegister(t, func(want hotkey.Combo, opts *hotkey.Options) (claimed, error) {
+		if opts == nil || !opts.BareKey {
+			t.Errorf("%v was claimed without asking for a bare key", want)
+		}
+		if opts != nil && len(opts.Ladder) != 0 {
+			t.Errorf("%v was claimed with a ladder of %d: a neighbour is not acceptable here",
+				want, len(opts.Ladder))
+		}
+		c := &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}
+		claims[want] = c
+		return c, nil
+	})
+	h := ClaimGallery()
+	defer h.Close()
+	if len(claims) != len(want) {
+		t.Errorf("claimed %d keys, want %d", len(claims), len(want))
+	}
 }

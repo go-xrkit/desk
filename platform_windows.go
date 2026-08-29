@@ -158,3 +158,9 @@ func (s *Screens) Add(w, h int) (uint64, error) {
 // DisplayOfferID is the [Offer] id for a display, for a caller that has just
 // created one and wants it opened.
 func DisplayOfferID(id uint64) string { return fmt.Sprintf("display-%d", id) }
+
+// Remove gives back a display. Nothing here can: only macOS is wired up, and a
+// person is told rather than left pressing a key that does nothing.
+func (s *Screens) Remove(int) error {
+	return fmt.Errorf("desk: removing a screen is not supported on this platform")
+}

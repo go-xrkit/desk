@@ -408,9 +408,6 @@ func TestTheClampsAndTheEdges(t *testing.T) {
 	if got := badgeScale(1); got != 1 {
 		t.Errorf("badgeScale(1) = %d, want 1", got)
 	}
-	if got := plusScale(1); got != 1 {
-		t.Errorf("plusScale(1) = %d, want 1", got)
-	}
 
 	// A plan cannot have fewer than one screen.
 	p, err := NewPlan(beast(), Options{Screens: 3})
@@ -566,5 +563,34 @@ func TestNothingInThisPackageDrawsAPixel(t *testing.T) {
 					"to the toolkit if there is none that fits", name, p)
 			}
 		}
+	}
+}
+
+// TestThePlusHasAFloor: a gallery of many screens makes small cells, and a
+// plus a quarter of nothing is nothing. Eight pixels is the floor.
+func TestThePlusHasAFloor(t *testing.T) {
+	c := NewCanvas(60, 40)
+	m := newMarks(nil)
+	g, err := NewGrid(8, 100, 100, 60, 40, 0)
+	if err != nil {
+		t.Fatalf("NewGrid: %v", err)
+	}
+	i, ok := g.Adder()
+	if !ok {
+		t.Fatal("a grid built with NewGrid has no adder")
+	}
+	if err := g.Select(i); err != nil {
+		t.Fatalf("Select: %v", err)
+	}
+	m.draw(c, g, i)
+
+	var ink int
+	for j := 0; j+3 < len(c.Pix); j += 4 {
+		if c.Pix[j+2] == SelectionInk.R && c.Pix[j] == SelectionInk.B {
+			ink++
+		}
+	}
+	if ink == 0 {
+		t.Error("nothing orange was drawn in a tiny gallery: the plus vanished")
 	}
 }
