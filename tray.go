@@ -53,7 +53,7 @@ func TrayRows() []TrayRow {
 		{},
 		{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint},
 		{},
-		{Title: "The applications...", Key: "a", Action: ActionApps},
+		{Title: "The applications...", Key: "a", Action: ActionAppsOpen},
 		{Title: "One application per screen", Key: "x", Action: ActionSpread},
 		{},
 		{Title: "Show the gallery", Action: ActionGalleryOpen},

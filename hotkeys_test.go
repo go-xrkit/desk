@@ -267,8 +267,13 @@ func TestTheWindowKeysAndTheGlobalOnesAgree(t *testing.T) {
 	}
 
 	// The ones the band needs while another application has the keyboard.
+	// ActionGalleryClose is deliberately NOT here. Leaving is only ever wanted
+	// while a gallery is up, and while one is up the desk holds the BARE
+	// Escape -- see GalleryShortcuts -- so it is reachable system-wide without
+	// spending a modifier combination on it. ⌃⌥⌘Space toggles from outside for
+	// anyone who wants one.
 	for _, a := range []Action{
-		ActionPrev, ActionNext, ActionGalleryOpen, ActionGalleryClose,
+		ActionPrev, ActionNext, ActionGalleryOpen, ActionAppsOpen,
 		ActionChoose, ActionCloser, ActionFurther, ActionFlatter, ActionRounder,
 		ActionPoint, ActionQuit,
 	} {
