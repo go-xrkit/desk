@@ -123,6 +123,30 @@ also Safari's tab navigation — while xrdesk runs, it wins them, and Safari
 quietly stops seeing them. That is the trade a global shortcut is; it is
 printed rather than hidden.
 
+## The band is a circle; the desktop is a line
+
+The band follows the pointer: move the mouse onto another of the desk's screens
+and the picture turns to that screen. Nothing is warped and nothing is
+synthesised — it is the person's own mouse, and the picture catches up.
+
+The two disagree at the ends. Pushed to the left of the **first** screen the
+pointer is against a wall: the window server clamps it there, the band cannot
+follow it anywhere, and the **last** screen is all the way back across every
+screen in between. So a push held into the end brings the pointer back at the
+other end, and the band with it.
+
+Held, not touched. The left-hand column of pixels on the first screen is a place
+a person legitimately goes — a close button lives there — so a wrap that fired on
+merely touching the edge would put that column out of reach. `300 ms` of push is
+somebody asking for something.
+
+And only where the desktop **really** ends. The screens this program makes sit
+beside the ones the machine already has, and the edge between them is the way to
+this Mac's own panel: an end with a display beyond it keeps its edge, or the
+wrap would take the real screen away. The test for that is geometric — is there
+a display that starts further out than this one — so it holds for whatever
+arrangement somebody has, on either side.
+
 ## The Mac's own screen, in the glasses
 
 A ribbon position can show one of this Mac's real displays as easily as one of
