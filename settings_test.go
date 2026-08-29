@@ -712,3 +712,31 @@ func TestSplitToFit(t *testing.T) {
 		t.Errorf("an unbreakable word was cut: %q / %q", head, tail)
 	}
 }
+
+// TestAShortcutThatHadToBeSubstitutedSaysSoUnderItsName.
+//
+// The report for a substituted combination is "the granted one (asked for the
+// other, it was taken)" — three times the width of the trailing slot. It used
+// to be put there whole, and the row drew it straight over its own title so
+// neither could be read. The bracket goes under the name, where there is a
+// line for it.
+func TestAShortcutThatHadToBeSubstitutedSaysSoUnderItsName(t *testing.T) {
+	rows := shortcutRowsFrom("next: Control-Option-Shift-Command-Right " +
+		"(asked for Control-Option-Command-Right, it was taken)")
+	if len(rows) != 1 {
+		t.Fatalf("one line gave %d rows", len(rows))
+	}
+	r := rows[0]
+	if r.Title != "next" {
+		t.Errorf("the row is titled %q, want next", r.Title)
+	}
+	if r.Subtitle == "" {
+		t.Error("nothing under the name says which combination was asked for")
+	}
+	if strings.Contains(r.Subtitle, "(") && !strings.Contains(r.Subtitle, "asked for") {
+		t.Errorf("the aside is %q, which does not say what was asked for", r.Subtitle)
+	}
+	if r.Control == nil {
+		t.Error("the granted combination is not in the trailing slot")
+	}
+}

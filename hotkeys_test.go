@@ -54,9 +54,10 @@ func TestAGlobalPressTurnsTheRibbon(t *testing.T) {
 
 	const mods = hotkey.Control | hotkey.Option | hotkey.Command
 	for combo, want := range map[hotkey.Combo]Action{
-		{Key: hotkey.KeyLeftArrow, Mods: mods}:                       ActionPrev,
-		{Key: hotkey.KeyRightArrow, Mods: mods}:                      ActionNext,
-		{Key: hotkey.KeySpace, Mods: hotkey.Option | hotkey.Command}: ActionGallery,
+		{Key: hotkey.KeyLeftArrow, Mods: mods}:  ActionPrev,
+		{Key: hotkey.KeyRightArrow, Mods: mods}: ActionNext,
+		{Key: hotkey.KeyUpArrow, Mods: mods}:    ActionGalleryOpen,
+		{Key: hotkey.KeyDownArrow, Mods: mods}:  ActionAppsOpen,
 	} {
 		f, ok := claims[combo]
 		if !ok {
@@ -128,7 +129,7 @@ func TestDescribeNamesWhatWasActuallyClaimed(t *testing.T) {
 	for _, want := range []string{
 		"previous: ⌃⌥⌘←\n",
 		"next: ⌃⌥⇧⌘→ (asked for ⌃⌥⌘→, it was taken)",
-		"no global shortcut for ⌥⌘Space (gallery): every candidate is spoken for",
+		"no global shortcut for ⌃⌥⌘↑ (open the gallery): every candidate is spoken for",
 	} {
 		if !strings.Contains(d, want) {
 			t.Errorf("Describe() is missing %q; it says:\n%s", want, d)
