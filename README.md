@@ -95,6 +95,7 @@ on the screens.
 | `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
 | `⌃⌥⌘A` | the same, for a keyboard where it arrives |
 | **`⌃⌥⌘X`** | **one application per screen** |
+| **`⌃⌥⌘⇥`** | **what this screen shows — including a mirror of the Mac's own display** |
 | `⌃⌥⌘M` | bring the pointer to the screen being looked at |
 | `⌃⌥⌘-` `⌃⌥⌘=` | move the band away, and back |
 | `⌃⌥⌘[` `⌃⌥⌘]` | flatten the screens, turn them |
