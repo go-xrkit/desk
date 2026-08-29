@@ -61,7 +61,7 @@ In the window, and in the glasses:
 | `g` | show every screen at once | put the ribbon back exactly as it was | — |
 | `a` | show what is RUNNING | — | put it away |
 | `x` | one application per screen, in order | — | the same |
-| `Tab` / `c` | show the next source here | — | — |
+| `Tab` / `c` | show the next source here (⌃⌥⌘C from anywhere) | — | — |
 | `Escape` / `q` | quit | quit — a mode you cannot leave is a trap | quit |
 
 The two galleries answer different questions. The screen one is *which desktop
@@ -164,9 +164,33 @@ two identical monitors are the same size and are not in the same place.
 ## The Mac's own screen, in the glasses
 
 A ribbon position can show one of this Mac's real displays as easily as one of
-the displays this program made: they are both in the sources list, and `⌃⌥⌘Tab`
+the displays this program made: they are both in the sources list, and `⌃⌥⌘C`
 walks through it. Somebody with one screen in the glasses can therefore see the
 screen they already have.
+
+**Usually without asking for it.** Following ends where the ribbon does: a
+pointer that leaves every screen a position is showing — onto this Mac's own
+panel, which sits right beside the ribbon — is invisible to somebody wearing
+the glasses. They have not lost the mouse exactly; they have lost the screen it
+is on. So after `700 ms` there, the desk puts that display on the position in
+front of them. Crossing a screen to reach another stays ordinary: the hold is
+what tells passing through from arriving.
+
+Measured, end to end, with the glasses on:
+
+```
+pointer put at 1000,600 — this Mac's own panel
+  the pointer is on display 1, which no screen is showing
+  screen 1: display 1 (main) — where the pointer went
+  1 of this Mac's screens are off while the ribbon shows them
+backlight of display 1:  0.41 → 0.00 → 0.41 when the desk stopped
+```
+
+Not on `⌃⌥⌘Tab`, which is where the key used to be. A whole session with the
+glasses on logged arrows, the gallery and the menu bar, and **not one cycle**:
+macOS keeps Command-Tab for its own application switcher whatever else is held
+down with it. The registration succeeds and the key never arrives — the third
+kind of conflict, undetectable from here.
 
 When that happens, **the panel itself is turned off** and lit again when the
 copy leaves the ribbon or the program stops. It is not tidiness. A person

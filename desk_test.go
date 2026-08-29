@@ -1357,3 +1357,18 @@ func TestTheBandFollowsWithoutAKeyBeingPressed(t *testing.T) {
 		t.Errorf("the band turned to %d under an open gallery", got)
 	}
 }
+
+func TestFocusIsThePositionInFrontOfTheViewer(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	if got := d.Focus(); got != 0 {
+		t.Errorf("Focus = %d, want the first screen", got)
+	}
+	d.Do(ActionNext)
+	if got := d.Focus(); got != 1 {
+		t.Errorf("Focus = %d after one turn, want 1", got)
+	}
+}
