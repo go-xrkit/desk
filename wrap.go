@@ -245,3 +245,63 @@ func DisplayAt(x, y, w, h float64) (uint64, bool) {
 	}
 	return 0, false
 }
+
+// LostHold is how long the pointer must sit on a display no ribbon position is
+// showing before the desk goes and gets that display.
+//
+// It is not zero because crossing one screen to reach another is ordinary, and
+// a desk that grabbed a display the moment a pointer passed over it would
+// rearrange the ribbon under somebody walking the mouse across their desktop.
+const LostHold = 700 * time.Millisecond
+
+// Lost watches for a pointer that has gone somewhere nothing is showing.
+//
+// This is the other half of following. The band follows the pointer onto any
+// screen a position is showing; a pointer that leaves ALL of them -- onto this
+// Mac's own panel, most often, which sits right beside the ribbon -- is
+// invisible to somebody wearing the glasses. They have not lost the mouse
+// exactly: they have lost the screen it is on.
+type Lost struct {
+	// Hold is how long it must stay there. Zero means [LostHold].
+	Hold time.Duration
+
+	on    uint64
+	since time.Time
+	told  uint64 // the display already reported, so it is said once
+}
+
+// Step reports the display to go and get, or 0.
+//
+// where is the display the pointer is on and ok says whether it is on one at
+// all; shown is what the ribbon positions are showing, and own is the desk's
+// own screen, which is never worth fetching -- it is showing this program.
+func (l *Lost) Step(now time.Time, where uint64, ok bool, shown []uint64, own uint64) uint64 {
+	if !ok || where == 0 || where == own {
+		l.on, l.told = 0, 0
+		return 0
+	}
+	for _, id := range shown {
+		if id == where {
+			// On the band. Nothing is lost, and the next trip off it is a new
+			// one worth reporting.
+			l.on, l.told = 0, 0
+			return 0
+		}
+	}
+	if l.on != where {
+		l.on, l.since = where, now
+		return 0
+	}
+	if l.told == where || now.Sub(l.since) < l.hold() {
+		return 0
+	}
+	l.told = where
+	return where
+}
+
+func (l *Lost) hold() time.Duration {
+	if l.Hold > 0 {
+		return l.Hold
+	}
+	return LostHold
+}

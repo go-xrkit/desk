@@ -284,6 +284,10 @@ func run() int {
 		}
 		defer d.Close()
 
+		// What each ribbon position is showing, right now. Until there is an
+		// inventory it is the screens this program made, in order.
+		showing := func() []uint64 { return screens.IDs }
+
 		// What a ribbon position shows is chosen while it runs. The inventory is the
 		// list; Cycle is that list reduced to one key.
 		if offers, err := desk.Sources(ctx, screens); err != nil {
@@ -291,6 +295,20 @@ func run() int {
 		} else if inv, err := desk.NewInventory(plan.Count(), offers); err != nil {
 			logf("inventory: %v", err)
 		} else {
+			// A position mirroring this Mac's own panel is a screen of the band
+			// like any other: the band has to follow the pointer onto it, or
+			// moving the mouse there loses it in exactly the way following was
+			// written to prevent.
+			showing = func() []uint64 {
+				out := make([]uint64, inv.Positions())
+				for i := range out {
+					if o, ok := inv.At(i); ok {
+						out[i], _ = desk.DisplayOf(o)
+					}
+				}
+				return out
+			}
+
 			// Fill the ribbon the way one key would, so a session starts with
 			// something on every position rather than with a ring of holes.
 			for i := 0; i < plan.Count(); i++ {
@@ -454,6 +472,44 @@ func run() int {
 				}
 			}
 
+			// The pointer went somewhere no screen is showing. Rather than
+			// leaving somebody hunting for a mouse they cannot see, the desk
+			// puts that display on the position in front of them -- which is
+			// also, on a Mac, how its own screen first appears in the glasses
+			// without anybody having to know a key.
+			show := func(pos int, o desk.Offer) bool {
+				f, err := desk.OpenOffer(ctx, plan, o)
+				if err != nil {
+					fmt.Printf("screen %d: %v\n", pos+1, err)
+					return false
+				}
+				old, err := d.SetFeed(pos, f)
+				if err != nil {
+					fmt.Printf("screen %d: %v\n", pos+1, err)
+					closeFeed(f)
+					return false
+				}
+				closeFeed(old)
+				if err := inv.Assign(pos, o.ID); err != nil {
+					// Worth saying: the picture and the inventory disagreeing
+					// is what makes a later Cycle jump somewhere unexpected.
+					logf("inventory: %v", err)
+				}
+				remirror()
+				return true
+			}
+			d.OnLost = func(display uint64, pos int) {
+				for _, o := range inv.Offers() {
+					if id, ok := desk.DisplayOf(o); !ok || id != display {
+						continue
+					}
+					if show(pos, o) {
+						fmt.Printf("screen %d: %s — where the pointer went\n", pos+1, o.Name)
+					}
+					return
+				}
+				logf("the pointer is on display %d and there is no source for it", display)
+			}
 			d.OnCycle = func(pos int) {
 				o, ok := inv.Cycle(pos)
 				if !ok {
@@ -494,8 +550,10 @@ func run() int {
 			Hotkeys:     settings.HotkeyOptions(),
 			// The menu bar is an input like any other: same actions, same loop.
 			Actions: actions,
-			// And the band follows the pointer onto any of these.
+			// And the band follows the pointer onto any of these, whether it is a
+			// screen this program made or this Mac's own panel mirrored onto one.
 			Screens: screens.IDs,
+			Showing: showing,
 		}
 		if *snap {
 			opts.Snapshot = func(pix []byte, w, h int) {

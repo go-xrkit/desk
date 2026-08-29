@@ -84,7 +84,23 @@ type RunOptions struct {
 	// Screens are the desk's displays in ribbon order, so the band can follow
 	// the pointer onto one of them. Nil turns that off: without the ids there is
 	// no way to tell one of the desk's screens from the machine's own.
+	//
+	// It is the arrangement at START-UP. See [RunOptions.Showing] for what a
+	// position is showing NOW, which is not the same thing the moment somebody
+	// mirrors this Mac's own panel onto the ribbon.
 	Screens []uint64
+
+	// Showing answers, per ribbon position, the display it is showing right now,
+	// or 0 for a position showing nothing.
+	//
+	// Without it the band follows the pointer onto the displays this program
+	// MADE and nothing else -- so a position mirroring this Mac's own screen is
+	// a position the band will not follow the pointer onto, and moving the mouse
+	// there loses it in exactly the way following was written to prevent. The
+	// list changes while it runs, so it is asked for rather than handed over.
+	//
+	// Nil falls back to [RunOptions.Screens].
+	Showing func() []uint64
 
 	// Snapshot, when set, is handed the first frame actually drawn — the picture
 	// the glasses were shown. It is written by the caller, so this package never
@@ -185,9 +201,15 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// Nothing is warped and nothing is synthesised: the pointer stays exactly
 	// where the person put it, and the picture catches up. Asked once a frame,
 	// which is two CoreGraphics calls and no allocation.
+	// What each position is showing, now: a mirrored panel is a screen of the
+	// band like any other, and the pointer is just as lost on it.
+	showing := opt.Showing
+	if showing == nil {
+		showing = func() []uint64 { return opt.Screens }
+	}
 	var followed = -1
 	follow := func() {
-		pos, ok := PositionOf(opt.Screens)
+		pos, ok := PositionOf(showing())
 		if !ok || pos == followed {
 			return
 		}
@@ -214,7 +236,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	owned, _ := OwnDisplay(opt.Screen.Name)
 	edges := &Edges{Own: owned}
 	wrap := func(now time.Time) {
-		moved, err := edges.Step(now, opt.Screens)
+		moved, err := edges.Step(now, showing())
 		if err != nil {
 			// Once a frame; only worth a line when it says something new.
 			if !errors.Is(err, ErrPointerLost) {
@@ -224,6 +246,28 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		}
 		if moved {
 			logf("the pointer came back at the other end of the band")
+		}
+	}
+
+	// AND IT GOES AND GETS THE SCREEN THE POINTER WENT TO.
+	//
+	// Following ends where the ribbon does. A pointer that leaves every screen
+	// a position is showing -- onto this Mac's own panel, most often, which
+	// sits right beside the ribbon -- is invisible to somebody wearing the
+	// glasses. They have not lost the mouse exactly: they have lost the screen
+	// it is on. So the desk fetches that screen onto the position in front of
+	// them, which is also the answer to "I never saw my Mac's screen in here".
+	// Read once: the seam is set before Run and the frame loop is another
+	// goroutine.
+	lost, onLost := &Lost{}, d.OnLost
+	fetch := func(now time.Time) {
+		if onLost == nil {
+			return
+		}
+		id, ok := underPointer()
+		if want := lost.Step(now, uint64(id), ok, showing(), owned); want != 0 {
+			logf("the pointer is on display %d, which no screen is showing", want)
+			onLost(want, d.Focus())
 		}
 	}
 	surface := toolkit.NewSurface(v.frame)
@@ -368,6 +412,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				last = now
 				wrap(now)
 				follow()
+				fetch(now)
 				d.Advance(dt)
 				v.draw(d.Render())
 				repaint()

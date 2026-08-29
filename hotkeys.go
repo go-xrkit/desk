@@ -131,9 +131,16 @@ func DefaultShortcuts() []Shortcut {
 		// It was reachable only from the desk's own window, which deliberately
 		// never has the keyboard: a capability nobody could reach.
 		//
-		// On Tab, which is what every switcher on every system uses for "the
-		// next one of these".
-		{hotkey.Combo{Key: hotkey.KeyTab, Mods: mods | hotkey.Control}, ActionCycle},
+		// NOT on Tab, though that is what every switcher on every system uses
+		// for "the next one of these". MEASURED: a whole session with the
+		// glasses on logged arrows, the gallery and the menu bar, and not one
+		// cycle -- because macOS keeps Command-Tab for its own application
+		// switcher whatever else is held down with it. The registration
+		// SUCCEEDS and the key never arrives, which is the third kind of
+		// conflict: undetectable from here.
+		//
+		// On C, which is what the desk's own window already uses for it.
+		{hotkey.Combo{Key: hotkey.KeyC, Mods: mods | hotkey.Control}, ActionCycle},
 		// And taking one away, on the key that deletes.
 		{hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods | hotkey.Control}, ActionRemove},
 	}
