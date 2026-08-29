@@ -264,7 +264,19 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 						bareC <- a
 					}
 				}(bare)
-				logf("the arrows, Enter and Escape are the gallery's for as long as it is up")
+				// SAY WHAT WAS ACTUALLY CLAIMED.
+				//
+				// This line used to announce the bare keys whether or not the
+				// machine had granted a single one -- and on a session where
+				// every one of them was refused, it said they were the
+				// gallery's and then nothing moved. Fifty presses arrived one
+				// evening and none the next, with the same sentence printed
+				// both times. A claim is not a grant.
+				for _, line := range strings.Split(strings.TrimRight(bare.Describe(), "\n"), "\n") {
+					if line != "" {
+						logf("  in the gallery: %s", line)
+					}
+				}
 			case !d.InGallery() && bare != nil:
 				bare.Close()
 				bare = nil
@@ -276,6 +288,21 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				bare.Close()
 			}
 		}()
+	}
+
+	// A PULSE, so a picture that has stopped moving says so.
+	//
+	// "l'app a bugué" and a log full of shortcuts that arrived is not enough to
+	// tell a frozen picture from a key nobody pressed. Frames drawn are the one
+	// number that separates them, and a desk drawing sixty a second says it in a
+	// line every five.
+	frames, beatAt := 0, time.Now()
+	beat := func(now time.Time) {
+		frames++
+		if d := now.Sub(beatAt); d >= 5*time.Second {
+			logf("%d frames in %v", frames, d.Round(time.Millisecond))
+			frames, beatAt = 0, now
+		}
 	}
 
 	stop := make(chan struct{})
@@ -315,6 +342,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				d.Advance(dt)
 				v.draw(d.Render())
 				repaint()
+				beat(now)
 			}
 			if d.Quit() {
 				_ = win.Close()
