@@ -6,6 +6,7 @@ package desk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -198,6 +199,30 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		logf("the pointer is on screen %d", pos+1)
 	}
 
+	// AND IT COMES BACK AT THE OTHER END.
+	//
+	// The band is a circle and the desktop is a line. Pushed to the left of the
+	// first screen the pointer is against a wall: the band cannot follow it
+	// anywhere, and the last screen is all the way back across every screen in
+	// between. Edges closes the circle -- only where the desktop really ends,
+	// so the edge that leads to this Mac's own panel still leads there.
+	//
+	// Before follow, so that the band catches up with the arrival in the same
+	// frame rather than the next one.
+	edges := &Edges{}
+	wrap := func(now time.Time) {
+		moved, err := edges.Step(now, opt.Screens)
+		if err != nil {
+			// Once a frame; only worth a line when it says something new.
+			if !errors.Is(err, ErrPointerLost) {
+				logf("wrapping the pointer: %v", err)
+			}
+			return
+		}
+		if moved {
+			logf("the pointer came back at the other end of the band")
+		}
+	}
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {
 		switch ev.Kind {
@@ -338,6 +363,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			case now := <-t.C:
 				dt := now.Sub(last).Seconds()
 				last = now
+				wrap(now)
 				follow()
 				d.Advance(dt)
 				v.draw(d.Render())
