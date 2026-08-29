@@ -147,6 +147,20 @@ wrap would take the real screen away. The test for that is geometric — is ther
 a display that starts further out than this one — so it holds for whatever
 arrangement somebody has, on either side.
 
+With one exception, and it is the one that matters on this machine. **Measured**
+with the glasses on and six screens up, on 2026-08-29: the glasses report
+themselves at `x=-13440` and the ribbon runs `-11520..0`, so the glasses sit
+*immediately* to the left of the first screen. A pointer pushed off that edge is
+therefore never clamped anywhere — it walks onto the display showing this
+program's own window, where it is a pointer on a picture: it can click nothing,
+and nothing in the view says where it went. That is the mouse people lose.
+
+So the desk's own screen is not somewhere the pointer can go. It does not hold
+an end open — the left edge really is the end of the desktop — and a pointer
+that lands on it is brought back **at once**, with no hold, at whichever end it
+left from. That screen is identified by its **rectangle** rather than its size:
+two identical monitors are the same size and are not in the same place.
+
 ## The Mac's own screen, in the glasses
 
 A ribbon position can show one of this Mac's real displays as easily as one of
@@ -172,12 +186,11 @@ it.
 Three screens are never darkened:
 
 - a display **this program made**, which has no panel behind it;
-- any display **the size of the one the desk is on** — a ribbon position can be
-  pointed at the glasses' own display, and darkening that one would black out
-  the thing being looked at, with the key that undoes it now invisible. There is
-  no reliable way here to turn the chosen screen's name into a display id, so
-  the size is used and the exclusion is deliberately too wide: a second panel of
-  exactly the same size stays lit;
+- the display **the desk itself is on** — a ribbon position can be pointed at
+  the glasses' own display, and darkening that one would black out the thing
+  being looked at, with the key that undoes it now invisible. It is identified
+  by its rectangle: two identical monitors are the same size and are not in the
+  same place;
 - **every** screen, when the desk is running in a window rather than in the
   glasses, because then the desk is a window on one of them.
 

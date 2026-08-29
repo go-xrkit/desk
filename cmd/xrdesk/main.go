@@ -306,6 +306,10 @@ func run() int {
 			// The way back is deferred FIRST, before anything is turned off, so
 			// that every path out of here — a refusal below, a quit, the -for
 			// timer — goes through it.
+			// The screen the desk itself is on is never darkened, and it is
+			// identified by its RECTANGLE: two identical monitors are the same
+			// size and are not in the same place.
+			own, _ := desk.OwnDisplay(chosen.Name)
 			var dark desk.Dimmer
 			defer func() {
 				if err := dark.Restore(); err != nil {
@@ -333,7 +337,7 @@ func run() int {
 					ours = screens.IDs
 				}
 				was := dark.Dark()
-				if err := dark.Showing(desk.Mirrors(on, ours, chosen)); err != nil {
+				if err := dark.Showing(desk.Mirrors(on, ours, own)); err != nil {
 					logf("darkening: %v", err)
 				}
 				if n := dark.Dark(); n != was {
