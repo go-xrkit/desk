@@ -64,6 +64,22 @@ type Edges struct {
 	// Hold is how long the push must last. Zero means [DefaultHold].
 	Hold time.Duration
 
+	// Own is the display the desk's own window is on -- the glasses. Zero
+	// means it is not known.
+	//
+	// It is the difference between the rule as written and the rule as it
+	// behaves on a real machine. MEASURED, with six screens up: the glasses
+	// sit at x=-13440 and the ribbon runs -11520..0, so the glasses are
+	// IMMEDIATELY to the left of the first screen. A pointer pushed off that
+	// edge is therefore never clamped anywhere -- it walks straight onto the
+	// glasses' own display, which is showing this program's window. It is a
+	// pointer on a picture: it cannot click anything, and nothing in the view
+	// says where it went.
+	//
+	// So a pointer that lands there is brought back at once, with no hold: it
+	// is not somewhere a person can have meant to go.
+	Own uint64
+
 	side  int       // -1 pushing left, +1 pushing right, 0 not at an end
 	since time.Time // when this push started
 }
@@ -86,18 +102,31 @@ func (e *Edges) Step(now time.Time, ids []uint64) (bool, error) {
 	}
 	left, right := ends[0], ends[1]
 
+	// Lost on the desk's own screen: brought back at once, from whichever
+	// side it went out. No hold, because nobody meant to put it there.
+	if e.Own != 0 {
+		if own, ok := displayRect(e.Own); ok && inside(x, y, own) {
+			e.side = 0
+			if x < left.X {
+				// It went out to the LEFT, so it comes back on the right.
+				return e.jump(-1, left, right, y)
+			}
+			return e.jump(+1, left, right, y)
+		}
+	}
+
 	side := 0
 	switch {
-	case x <= left.X+edgeSlack && y >= left.Y && y < left.Y+left.H:
+	case x <= left.X+edgeSlack && inRows(y, left):
 		side = -1
-	case x >= left.right()-edgeSlack && sameRect(left, right) && y >= left.Y && y < left.Y+left.H:
+	case x >= left.right()-edgeSlack && sameRect(left, right) && inRows(y, left):
 		// One screen is both ends of the ribbon. Reading the left first would
 		// hide the right-hand edge of a one-screen desk.
 		side = +1
-	case x >= right.right()-edgeSlack && y >= right.Y && y < right.Y+right.H:
+	case x >= right.right()-edgeSlack && inRows(y, right):
 		side = +1
 	}
-	if side == 0 || !endOfTheDesktop(side, left, right) {
+	if side == 0 || !e.endOfTheDesktop(side, left, right) {
 		e.side = 0
 		return false, nil
 	}
@@ -108,9 +137,17 @@ func (e *Edges) Step(now time.Time, ids []uint64) (bool, error) {
 	if now.Sub(e.since) < e.hold() {
 		return false, nil
 	}
+	moved, err := e.jump(side, left, right, y)
+	if err != nil {
+		return false, err
+	}
+	e.side = 0
+	return moved, nil
+}
 
-	// Across, to the far edge of the screen at the other end, at the same
-	// height -- clamped into that screen, which may not span the same rows.
+// jump crosses to the far edge of the screen at the other end, at the same
+// height -- clamped into that screen, which may not span the same rows.
+func (e *Edges) jump(side int, left, right rect, y float64) (bool, error) {
 	to, at := right, right.right()-edgeSlack-1
 	if side > 0 {
 		to, at = left, left.X+edgeSlack+1
@@ -118,9 +155,14 @@ func (e *Edges) Step(now time.Time, ids []uint64) (bool, error) {
 	if err := movePointer(at, clamp(y, to.Y, to.Y+to.H-1)); err != nil {
 		return false, err
 	}
-	e.side = 0
 	return true, nil
 }
+
+func inside(x, y float64, r rect) bool {
+	return x >= r.X && x < r.right() && inRows(y, r)
+}
+
+func inRows(y float64, r rect) bool { return y >= r.Y && y < r.Y+r.H }
 
 func (e *Edges) hold() time.Duration {
 	if e.Hold > 0 {
@@ -157,11 +199,13 @@ func ribbonEnds(ids []uint64) ([2]rect, bool) {
 // A display that merely OVERLAPS the far side does not count: what matters is
 // whether the pointer could keep going, and it can only do that onto a display
 // that starts beyond the edge it is pushed against.
-func endOfTheDesktop(side int, left, right rect) bool {
+func (e *Edges) endOfTheDesktop(side int, left, right rect) bool {
 	ids := allDisplays()
 	for _, id := range ids {
 		r, ok := displayRect(id)
-		if !ok {
+		if !ok || id == e.Own {
+			// The desk's own screen is not somewhere the pointer can go:
+			// it is showing this program's window.
 			continue
 		}
 		if side < 0 && r.X < left.X {
@@ -184,4 +228,20 @@ func clamp(v, lo, hi float64) float64 {
 		return hi
 	}
 	return v
+}
+
+// DisplayAt returns the display whose rectangle is exactly this one.
+//
+// A rectangle identifies a display where a size does not: two identical
+// monitors are the same size and are not in the same place. It is how the desk
+// turns the screen it was given -- which it knows by name and geometry -- into
+// the display id everything else here speaks in.
+func DisplayAt(x, y, w, h float64) (uint64, bool) {
+	want := rect{X: x, Y: y, W: w, H: h}
+	for _, id := range allDisplays() {
+		if r, ok := displayRect(id); ok && r == want {
+			return id, true
+		}
+	}
+	return 0, false
 }

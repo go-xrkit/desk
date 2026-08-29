@@ -7,8 +7,6 @@ package desk
 import (
 	"errors"
 	"sync"
-
-	"github.com/go-xrkit/xrkit/glasses"
 )
 
 // ErrNoDimming is what a platform with no backlight control answers.
@@ -92,11 +90,6 @@ func (m *Dimmer) Dark() int {
 	return len(m.on)
 }
 
-// displaySize is the seam for a display's size, in the same units the chosen
-// screen is described in. Tests replace it; a platform that cannot answer says
-// so and nothing is darkened, which is the safe direction.
-var displaySize = platformDisplaySize
-
 // Mirrors picks, out of what the ribbon is showing, the machine's own panels
 // that may be darkened.
 //
@@ -113,7 +106,7 @@ var displaySize = platformDisplaySize
 // way here to turn the chosen screen's NAME into a display id, so the size is
 // used, and the failure it can produce is the harmless one: a second panel of
 // exactly the same size stays lit.
-func Mirrors(on []Offer, ours []uint64, mine glasses.Display) []uint64 {
+func Mirrors(on []Offer, ours []uint64, own uint64) []uint64 {
 	virtual := make(map[uint64]bool, len(ours))
 	for _, id := range ours {
 		virtual[id] = true
@@ -125,26 +118,11 @@ func Mirrors(on []Offer, ours []uint64, mine glasses.Display) []uint64 {
 		if !ok || virtual[id] || seen[id] {
 			continue
 		}
-		w, h, ok := displaySize(id)
-		if !ok || looksLike(w, h, mine) {
+		if id == own {
 			continue
 		}
 		seen[id] = true
 		out = append(out, id)
 	}
 	return out
-}
-
-// looksLike says whether a display of this size could be the one the desk is
-// on. Both the declared size and the size in points are accepted, because a
-// screen described in framebuffer pixels and a rectangle measured in points are
-// the same screen at a scale factor apart.
-func looksLike(w, h int, mine glasses.Display) bool {
-	if w == mine.Width && h == mine.Height {
-		return true
-	}
-	if s := mine.Scale; s > 1 {
-		return w == int(float64(mine.Width)/s) && h == int(float64(mine.Height)/s)
-	}
-	return false
 }

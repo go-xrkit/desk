@@ -209,7 +209,10 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	//
 	// Before follow, so that the band catches up with the arrival in the same
 	// frame rather than the next one.
-	edges := &Edges{}
+	// The desk's own screen, by id: the glasses sit beside the ribbon, and a
+	// pointer that walks onto them is on a picture of this program.
+	owned, _ := OwnDisplay(opt.Screen.Name)
+	edges := &Edges{Own: owned}
 	wrap := func(now time.Time) {
 		moved, err := edges.Step(now, opt.Screens)
 		if err != nil {
