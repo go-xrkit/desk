@@ -353,3 +353,103 @@ func TestADisplayToTheLEFTOfTheFirstScreenKeepsThatEdgeToo(t *testing.T) {
 		t.Error("the pointer wrapped away from the way to the display on the left")
 	}
 }
+
+// asMeasured is this machine, with the glasses on and six screens up, as the
+// window server actually reported it on 2026-08-29: the glasses at x=-13440,
+// the ribbon running -11520..0, and the Mac's own panel at 0..2056.
+func asMeasured() *desktop {
+	dt := &desktop{rects: map[uint64]rect{
+		1: {X: 0, Y: 0, W: 2056, H: 1329},
+		3: {X: -13440, Y: 0, W: 1920, H: 1080},
+	}}
+	for i, x := 0, -11520.0; i < 6; i, x = i+1, x+1920 {
+		dt.rects[uint64(59+i)] = rect{X: x, Y: 0, W: 1920, H: 1080}
+	}
+	for id := range dt.rects {
+		dt.all = append(dt.all, id)
+	}
+	return dt
+}
+
+var measuredBand = []uint64{59, 60, 61, 62, 63, 64}
+
+func TestAPointerThatWalksOntoTheGlassesComesBackAtOnce(t *testing.T) {
+	// The measured arrangement is why this rule exists. The glasses sit
+	// IMMEDIATELY left of the first screen, so a pointer pushed off that edge
+	// is never clamped anywhere: it walks onto the display showing this
+	// program's own window, where it is a pointer on a picture.
+	dt := asMeasured()
+	dt.install(t)
+	dt.x, dt.y = -12500, 600
+
+	e := &Edges{Own: 3}
+	moved, err := e.Step(time.Unix(0, 0), measuredBand)
+	if err != nil {
+		t.Fatalf("Step: %v", err)
+	}
+	if !moved {
+		t.Fatal("a pointer on the desk's own screen was left there")
+	}
+	if dt.x < -100 || dt.x > 0 {
+		t.Errorf("pointer landed at x=%v, want the right-hand end of the ribbon", dt.x)
+	}
+}
+
+func TestAPointerOnTheGlassesToTheRightComesBackOnTheLeft(t *testing.T) {
+	dt := asMeasured()
+	dt.rects[3] = rect{X: 2056, Y: 0, W: 1920, H: 1080} // glasses on the far right
+	dt.install(t)
+	dt.x, dt.y = 3000, 600
+
+	e := &Edges{Own: 3}
+	if moved, err := e.Step(time.Unix(0, 0), measuredBand); !moved || err != nil {
+		t.Fatalf("Step = %v,%v, want it brought back", moved, err)
+	}
+	if dt.x > -11400 {
+		t.Errorf("pointer landed at x=%v, want the left-hand end of the ribbon", dt.x)
+	}
+}
+
+func TestTheGlassesDoNotHoldTheEndOfTheDesktopOpen(t *testing.T) {
+	// Same measured arrangement, with the pointer pushed against the left edge
+	// of the first screen. The only thing beyond it is the desk's own screen,
+	// which is not somewhere the pointer can go -- so this IS the end.
+	dt := asMeasured()
+	dt.install(t)
+	dt.x, dt.y = -11520, 600
+
+	e := &Edges{Own: 3}
+	if !pushed(t, e, measuredBand, DefaultHold) {
+		t.Error("the left end did not wrap: the glasses were counted as somewhere to go")
+	}
+	// And the right end still leads to the Mac's own panel, so it stays a wall.
+	dt.x, dt.y = -1, 600
+	e = &Edges{Own: 3}
+	if pushed(t, e, measuredBand, 2*DefaultHold) {
+		t.Error("the right end wrapped away from the way to this Mac's own screen")
+	}
+}
+
+func TestAnOwnScreenNothingCanMeasureIsIgnored(t *testing.T) {
+	dt := asMeasured()
+	dt.install(t)
+	dt.x, dt.y = -12500, 600
+
+	e := &Edges{Own: 404} // in nobody's list
+	if moved, err := e.Step(time.Unix(0, 0), measuredBand); moved || err != nil {
+		t.Errorf("Step = %v,%v, want false,nil", moved, err)
+	}
+}
+
+func TestAPointerBroughtBackOffTheGlassesReportsARefusal(t *testing.T) {
+	dt := asMeasured()
+	stuck := errors.New("the window server refused")
+	dt.refuses = stuck
+	dt.install(t)
+	dt.x, dt.y = -12500, 600
+
+	e := &Edges{Own: 3}
+	if moved, err := e.Step(time.Unix(0, 0), measuredBand); moved || !errors.Is(err, stuck) {
+		t.Errorf("Step = %v,%v, want false and the refusal", moved, err)
+	}
+}

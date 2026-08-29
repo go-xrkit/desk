@@ -9,6 +9,3 @@ package desk
 // platformDim answers that it cannot, rather than being absent: the ribbon runs
 // on this platform, it simply cannot turn a backlight off there.
 func platformDim(uint64) (func() error, error) { return nil, ErrNoDimming }
-
-// platformDisplaySize cannot answer here, so nothing is darkened.
-func platformDisplaySize(uint64) (w, h int, ok bool) { return 0, 0, false }

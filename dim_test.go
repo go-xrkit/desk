@@ -8,8 +8,6 @@ import (
 	"errors"
 	"sort"
 	"testing"
-
-	"github.com/go-xrkit/xrkit/glasses"
 )
 
 // panels is a machine whose backlights can be watched.
@@ -204,17 +202,6 @@ func TestDisplayOfReadsTheDisplayBackOutOfAnOfferID(t *testing.T) {
 	}
 }
 
-// sizes installs a machine whose displays have known geometry.
-func sizes(t *testing.T, m map[uint64][2]int) {
-	t.Helper()
-	was := displaySize
-	displaySize = func(id uint64) (int, int, bool) {
-		wh, ok := m[id]
-		return wh[0], wh[1], ok
-	}
-	t.Cleanup(func() { displaySize = was })
-}
-
 func offers(ids ...string) []Offer {
 	out := make([]Offer, len(ids))
 	for i, id := range ids {
@@ -224,47 +211,54 @@ func offers(ids ...string) []Offer {
 }
 
 func TestMirrorsLeavesOutTheScreensThatMustNotGoDark(t *testing.T) {
-	sizes(t, map[uint64][2]int{
-		1: {1512, 982},  // the Mac's own panel
-		2: {2560, 1440}, // an external monitor
-		3: {1920, 1080}, // the glasses
-		4: {2056, 1156}, // one this program made
-		// 5 is missing on purpose: a display nothing can measure
-		6: {3840, 2160},
-	})
-	mine := glasses.Display{Width: 3840, Height: 2160, Scale: 2} // 1920x1080 in points
+	dt := &desktop{
+		rects: map[uint64]rect{
+			1:  {X: 0, Y: 0, W: 2056, H: 1329},      // this Mac's own panel
+			2:  {X: 2056, Y: 0, W: 2560, H: 1440},   // an external monitor
+			3:  {X: -13440, Y: 0, W: 1920, H: 1080}, // the glasses
+			59: {X: -11520, Y: 0, W: 1920, H: 1080}, // one this program made
+		},
+	}
+	dt.install(t)
 
-	got := Mirrors(offers("display-1", "display-2", "display-3", "display-4", "display-5", "display-6", "window-9"),
-		[]uint64{4}, mine)
+	got := Mirrors(offers("display-1", "display-2", "display-3", "display-59", "window-9"),
+		[]uint64{59}, 3)
 	want := []uint64{1, 2}
 	if !sameIDs(got, want) {
 		t.Errorf("Mirrors = %v, want %v", got, want)
 	}
+	// The negative control: with no screen of its own to protect, the glasses'
+	// display is an ordinary panel and is named like the rest.
+	if got := Mirrors(offers("display-3"), nil, 0); !sameIDs(got, []uint64{3}) {
+		t.Errorf("Mirrors = %v, want the panel named when it is nobody's own", got)
+	}
 }
 
 func TestMirrorsNamesAPanelOnceHoweverManyPositionsShowIt(t *testing.T) {
-	sizes(t, map[uint64][2]int{1: {1512, 982}})
-	got := Mirrors(offers("display-1", "display-1"), nil, glasses.Display{})
+	dt := &desktop{rects: map[uint64]rect{1: {X: 0, Y: 0, W: 2056, H: 1329}}}
+	dt.install(t)
+	got := Mirrors(offers("display-1", "display-1"), nil, 0)
 	if !sameIDs(got, []uint64{1}) {
 		t.Errorf("Mirrors = %v, want the panel named once", got)
 	}
 }
 
-func TestMirrorsMatchesTheChosenScreenAtItsDeclaredSizeToo(t *testing.T) {
-	// Scale 1: the screen is described in the same units its rectangle is
-	// measured in, and the division above must not be what saves it.
-	sizes(t, map[uint64][2]int{1: {1920, 1080}})
-	if got := Mirrors(offers("display-1"), nil, glasses.Display{Width: 1920, Height: 1080, Scale: 1}); len(got) != 0 {
-		t.Errorf("Mirrors = %v, want the desk's own screen left alone", got)
+func TestDisplayAtIdentifiesAScreenByItsRectangleAndNotItsSize(t *testing.T) {
+	// Two identical monitors: the same size, in different places. A size
+	// cannot tell them apart and a rectangle can.
+	dt := &desktop{
+		rects: map[uint64]rect{
+			7: {X: 0, Y: 0, W: 2560, H: 1440},
+			8: {X: 2560, Y: 0, W: 2560, H: 1440},
+		},
+		all: []uint64{7, 8},
 	}
-	// And the negative control: the same screen, a different desk.
-	if got := Mirrors(offers("display-1"), nil, glasses.Display{Width: 3840, Height: 1080, Scale: 1}); !sameIDs(got, []uint64{1}) {
-		t.Errorf("Mirrors = %v, want the panel darkened when it is not the desk's own", got)
-	}
-}
+	dt.install(t)
 
-func TestPlatformDisplaySizeAnswersEverywhere(t *testing.T) {
-	if _, _, ok := platformDisplaySize(^uint64(0)); ok {
-		t.Error("a display that does not exist reported a size")
+	if id, ok := DisplayAt(2560, 0, 2560, 1440); !ok || id != 8 {
+		t.Errorf("DisplayAt = %d,%v, want 8,true", id, ok)
+	}
+	if id, ok := DisplayAt(99, 0, 2560, 1440); ok {
+		t.Errorf("DisplayAt on a rectangle no display has = %d,true, want false", id)
 	}
 }
