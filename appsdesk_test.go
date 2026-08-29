@@ -237,3 +237,75 @@ func TestTheArrowsWalkTheApplicationGalleryThroughTheKeys(t *testing.T) {
 		t.Errorf("up selected %d, want back at 0", got)
 	}
 }
+
+// TestChoosingPutsTheGalleryAway, like the screen gallery's choose does.
+//
+// Not tidiness: with it open the arrows move the SELECTION, so the band cannot
+// be turned, so a second choose could only put another application on the same
+// screen — which hides one of them.
+func TestChoosingPutsTheGalleryAway(t *testing.T) {
+	d, placed := appDesk(t, threeApps, nil)
+	d.Do(ActionApps)
+	d.Do(ActionChoose)
+
+	if d.inApps {
+		t.Error("the gallery is still up after choosing")
+	}
+	if len(*placed) != 1 {
+		t.Fatalf("placements = %v, want one", *placed)
+	}
+	// And the band turns again, which is the point of closing.
+	was := d.Nav().Focus()
+	d.Do(ActionNext)
+	if got := d.Nav().Focus(); got == was {
+		t.Error("the band did not turn after the gallery closed")
+	}
+}
+
+// TestChoosingNothingLeavesTheGalleryUp: there was nothing to place, so there
+// is nothing to look at the result of.
+func TestChoosingNothingLeavesTheGalleryUp(t *testing.T) {
+	d, _ := appDesk(t, nil, nil)
+	d.Do(ActionApps)
+	d.Do(ActionChoose)
+	if !d.inApps {
+		t.Error("the gallery closed on a choose that placed nothing")
+	}
+}
+
+// TestSpreadingFromTheGalleryPutsItAway too: what it did is on the band, and
+// the list behind it now says where everything used to be.
+func TestSpreadingFromTheGalleryPutsItAway(t *testing.T) {
+	d, placed := appDesk(t, threeApps, nil)
+	d.Do(ActionApps)
+	d.Do(ActionSpread)
+
+	if d.inApps {
+		t.Error("the gallery is still up after spreading")
+	}
+	if len(*placed) != 1 || len((*placed)[0]) != 3 {
+		t.Errorf("placements = %v, want one round of three", *placed)
+	}
+}
+
+// TestInGalleryIsTrueForEitherGallery, because the bare keys are claimed for
+// both and released when neither is up.
+func TestInGalleryIsTrueForEitherGallery(t *testing.T) {
+	d, _ := appDesk(t, threeApps, nil)
+	if d.InGallery() {
+		t.Error("a fresh desk says it is in a gallery")
+	}
+	d.Do(ActionGalleryOpen)
+	if !d.InGallery() {
+		t.Error("the screen gallery is open and InGallery says otherwise")
+	}
+	d.Do(ActionGalleryClose)
+	d.Do(ActionApps)
+	if !d.InGallery() {
+		t.Error("the application gallery is open and InGallery says otherwise")
+	}
+	d.Do(ActionApps)
+	if d.InGallery() {
+		t.Error("both galleries are closed and InGallery says otherwise")
+	}
+}

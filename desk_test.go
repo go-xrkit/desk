@@ -437,6 +437,7 @@ func TestKeyAction(t *testing.T) {
 		"+": ActionCloser, "=": ActionCloser,
 		"a": ActionApps, "A": ActionApps,
 		"x": ActionSpread, "X": ActionSpread,
+		"Backspace": ActionRemove, "Delete": ActionRemove,
 		"": ActionNone, "PageUp": ActionNone, "z": ActionNone,
 	} {
 		if got := KeyAction(code); got != want {
@@ -1147,5 +1148,172 @@ func TestBringingThePointerAsksTheApplication(t *testing.T) {
 	d.Do(ActionPoint)
 	if err := d.Err(); err != nil {
 		t.Errorf("with no handler, asking reported %v", err)
+	}
+}
+
+// TestAScreenCanBeTakenOffTheBand, which the gallery had no way to do: it could
+// add one and never remove one, so a desk only ever grew.
+func TestAScreenCanBeTakenOffTheBand(t *testing.T) {
+	p := testPlan(t)
+	feeds := feedsFor(p)
+	d, err := New(p, feeds)
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	was := d.Plan().Count()
+
+	gone, err := d.Shrink(1)
+	if err != nil {
+		t.Fatalf("Shrink: %v", err)
+	}
+	if gone != feeds[1] {
+		t.Error("Shrink returned a different feed from the one that was there")
+	}
+	// RETURNED, not closed: what to do with a capture nobody is showing is the
+	// caller's business.
+	if f, ok := gone.(*fakeFeed); ok && f.closes != 0 {
+		t.Error("Shrink closed the feed it handed back")
+	}
+	if got := d.Plan().Count(); got != was-1 {
+		t.Errorf("the desk has %d screens, want %d", got, was-1)
+	}
+	// The picture still draws, which is what says the ribbon, the gallery and
+	// the navigator were all rebuilt rather than half of them.
+	if c := d.Render(); c == nil {
+		t.Error("nothing renders after a screen was removed")
+	}
+}
+
+func TestShrinkRefusesTheLastScreenAndAPositionThatIsNotThere(t *testing.T) {
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 1, SplayDeg: -1})
+	if err != nil {
+		t.Fatalf("NewPlan: %v", err)
+	}
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	if _, err := d.Shrink(0); !errors.Is(err, ErrScreens) {
+		t.Errorf("Shrink of the last screen = %v, want ErrScreens", err)
+	}
+	if _, err := d.Shrink(7); !errors.Is(err, ErrPosition) {
+		t.Errorf("Shrink(7) = %v, want ErrPosition", err)
+	}
+}
+
+// TestRemovingFromTheGalleryTellsTheApplication, and never the cell that ADDS
+// one: there is no screen behind it to take away.
+func TestRemovingFromTheGalleryTellsTheApplication(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	var told []int
+	d.OnRemove = func(pos int, f Feed) { told = append(told, pos) }
+
+	d.Do(ActionGalleryOpen)
+	if i, ok := d.grid.Adder(); ok {
+		_ = d.grid.Select(i)
+		d.Do(ActionRemove)
+		if len(told) != 0 {
+			t.Errorf("the adder was removed: %v", told)
+		}
+	}
+	_ = d.grid.Select(2)
+	d.Do(ActionRemove)
+	if len(told) != 1 || told[0] != 2 {
+		t.Fatalf("told %v, want screen 2 alone", told)
+	}
+	if got := d.Plan().Count(); got != p.Count()-1 {
+		t.Errorf("the desk has %d screens, want %d", got, p.Count()-1)
+	}
+}
+
+// TestRemovingTheScreenInFrontMovesTheFocusBack, and the gallery's selection
+// with it: both can be past the end once a screen is gone.
+func TestRemovingTheScreenInFrontMovesTheFocusBack(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	// The last screen, focused and selected.
+	last := p.Count() - 1
+	for i := 0; i < last; i++ {
+		d.Do(ActionNext)
+	}
+	d.Do(ActionGalleryOpen)
+	_ = d.grid.Select(d.grid.Cells() - 1) // the adder, past every screen
+	if _, err := d.Shrink(last); err != nil {
+		t.Fatalf("Shrink: %v", err)
+	}
+	// On the NEAREST remaining screen, not thrown back to the first: the
+	// navigator is rebuilt from scratch and refuses a focus it has no screen
+	// for, which used to leave it at zero.
+	if got, want := d.Nav().Focus(), d.Plan().Count()-1; got != want {
+		t.Errorf("the focus is on %d, want %d -- the nearest screen left", got, want)
+	}
+	if got := d.grid.Selected(); got >= d.grid.Cells() {
+		t.Errorf("the selection is on %d of %d cells", got, d.grid.Cells())
+	}
+}
+
+// TestARefusedRemovalIsReported: the person pressed a key expecting a screen to
+// go, and one that stays with no explanation is the worst of the outcomes.
+func TestARefusedRemovalIsReported(t *testing.T) {
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 1, SplayDeg: -1})
+	if err != nil {
+		t.Fatalf("NewPlan: %v", err)
+	}
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	var told int
+	d.OnRemove = func(int, Feed) { told++ }
+
+	d.Do(ActionGalleryOpen)
+	_ = d.grid.Select(0)
+	d.Do(ActionRemove)
+
+	if told != 0 {
+		t.Error("the application was told about a removal that did not happen")
+	}
+	if !errors.Is(d.Err(), ErrScreens) {
+		t.Errorf("Err() = %v, want ErrScreens: the last screen cannot go", d.Err())
+	}
+}
+
+// TestShrinkingAnyDeskAlwaysWorks is the assumption Shrink rests on: a plan
+// with one screen FEWER always builds, so reshape cannot fail there.
+//
+// Pinned rather than branched on. Every count from the largest down to two,
+// and every position in each -- including the screens so small that a gallery
+// refuses to fold ANOTHER one in, which is what makes growing fail.
+func TestShrinkingAnyDeskAlwaysWorks(t *testing.T) {
+	for _, size := range [][2]int{{1920, 1200}, {90, 90}} {
+		for n := MaxScreens; n >= 2; n-- {
+			p := testPlan(t)
+			p.ScreenW, p.ScreenH = size[0], size[1]
+			p = p.WithScreens(n)
+			for pos := 0; pos < n; pos++ {
+				d, err := New(p, make([]Feed, n))
+				if err != nil {
+					break // this size will not hold n screens at all
+				}
+				if _, err := d.Shrink(pos); err != nil {
+					t.Errorf("%dx%d, %d screens, removing %d: %v",
+						size[0], size[1], n, pos, err)
+				}
+				if got := d.Plan().Count(); got != n-1 {
+					t.Errorf("%dx%d, %d screens, removing %d: left %d",
+						size[0], size[1], n, pos, got)
+				}
+				_ = d.Close()
+			}
+		}
 	}
 }

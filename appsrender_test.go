@@ -319,3 +319,78 @@ func TestATileShowsTheApplicationsOwnIconWhenItHasOne(t *testing.T) {
 		}
 	}
 }
+
+// TestTheScreenGalleryIsDrawnAndCanBeLookedAt, adder included.
+//
+// The plus was reported as "not properly symmetric" on the glasses, which is
+// the kind of thing no assertion finds and one look settles.
+func TestTheScreenGalleryIsDrawnAndCanBeLookedAt(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	d.Badge(0, nil)
+	d.Do(ActionGalleryOpen)
+	// The adder is the last cell; selecting it is what a person does before
+	// pressing Enter, so it is what the picture should show.
+	if i, ok := d.grid.Adder(); ok {
+		_ = d.grid.Select(i)
+	}
+	c := d.Render()
+
+	path := filepath.Join(renderDir(t), "screen-gallery.png")
+	img := image.NewRGBA(image.Rect(0, 0, c.W, c.H))
+	for y := range c.H {
+		for x := range c.W {
+			i := (y*c.W + x) * 4
+			img.Set(x, y, color.RGBA{c.Pix[i+2], c.Pix[i+1], c.Pix[i], 255})
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	t.Logf("the screen gallery is at %s — open it and look", path)
+}
+
+// TestTheOverlaysAreDrawnInTheCanvasOwnOrder, which is BGRA.
+//
+// A Canvas holds what ScreenCaptureKit hands over, and the whole picture is
+// swapped once on the way to the window. An overlay drawn RGBA into it arrives
+// on the glasses with red and blue exchanged — the orange selection ring was
+// blue there, and nobody could see it was wrong because that picture is only
+// ever seen through a headset.
+func TestTheOverlaysAreDrawnInTheCanvasOwnOrder(t *testing.T) {
+	c := NewCanvas(200, 120)
+	m := newMarks(nil)
+	g, err := NewGridCols(1, 100, 100, 200, 120, 0, 1)
+	if err != nil {
+		t.Fatalf("NewGridCols: %v", err)
+	}
+	m.draw(c, g, 0)
+
+	// SelectionInk is orange: red high, blue low. In a BGRA canvas the FIRST
+	// byte of an inked pixel is therefore the low one.
+	var reds, blues int
+	for i := 0; i+3 < len(c.Pix); i += 4 {
+		r, b := c.Pix[i+2], c.Pix[i]
+		if r == SelectionInk.R && b == SelectionInk.B {
+			reds++
+		}
+		if r == SelectionInk.B && b == SelectionInk.R {
+			blues++
+		}
+	}
+	if reds == 0 {
+		t.Error("no pixel of the selection ring is orange in BGRA order")
+	}
+	if blues > 0 {
+		t.Errorf("%d pixels of the ring are orange only if the canvas were RGBA; "+
+			"they will be BLUE on the glasses", blues)
+	}
+}

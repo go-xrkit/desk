@@ -164,12 +164,17 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		logf("the screen's number shows for %v when the band moves", BadgeDuration(opt.Badge))
 	}
 
+	// sync claims or releases the gallery's bare keys, and is filled in below —
+	// declared here because the window's own key handler calls it too.
+	sync := func() {}
+
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {
 		switch ev.Kind {
 		case toolkit.EventKeyDown:
 			if a := KeyAction(ev.Code); a != ActionNone {
-				d.Do(a)
+				act(d, logf, "window", a)
+				sync()
 			}
 		case toolkit.EventClick:
 			// Through the same two tables the picture was drawn with, so a
@@ -211,6 +216,38 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		}
 	}
 
+	// And the BARE keys, claimed only while a gallery covers the view.
+	//
+	// A person looking at a grid should not have to hold three modifiers to walk
+	// it. Claiming a bare arrow system-wide is a serious thing to do to a
+	// machine, so it is done when a gallery opens and undone when it closes —
+	// nobody is typing into anything while a gallery is in front of their eyes.
+	var bare *Hotkeys
+	bareC := make(chan Action)
+	if !opt.NoGlobal {
+		sync = func() {
+			switch {
+			case d.InGallery() && bare == nil:
+				bare = ClaimGallery()
+				go func(h *Hotkeys) {
+					for a := range h.C() {
+						bareC <- a
+					}
+				}(bare)
+				logf("the arrows, Enter and Escape are the gallery's for as long as it is up")
+			case !d.InGallery() && bare != nil:
+				bare.Close()
+				bare = nil
+				logf("the arrows are the machine's again")
+			}
+		}
+		defer func() {
+			if bare != nil {
+				bare.Close()
+			}
+		}()
+	}
+
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
@@ -233,9 +270,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			case <-deadline:
 				d.Do(ActionQuit)
 			case a := <-global:
-				d.Do(a)
+				act(d, logf, "shortcut", a)
+				sync()
+			case a := <-bareC:
+				act(d, logf, "gallery key", a)
+				sync()
 			case a := <-opt.Actions:
-				d.Do(a)
+				act(d, logf, "menu bar", a)
+				sync()
 			case now := <-t.C:
 				dt := now.Sub(last).Seconds()
 				last = now
@@ -286,4 +328,24 @@ func currentScreen(name string) (*window.Screen, error) {
 	}
 	return nil, fmt.Errorf("desk: %q is not attached any more; there is %s",
 		name, strings.Join(names, ", "))
+}
+
+// act carries out an action and SAYS SO.
+//
+// A desk driven entirely by system-wide shortcuts is a program a person cannot
+// see working: press a key, and either something happens on a pair of glasses or
+// nothing does, with no way to tell "the key never arrived" from "the key
+// arrived and the thing it asked for failed". Both were reported on the same
+// evening, and neither could be told from the other without this.
+//
+// Refusals are printed too. Do records them in Err rather than returning them —
+// the gallery has directions it has no cell for — and a refusal nobody can see
+// is a key that silently does nothing.
+func act(d *Desk, logf func(string, ...any), from string, a Action) {
+	d.Do(a)
+	if err := d.Err(); err != nil {
+		logf("%s: %v — %v", from, a, err)
+		return
+	}
+	logf("%s: %v", from, a)
 }

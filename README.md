@@ -89,7 +89,7 @@ on the screens.
 
 | | |
 |---|---|
-| `⌥⌘←` `⌥⌘→` | turn the band |
+| `⌃⌥⌘←` `⌃⌥⌘→` | turn the band |
 | `⌃⌥⌘Space` | show every screen at once |
 | `⌃⌥⌘↑` `⌃⌥⌘↓` | open the gallery, leave it |
 | `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
@@ -111,7 +111,9 @@ window on a stock macOS, so xrdesk falls back — Shift, then Control, then
 both — and on this machine ends up with `⌥⇧⌘Space`. Whatever it lands on is
 printed at start-up, because it has to be: of the three ways a shortcut can
 already be taken, two are detectable and one is not. An application's own menu
-key is invisible to everything. `⌥⌘←`/`⌥⌘→` register without complaint and are
+key is invisible to everything. The band was on `⌥⌘←`/`⌥⌘→` until somebody who
+had learnt the desk pressed `⌃⌥⌘←` and got nothing: one prefix for all of them
+is worth more than two keys saved. Those two also register without complaint and are
 also Safari's tab navigation — while xrdesk runs, it wins them, and Safari
 quietly stops seeing them. That is the trade a global shortcut is; it is
 printed rather than hidden.

@@ -69,7 +69,7 @@ glasses { model   = "VITURE Luma Ultra" }
 			}
 		case ActionNext: // untouched by the file
 			if want := (hotkey.Combo{Key: hotkey.KeyRightArrow,
-				Mods: hotkey.Option | hotkey.Command}); s.Want != want {
+				Mods: hotkey.Control | hotkey.Option | hotkey.Command}); s.Want != want {
 				t.Errorf("next is %v, want the default %v", s.Want, want)
 			}
 		}

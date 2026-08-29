@@ -120,7 +120,7 @@ func (b *badge) draw(c *Canvas) {
 		Y: (c.H - r.H) / 2,
 		W: r.W, H: r.H,
 	})
-	b.toast.Draw(painter.NewPixelPainter(c.Pix, c.W, c.H), b.theme)
+	b.toast.Draw(painter.NewPixelPainterBGRA(c.Pix, c.W, c.H), b.theme)
 }
 
 // badgeScale is how many times the built-in font is magnified for the number.
