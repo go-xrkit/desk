@@ -54,11 +54,22 @@ glasses { model   = "VITURE Luma Ultra" }
 		t.Errorf("Ladder() = %v, want %v", got, want)
 	}
 
-	// A file that names two shortcuts must not drop the third: moving the
-	// gallery key is not asking to lose the arrows.
+	// A file that names two shortcuts must not drop the rest: moving one key is
+	// not asking to lose the arrows. It may ADD one -- naming an action the
+	// defaults no longer claim, like the gallery toggle, is how a person puts it
+	// back -- so the count is a floor, not an equality.
 	got := c.ShortcutsOr(DefaultShortcuts())
-	if len(got) != len(DefaultShortcuts()) {
-		t.Fatalf("got %d shortcuts, want the %d there are", len(got), len(DefaultShortcuts()))
+	if len(got) < len(DefaultShortcuts()) {
+		t.Fatalf("got %d shortcuts, want at least the %d there are", len(got), len(DefaultShortcuts()))
+	}
+	has := map[Action]bool{}
+	for _, s := range got {
+		has[s.Does] = true
+	}
+	for _, s := range DefaultShortcuts() {
+		if !has[s.Does] {
+			t.Errorf("%v was dropped by a file that never mentioned it", s.Does)
+		}
 	}
 	for _, s := range got {
 		switch s.Does {

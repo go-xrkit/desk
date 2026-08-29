@@ -90,7 +90,6 @@ on the screens.
 | | |
 |---|---|
 | `⌃⌥⌘←` `⌃⌥⌘→` | turn the band |
-| `⌃⌥⌘Space` | show every screen at once |
 | `⌃⌥⌘↑` | show the SCREENS |
 | **`⌃⌥⌘↓`** | **show what is RUNNING on them** |
 | `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
@@ -107,11 +106,15 @@ asks for **no permission at all** — no accessibility prompt, no input
 monitoring. On Linux and Windows the keys work in the window and the run says
 so. `-no-global` leaves them alone.
 
-**They are not always the keys you get.** `⌥⌘Space` is the Finder's search
-window on a stock macOS, so xrdesk falls back — Shift, then Control, then
-both — and on this machine ends up with `⌥⇧⌘Space`. Whatever it lands on is
-printed at start-up, because it has to be: of the three ways a shortcut can
-already be taken, two are detectable and one is not. An application's own menu
+**They are not always the keys you get.** xrdesk falls back — Shift, then
+Control, then both — and prints whatever it landed on at start-up, because it
+has to: of the three ways a shortcut can already be taken, two are detectable
+and one is not.
+
+The third one is why the applications are on an ARROW. `⌃⌥⌘A` was granted
+without complaint and never delivered a single press: an application's own menu
+key is invisible to every check there is, so the only symptom is a key that does
+nothing. Arrows are not claimed quietly. An application's own menu
 key is invisible to everything. The band was on `⌥⌘←`/`⌥⌘→` until somebody who
 had learnt the desk pressed `⌃⌥⌘←` and got nothing: one prefix for all of them
 is worth more than two keys saved. Those two also register without complaint and are
