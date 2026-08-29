@@ -372,3 +372,44 @@ func TestTheGallerysKeysAreBareAndClaimNoNeighbour(t *testing.T) {
 		t.Errorf("claimed %d keys, want %d", len(claims), len(want))
 	}
 }
+
+// TestNoCombinationIsClaimedTwice, in either set.
+//
+// Asked from the glasses, and worth an answer that cannot rot: "tu sembles
+// utiliser ctrl+option+command+flèche basse pour deux usages ?" It was one use,
+// but the question is the right one — a table edited by hand over fourteen
+// entries is exactly where two actions quietly end up on one key, and the
+// second one would simply never fire.
+//
+// The two sets are checked separately because they are claimed at different
+// times: the bare keys only while a gallery is up. Within each, a combination
+// belongs to one action.
+func TestNoCombinationIsClaimedTwice(t *testing.T) {
+	for _, set := range []struct {
+		name string
+		of   []Shortcut
+	}{
+		{"the desk's own", DefaultShortcuts()},
+		{"the gallery's bare keys", GalleryShortcuts()},
+	} {
+		seen := map[hotkey.Combo]Action{}
+		for _, s := range set.of {
+			if was, dup := seen[s.Want]; dup {
+				t.Errorf("%s: %v is claimed for both %v and %v; the second would "+
+					"never fire", set.name, s.Want, was, s.Does)
+				continue
+			}
+			seen[s.Want] = s.Does
+		}
+	}
+
+	// And no action has two combinations in the SAME set, which would be two
+	// keys to teach for one thing.
+	does := map[Action]hotkey.Combo{}
+	for _, s := range GalleryShortcuts() {
+		if was, dup := does[s.Does]; dup {
+			t.Errorf("%v is on both %v and %v while a gallery is up", s.Does, was, s.Want)
+		}
+		does[s.Does] = s.Want
+	}
+}
