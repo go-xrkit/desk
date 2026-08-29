@@ -147,6 +147,14 @@ const (
 	// a screen. It means nothing outside the gallery and nothing on the cell
 	// that ADDS one.
 	ActionRemove
+	// ActionAppsOpen shows the application gallery, and does nothing when it is
+	// already up.
+	//
+	// It exists beside the toggle for the same reason ActionGalleryOpen does: a
+	// system-wide shortcut is pressed BLIND. One key that means "show me what is
+	// running" from outside and "put it away" from inside does the wrong thing
+	// every time the person has lost track of which they are in.
+	ActionAppsOpen
 )
 
 // String renders an action for a log.
@@ -192,6 +200,8 @@ func (a Action) String() string {
 		return "spread the applications"
 	case ActionRemove:
 		return "remove this screen"
+	case ActionAppsOpen:
+		return "show the applications"
 	default:
 		return "none"
 	}
@@ -444,6 +454,9 @@ func (d *Desk) Do(a Action) {
 			// pressed "leave the gallery" meant the picture in front of them,
 			// whichever gallery it is.
 			d.inApps = false
+		case ActionAppsOpen:
+			// Already showing them. Nothing, deliberately: this is the key that
+			// always means the same thing however lost the person is.
 		case ActionQuit:
 			d.quit = true
 		case ActionSettings:
@@ -527,7 +540,7 @@ func (d *Desk) Do(a Action) {
 		// Not open, so both of these open it. ActionGalleryClose falls through
 		// to nothing, which is what leaving a gallery you are not in should do.
 		d.err = d.nav.ToggleGallery(d.grid)
-	case ActionApps:
+	case ActionApps, ActionAppsOpen:
 		// Ask what is running, outside the lock, and only then put the gallery
 		// up: a list read once at start-up would offer a screen to something
 		// that quit an hour ago.
@@ -589,7 +602,7 @@ func (d *Desk) refresh(list func() ([]App, error), a Action) {
 	d.apps.set(apps)
 	var place []Placement
 	switch a {
-	case ActionApps:
+	case ActionApps, ActionAppsOpen:
 		d.inApps = true
 	case ActionSpread:
 		place = Spread(apps, d.plan.Count())

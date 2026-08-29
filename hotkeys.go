@@ -53,7 +53,19 @@ func DefaultShortcuts() []Shortcut {
 		// have lost track. Up goes in and down comes out, which is also the
 		// direction the grid is in relative to the band.
 		{hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods | hotkey.Control}, ActionGalleryOpen},
-		{hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods | hotkey.Control}, ActionGalleryClose},
+		// ↑ shows the SCREENS, ↓ shows what is RUNNING on them.
+		//
+		// The applications were on ⌃⌥⌘A and it did nothing at all on the machine
+		// this was written for -- granted without complaint and never delivered,
+		// which is the third way a shortcut can be taken and the one nothing can
+		// detect: an application's own menu key is invisible to everything. An
+		// arrow is a key nothing else claims quietly, and the pair reads as one
+		// idea: up for the desk, down for what is on it.
+		//
+		// Leaving is not here any more. It does not need to be: while a gallery
+		// is up the desk holds the bare Escape, and ⌃⌥⌘Space toggles from
+		// outside. What a blind press needs is for OPEN to always mean open.
+		{hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods | hotkey.Control}, ActionAppsOpen},
 		// And choosing, system-wide with the rest.
 		//
 		// Enter alone is a key in the window, which is no use to somebody who
@@ -102,6 +114,7 @@ func DefaultShortcuts() []Shortcut {
 		// goes on which screen is the one thing a person does while looking AT
 		// the screens, so the keys have to work while the keyboard belongs to
 		// whatever is running on them.
+		// And the initial as well, for a keyboard where it does arrive.
 		{hotkey.Combo{Key: hotkey.KeyA, Mods: mods | hotkey.Control}, ActionApps},
 		{hotkey.Combo{Key: hotkey.KeyX, Mods: mods | hotkey.Control}, ActionSpread},
 		// And taking one away, on the key that deletes.
