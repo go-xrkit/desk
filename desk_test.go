@@ -1322,3 +1322,38 @@ func TestShrinkingAnyDeskAlwaysWorks(t *testing.T) {
 		}
 	}
 }
+
+// TestTheBandFollowsWithoutAKeyBeingPressed.
+func TestTheBandFollowsWithoutAKeyBeingPressed(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	if err := d.Look(2); err != nil {
+		t.Fatalf("Look(2): %v", err)
+	}
+	d.Advance(largeEnoughToArrive)
+	if got := d.Nav().Focus(); got != 2 {
+		t.Errorf("the band is on %d, want 2", got)
+	}
+	// Asked again for where it already is: nothing, because follow is asked
+	// several times a second and a band that re-aimed would never settle.
+	if err := d.Look(2); err != nil {
+		t.Errorf("Look at the screen it is on: %v", err)
+	}
+	if err := d.Look(99); !errors.Is(err, ErrPosition) {
+		t.Errorf("Look(99) = %v, want ErrPosition", err)
+	}
+
+	// And NOT while a gallery is up: the person is reading a grid, and a band
+	// turning underneath it moves the picture for no reason they can see.
+	d.Do(ActionGalleryOpen)
+	was := d.Nav().Focus()
+	if err := d.Look(0); err != nil {
+		t.Errorf("Look in the gallery: %v", err)
+	}
+	if got := d.Nav().Focus(); got != was {
+		t.Errorf("the band turned to %d under an open gallery", got)
+	}
+}
