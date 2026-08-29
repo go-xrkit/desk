@@ -36,15 +36,21 @@ type Shortcut struct {
 // ⌥⌘← and ⌥⌘→ were also Safari's tab navigation, which the desk was quietly
 // taking for the length of a session.
 //
-// ⌥⌘Space is the Finder's search window on a stock macOS, so the gallery always
-// falls back — see [DefaultLadder], and [Hotkeys.Describe] for what was actually
-// granted.
+// There is no TOGGLE here any more, and that is the point of the set: every one
+// of these is pressed BLIND, so each says what it does. ⌃⌥⌘↑ shows the screens,
+// ⌃⌥⌘↓ shows what is running on them, and leaving is the bare Escape the gallery
+// holds while it is up. ⌥⌘Space used to toggle the screen gallery, which meant
+// "open" or "close" depending on something the person could not see -- and it
+// was the Finder's search window on a stock macOS, so it never got the keys it
+// asked for either. The toggle remains on `g` INSIDE the window, where the state
+// is in front of you, and a settings file can still put it back.
+//
+// See [DefaultLadder], and [Hotkeys.Describe] for what was actually granted.
 func DefaultShortcuts() []Shortcut {
 	const mods = hotkey.Option | hotkey.Command
 	return []Shortcut{
 		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods | hotkey.Control}, ActionPrev},
 		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods | hotkey.Control}, ActionNext},
-		{hotkey.Combo{Key: hotkey.KeySpace, Mods: mods}, ActionGallery},
 		// Open and leave, each on its own key.
 		//
 		// A system-wide shortcut is pressed BLIND: the viewer cannot see whether
