@@ -1086,3 +1086,30 @@ func (d *Desk) drop(pos int) {
 		on(pos, f)
 	}
 }
+
+// Look turns the band to a screen without a key being pressed.
+//
+// It is what lets the ribbon FOLLOW something — the pointer, today. A position
+// it has no screen for is refused; the position it is already on is nothing,
+// deliberately, because "follow" is asked several times a second and a band that
+// re-aimed at the screen it is already on would never settle.
+//
+// It is not a shortcut for [Desk.Do]: an action is what a person asked for, and
+// this is the desk keeping up with them.
+func (d *Desk) Look(pos int) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if pos < 0 || pos >= d.plan.Count() {
+		return fmt.Errorf("%w: screen %d of %d", ErrPosition, pos, d.plan.Count())
+	}
+	if pos == d.nav.Focus() {
+		return nil
+	}
+	// Not while a gallery is up: the person is choosing there, and a band
+	// turning underneath a grid they are reading is a picture that moves for
+	// no reason they can see.
+	if d.inApps || d.nav.Mode() == ribbon.ModeGallery {
+		return nil
+	}
+	return d.nav.GoTo(pos)
+}

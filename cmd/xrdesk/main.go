@@ -439,6 +439,8 @@ func run() int {
 			Hotkeys:     settings.HotkeyOptions(),
 			// The menu bar is an input like any other: same actions, same loop.
 			Actions: actions,
+			// And the band follows the pointer onto any of these.
+			Screens: screens.IDs,
 		}
 		if *snap {
 			opts.Snapshot = func(pix []byte, w, h int) {
