@@ -309,3 +309,31 @@ func TestInGalleryIsTrueForEitherGallery(t *testing.T) {
 		t.Error("both galleries are closed and InGallery says otherwise")
 	}
 }
+
+// TestShowingTheApplicationsAlwaysMeansShow, however lost the person is.
+//
+// A system-wide shortcut is pressed BLIND: one key that means "show me what is
+// running" from outside and "put it away" from inside does the wrong thing every
+// time somebody has lost track of which they are in. So ActionAppsOpen only ever
+// opens, and pressing it twice is not a way to close the gallery by accident.
+func TestShowingTheApplicationsAlwaysMeansShow(t *testing.T) {
+	d, _ := appDesk(t, threeApps, nil)
+
+	d.Do(ActionAppsOpen)
+	if !d.inApps {
+		t.Fatal("the gallery did not open")
+	}
+	d.Do(ActionAppsOpen)
+	if !d.inApps {
+		t.Error("pressing it again put the gallery away; open must mean open")
+	}
+	// The toggle still toggles, for the key inside the window.
+	d.Do(ActionApps)
+	if d.inApps {
+		t.Error("the toggle did not close it")
+	}
+	d.Do(ActionAppsOpen)
+	if !d.inApps {
+		t.Error("it did not open again")
+	}
+}

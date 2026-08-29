@@ -91,9 +91,10 @@ on the screens.
 |---|---|
 | `⌃⌥⌘←` `⌃⌥⌘→` | turn the band |
 | `⌃⌥⌘Space` | show every screen at once |
-| `⌃⌥⌘↑` `⌃⌥⌘↓` | open the gallery, leave it |
+| `⌃⌥⌘↑` | show the SCREENS |
+| **`⌃⌥⌘↓`** | **show what is RUNNING on them** |
 | `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
-| **`⌃⌥⌘A`** | **show what is running** |
+| `⌃⌥⌘A` | the same, for a keyboard where it arrives |
 | **`⌃⌥⌘X`** | **one application per screen** |
 | `⌃⌥⌘M` | bring the pointer to the screen being looked at |
 | `⌃⌥⌘-` `⌃⌥⌘=` | move the band away, and back |

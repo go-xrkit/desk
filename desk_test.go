@@ -804,12 +804,17 @@ func TestOpenAndLeaveTheGalleryAreSeparateKeys(t *testing.T) {
 }
 
 // TestTheGalleryKeysAreTheOnesThatWereAskedFor: control+option+command with the
-// up and down arrows, claimed system-wide.
+// up and down arrows -- UP for the screens, DOWN for what is running on them.
+//
+// One idea, two keys, and neither of them a letter. The applications were on
+// ⌃⌥⌘A and it did nothing at all on the machine this was written for: granted
+// without complaint and never delivered, which is the one way a combination can
+// be taken that nothing can detect.
 func TestTheGalleryKeysAreTheOnesThatWereAskedFor(t *testing.T) {
 	want := map[Action]hotkey.Combo{
 		ActionGalleryOpen: {Key: hotkey.KeyUpArrow,
 			Mods: hotkey.Control | hotkey.Option | hotkey.Command},
-		ActionGalleryClose: {Key: hotkey.KeyDownArrow,
+		ActionAppsOpen: {Key: hotkey.KeyDownArrow,
 			Mods: hotkey.Control | hotkey.Option | hotkey.Command},
 	}
 	got := map[Action]hotkey.Combo{}
