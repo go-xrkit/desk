@@ -71,6 +71,8 @@ func run() int {
 	settingsWin := flag.Bool("settings", false,
 		"open the settings window instead of the desk")
 	snap := flag.Bool("snapshot", false, "write the first frame shown, so it can be looked at afterwards")
+	dim := flag.Bool("dim", true,
+		"turn a Mac panel off while the ribbon is showing a copy of it; -dim=false leaves every screen lit")
 	flag.Parse()
 
 	logf := func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) }
@@ -296,6 +298,50 @@ func run() int {
 					logf("screen %d: %s", i+1, o.Name)
 				}
 			}
+			// And with this Mac's own panels dark while the ribbon shows a copy
+			// of them. A person wearing the glasses is looking at the copy; the
+			// panel itself is then private work at reading distance, facing
+			// whoever walks past, lit for nobody.
+			//
+			// The way back is deferred FIRST, before anything is turned off, so
+			// that every path out of here — a refusal below, a quit, the -for
+			// timer — goes through it.
+			var dark desk.Dimmer
+			defer func() {
+				if err := dark.Restore(); err != nil {
+					fmt.Printf("putting a screen's brightness back: %v\n", err)
+				}
+			}()
+			remirror := func() {
+				// Only in the glasses. Windowed, the desk is a window ON one of
+				// these screens and darkening them would black out the very
+				// thing being used.
+				if !*dim || !settings.Immersive() {
+					return
+				}
+				on := make([]desk.Offer, 0, inv.Positions())
+				for i := 0; i < inv.Positions(); i++ {
+					if o, ok := inv.At(i); ok {
+						on = append(on, o)
+					}
+				}
+				// The displays this program made are not this Mac's panels;
+				// when it could not make any, the ribbon is showing the real
+				// ones and every one of them is a candidate.
+				var ours []uint64
+				if screens.Virtual {
+					ours = screens.IDs
+				}
+				was := dark.Dark()
+				if err := dark.Showing(desk.Mirrors(on, ours, chosen)); err != nil {
+					logf("darkening: %v", err)
+				}
+				if n := dark.Dark(); n != was {
+					fmt.Printf("%d of this Mac's screens are off while the ribbon shows them\n", n)
+				}
+			}
+			remirror()
+
 			// And taking one away: the desk has already shrunk by the time this is
 			// called, so what is left is the platform work.
 			d.OnRemove = func(pos int, f desk.Feed) {
@@ -310,6 +356,7 @@ func run() int {
 				if n := inv.Positions(); n > 0 {
 					_ = inv.Clear(n - 1)
 				}
+				remirror()
 				fmt.Printf("screen %d is gone; %d left\n", pos+1, len(screens.IDs))
 			}
 
@@ -409,6 +456,7 @@ func run() int {
 					old, _ := d.SetFeed(pos, nil)
 					closeFeed(old)
 					fmt.Printf("screen %d: nothing\n", pos+1)
+					remirror()
 					return
 				}
 				f, err := desk.OpenOffer(ctx, plan, o)
@@ -423,6 +471,9 @@ func run() int {
 					return
 				}
 				closeFeed(old)
+				// What this position shows has changed, so what may be dark
+				// has changed with it -- in both directions.
+				remirror()
 				fmt.Printf("screen %d: %s\n", pos+1, o.Name)
 			}
 		}

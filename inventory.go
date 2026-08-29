@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -282,4 +283,29 @@ func (inv *Inventory) unusedLocked() []Offer {
 		}
 	}
 	return out
+}
+
+// DisplayOf returns the display an offer captures.
+//
+// The identifier's shape — "display-N" — is the convention EVERY platform's
+// Sources builds with, and it is derived from the display rather than handed
+// out in order so that the same screen keeps the same identity across a
+// restart. Reading it back is what lets a caller say "this position is showing
+// one of the machine's own panels, and it is that one".
+//
+// It answers false for anything else, a window among other things: there is no
+// display behind a window's picture to speak of.
+func DisplayOf(o Offer) (uint64, bool) {
+	if o.Kind != KindDisplay {
+		return 0, false
+	}
+	rest, ok := strings.CutPrefix(o.ID, "display-")
+	if !ok {
+		return 0, false
+	}
+	id, err := strconv.ParseUint(rest, 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return id, true
 }
