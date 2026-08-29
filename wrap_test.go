@@ -453,3 +453,79 @@ func TestAPointerBroughtBackOffTheGlassesReportsARefusal(t *testing.T) {
 		t.Errorf("Step = %v,%v, want false and the refusal", moved, err)
 	}
 }
+
+func TestLostGoesAndGetsTheScreenThePointerWentTo(t *testing.T) {
+	start := time.Unix(0, 0)
+	var l Lost
+	shown := []uint64{59, 60}
+
+	// On the band: nothing to fetch.
+	if got := l.Step(start, 59, true, shown, 3); got != 0 {
+		t.Errorf("Step on the band = %d, want 0", got)
+	}
+	// Off it, onto this Mac's panel. Not at once: crossing a screen to reach
+	// another is ordinary.
+	if got := l.Step(start, 1, true, shown, 3); got != 0 {
+		t.Errorf("Step = %d, want nothing on the first look", got)
+	}
+	if got := l.Step(start.Add(LostHold/2), 1, true, shown, 3); got != 0 {
+		t.Errorf("Step = %d, want nothing before the hold is up", got)
+	}
+	if got := l.Step(start.Add(LostHold), 1, true, shown, 3); got != 1 {
+		t.Errorf("Step = %d, want display 1", got)
+	}
+	// And said once, not once a frame.
+	if got := l.Step(start.Add(2*LostHold), 1, true, shown, 3); got != 0 {
+		t.Errorf("Step = %d, want it said once", got)
+	}
+	// Back on the band, then off again: a new trip, reported again.
+	l.Step(start.Add(3*LostHold), 60, true, shown, 3)
+	l.Step(start.Add(4*LostHold), 1, true, shown, 3)
+	if got := l.Step(start.Add(5*LostHold), 1, true, shown, 3); got != 1 {
+		t.Errorf("Step = %d, want the second trip reported too", got)
+	}
+}
+
+func TestLostIgnoresTheDesksOwnScreenAndAPointerNobodyCanPlace(t *testing.T) {
+	start := time.Unix(0, 0)
+	var l Lost
+	shown := []uint64{59}
+
+	for _, c := range []struct {
+		name  string
+		where uint64
+		ok    bool
+	}{
+		{"the desk's own screen", 3, true},
+		{"a pointer on no display at all", 0, false},
+		{"a display id of zero", 0, true},
+	} {
+		l = Lost{}
+		l.Step(start, c.where, c.ok, shown, 3)
+		if got := l.Step(start.Add(2*LostHold), c.where, c.ok, shown, 3); got != 0 {
+			t.Errorf("%s: Step = %d, want 0", c.name, got)
+		}
+	}
+}
+
+func TestLostMovingBetweenTwoUnshownScreensStartsTheHoldAgain(t *testing.T) {
+	start := time.Unix(0, 0)
+	var l Lost
+	shown := []uint64{59}
+
+	l.Step(start, 1, true, shown, 3)
+	// Straight to another display nothing is showing, later than the hold: it
+	// is a new place and must not inherit the first one's clock.
+	if got := l.Step(start.Add(2*LostHold), 2, true, shown, 3); got != 0 {
+		t.Errorf("Step = %d, want nothing on the first look at a new screen", got)
+	}
+}
+
+func TestLostHoldCanBeSetAndDefaults(t *testing.T) {
+	if (&Lost{}).hold() != LostHold {
+		t.Error("a zero Hold does not mean the default")
+	}
+	if got := (&Lost{Hold: time.Minute}).hold(); got != time.Minute {
+		t.Errorf("hold = %v, want the minute that was asked for", got)
+	}
+}
