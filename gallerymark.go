@@ -70,7 +70,7 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 	if m == nil || c == nil || g == nil || c.W <= 0 || c.H <= 0 {
 		return
 	}
-	p := painter.NewPixelPainter(c.Pix, c.W, c.H)
+	p := painter.NewPixelPainterBGRA(c.Pix, c.W, c.H)
 	for i := 0; i < g.Cells(); i++ {
 		// Every index below Cells has a cell, and every cell has a positive
 		// size: NewGrid refuses a shape that leaves one without.
@@ -139,41 +139,27 @@ const adderWidth = 3
 // Big, from the toolkit's own font scaled up — the same mechanism the arrival
 // number uses. A glyph at the interface's default size, in the middle of a tile
 // that subtends a hand's width, is a speck.
+// plus draws the "add a screen" mark.
+//
+// The plus is [toolkit.DrawIconPlus], not a "+" TYPESET from the font. A glyph
+// has side bearings and a baseline, so it sits left of centre in its own box
+// with unequal arms — invisible in a menu, plain at the size a headset needs,
+// and reported from a pair of glasses as "not properly symmetric". It was.
+//
+// It is SelectionInk, the same orange as the ring round the chosen cell, so the
+// gallery answers "this is the one" in one colour rather than two. And it is
+// the plus ALONE: the disc it used to sit on was a painter primitive drawn by
+// hand, which this package does not do, and it said nothing the ring was not
+// already saying.
 func (m *marks) plus(p painter.Painter, x, y, w, h int) {
-	was := toolkit.CurrentFont()
-	toolkit.SetFont(toolkit.NewBitmapFont(plusScale(h)))
-	defer toolkit.SetFont(was)
-
-	m.badge.Text = "+"
-	// The accent, and a pill: a Badge always has one — a transparent Fill is
-	// read as "unset" and falls back to the accent anyway — so it is used on
-	// purpose rather than fought. A round accent-coloured plus is what an "add"
-	// looks like everywhere else, and the ORANGE border is what says whether it
-	// is the thing about to be chosen, so the two never have to compete.
-	m.badge.Fill = toolkit.RGBA{}
-	m.badge.Ink = toolkit.RGBA{}
-
-	// Sized from the font rather than by drawing it once to find out. Letting
-	// the badge auto-size means DRAWING it, and the first draw lands at
-	// whatever bounds it had — which put a stray plus in the corner of the
-	// picture, over screen one.
-	pw := toolkit.TextWidth("+") + 2*toolkit.BadgePadX
-	ph := toolkit.GlyphHeight() + 2*toolkit.BadgePadY
-	m.badge.SetBounds(toolkit.Rect{
-		X: x + (w-pw)/2, Y: y + (h-ph)/2, W: pw, H: ph,
-	})
-	m.badge.Draw(p, m.theme)
-}
-
-// plusScale is how many times the built-in font is magnified for the plus:
-// about a quarter of the cell's height.
-func plusScale(h int) int {
-	const glyph = 7
-	s := h / 4 / glyph
-	if s < 1 {
-		s = 1
+	side := h / 4
+	if side < 8 {
+		side = 8
 	}
-	return s
+	cx, cy := x+w/2, y+h/2
+	toolkit.DrawIconPlus(p, toolkit.Rect{
+		X: cx - side/2, Y: cy - side/2, W: side, H: side,
+	}, SelectionInk)
 }
 
 // saying is what the selection is, in words: shown at the bottom of the view,
