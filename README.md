@@ -123,6 +123,42 @@ also Safari's tab navigation — while xrdesk runs, it wins them, and Safari
 quietly stops seeing them. That is the trade a global shortcut is; it is
 printed rather than hidden.
 
+## The Mac's own screen, in the glasses
+
+A ribbon position can show one of this Mac's real displays as easily as one of
+the displays this program made: they are both in the sources list, and `⌃⌥⌘Tab`
+walks through it. Somebody with one screen in the glasses can therefore see the
+screen they already have.
+
+When that happens, **the panel itself is turned off** and lit again when the
+copy leaves the ribbon or the program stops. It is not tidiness. A person
+wearing the glasses is looking at the copy; the panel is a second, brighter
+copy of private work at reading distance, facing whoever walks past, lit at
+full power for nobody.
+
+Turning the backlight off is not the same as covering the screen with a black
+window: the framebuffer is untouched, so the picture ON the ribbon does not
+change, there is no window for the capture to exclude and no stream to rebuild,
+and nothing another program can raise itself above. It goes through
+[go-macos/brightness](https://github.com/go-macos/brightness), whose `Dim` reads
+the level BEFORE changing it and hands back the way home — which is deferred
+here before anything is turned off, so every way out of a session goes through
+it.
+
+Three screens are never darkened:
+
+- a display **this program made**, which has no panel behind it;
+- any display **the size of the one the desk is on** — a ribbon position can be
+  pointed at the glasses' own display, and darkening that one would black out
+  the thing being looked at, with the key that undoes it now invisible. There is
+  no reliable way here to turn the chosen screen's name into a display id, so
+  the size is used and the exclusion is deliberately too wide: a second panel of
+  exactly the same size stays lit;
+- **every** screen, when the desk is running in a window rather than in the
+  glasses, because then the desk is a window on one of them.
+
+`-dim=false` leaves every screen lit.
+
 ## How it is put together
 
 | | |
