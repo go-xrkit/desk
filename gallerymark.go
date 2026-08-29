@@ -13,12 +13,21 @@ import (
 
 // SelectionInk is the colour of the border round the chosen screen.
 //
-// Orange, and not the theme's accent. The accent is a blue that has to sit
-// politely next to the interface it belongs to; this has to be found at a
-// glance, in a headset, against six captured desktops whose contents nobody
-// chose. Orange is the one strong hue that is in almost no window chrome and in
-// very little wallpaper.
-var SelectionInk = toolkit.RGB(0xFF, 0x8C, 0x1A)
+// APPLE GREEN, asked for from the glasses: "au lieu d'avoir du orange ça serait
+// plus doux à l'œil d'avoir un vert pomme ou un bleu ciel". Orange was chosen
+// for being the one strong hue that is in almost no window chrome and in very
+// little wallpaper — findable at a glance — and it is also the hue a headset
+// pushes hardest at a person's eye across a whole session.
+//
+// Green keeps what mattered and drops what did not. It is still nothing any
+// window chrome uses, it is still unmistakable against six captured desktops,
+// and it is not the theme's accent — which is a blue that has to sit politely
+// beside the interface it belongs to, where this has to be FOUND.
+//
+// Sky blue was the other suggestion and is one line away: RGB(0x7F, 0xC8, 0xF8).
+// It is not the default only because it is a near neighbour of the accent, and
+// two blues that mean different things is how a person stops trusting either.
+var SelectionInk = toolkit.RGB(0x7B, 0xD8, 0x8F)
 
 // SelectionWidth is how thick that border is, in logical pixels.
 //
@@ -52,6 +61,15 @@ func newMarks(theme *toolkit.Theme) *marks {
 	if theme == nil {
 		theme = toolkit.DefaultDark()
 	}
+	// Everything this file draws answers ONE question -- "which cell is the one
+	// about to be taken" -- so it answers in one colour. A Badge and a Toast
+	// colour themselves from the theme ACCENT, which is a blue, so the ring said
+	// it in green and the sentence under it said it in blue. A copy of the theme
+	// with the accent set to the same ink is the whole fix; nothing else about
+	// the theme changes, and no widget is drawn by hand to get it.
+	mine := *theme
+	mine.Accent = SelectionInk
+	theme = &mine
 	says := toolkit.NewToast("", toolkit.ToastInfo)
 	says.Visible().Set(true) // for as long as the gallery is
 	offer := toolkit.NewSelectionBox(theme.OnSurface)
