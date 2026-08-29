@@ -87,10 +87,12 @@ glasses { model   = "VITURE Luma Ultra" }
 	}
 }
 
-// TestABindingForAnActionThatIsNotInTheDefaults is a person binding cycle,
-// which no default shortcut carries.
+// TestABindingForAnActionThatIsNotInTheDefaults is a person binding the gallery
+// TOGGLE, which no default shortcut carries any more: ⌃⌥⌘↑ shows the screens and
+// the bare Escape leaves, so nothing global toggles. Putting one back is exactly
+// what a settings file is for.
 func TestABindingForAnActionThatIsNotInTheDefaults(t *testing.T) {
-	write(t, `shortcut "cycle" { keys = "control+option+command+c" }`)
+	write(t, `shortcut "gallery" { keys = "control+option+command+c" }`)
 	c, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig = %v", err)
@@ -101,7 +103,7 @@ func TestABindingForAnActionThatIsNotInTheDefaults(t *testing.T) {
 			len(got), len(DefaultShortcuts()))
 	}
 	last := got[len(got)-1]
-	if last.Does != ActionCycle || last.Want.Key != hotkey.KeyC {
+	if last.Does != ActionGallery || last.Want.Key != hotkey.KeyC {
 		t.Errorf("the added shortcut is %v for %v", last.Want, last.Does)
 	}
 }
