@@ -80,6 +80,11 @@ type RunOptions struct {
 	// them worth being able to refuse.
 	NoGlobal bool
 
+	// Screens are the desk's displays in ribbon order, so the band can follow
+	// the pointer onto one of them. Nil turns that off: without the ids there is
+	// no way to tell one of the desk's screens from the machine's own.
+	Screens []uint64
+
 	// Snapshot, when set, is handed the first frame actually drawn — the picture
 	// the glasses were shown. It is written by the caller, so this package never
 	// decides where a capture of somebody's screens lands.
@@ -167,6 +172,31 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// sync claims or releases the gallery's bare keys, and is filled in below —
 	// declared here because the window's own key handler calls it too.
 	sync := func() {}
+
+	// THE BAND FOLLOWS THE POINTER.
+	//
+	// This is what makes a desk of captured screens usable rather than
+	// something to look at. The band shows ONE screen; the pointer lives on the
+	// desktop, which is several. Move the mouse off the right-hand edge of the
+	// screen in front of you and on a real desk you have arrived at the next
+	// monitor -- here you had simply lost it somewhere you could not see.
+	//
+	// Nothing is warped and nothing is synthesised: the pointer stays exactly
+	// where the person put it, and the picture catches up. Asked once a frame,
+	// which is two CoreGraphics calls and no allocation.
+	var followed = -1
+	follow := func() {
+		pos, ok := PositionOf(opt.Screens)
+		if !ok || pos == followed {
+			return
+		}
+		followed = pos
+		if err := d.Look(pos); err != nil {
+			logf("following the pointer: %v", err)
+			return
+		}
+		logf("the pointer is on screen %d", pos+1)
+	}
 
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {
@@ -281,6 +311,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			case now := <-t.C:
 				dt := now.Sub(last).Seconds()
 				last = now
+				follow()
 				d.Advance(dt)
 				v.draw(d.Render())
 				repaint()
