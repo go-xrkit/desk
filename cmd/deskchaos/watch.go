@@ -29,7 +29,12 @@ type watcher struct {
 // watch starts looking. headset is the display the desk is drawing ON: the one
 // place the pointer must never be, because a pointer there is a pointer on a
 // picture of this program.
-func watch(headset string) *watcher {
+// alive is asked before anything is recorded: once the session is gone, nothing
+// about the machine is its doing. Measured, on a round that killed one: the
+// desk's screens go with it, macOS moves the pointer to a display that is left,
+// and the display that is left is the stand-in headset. That is the window
+// server tidying up, not a desk misbehaving.
+func watch(headset string, alive func() bool) *watcher {
 	w := &watcher{found: map[string]bool{}, stop: make(chan struct{}), done: make(chan struct{})}
 	go func() {
 		defer close(w.done)
@@ -38,6 +43,9 @@ func watch(headset string) *watcher {
 			case <-w.stop:
 				return
 			case <-time.After(250 * time.Millisecond):
+			}
+			if !alive() {
+				return
 			}
 			w.look(headset)
 		}

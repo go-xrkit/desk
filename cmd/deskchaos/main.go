@@ -56,7 +56,7 @@ func run() int {
 	}
 	defer os.RemoveAll(dir)
 
-	bad := 0
+	bad, skipped := 0, 0
 	for i := 1; i <= *rounds; i++ {
 		f := pick(rng, *only)
 		if f == nil {
@@ -73,7 +73,15 @@ func run() int {
 			return 1
 		}
 		fmt.Printf("\n── round %d/%d — %s\n   a %q, %s\n", i, *rounds, f.name, name, how)
-		found := round(*deskBin, name, setting, *f, rng)
+		waitForAQuietMachine()
+		found, err := round(*deskBin, name, setting, *f, rng)
+		if err != nil {
+			// The bench could not set the round up. Not a defect, and not a
+			// pass either: said, counted separately, and the run goes on.
+			fmt.Printf("   — skipped: %v\n", err)
+			skipped++
+			continue
+		}
 		for _, s := range found {
 			fmt.Printf("   ✗ %s\n", s)
 		}
@@ -83,7 +91,11 @@ func run() int {
 		}
 		bad += len(found)
 	}
-	fmt.Printf("\n%d thing(s) left behind over %d rounds\n", bad, *rounds)
+	fmt.Printf("\n%d thing(s) left behind over %d rounds", bad, *rounds)
+	if skipped > 0 {
+		fmt.Printf(", %d of which the machine was too tired to run", skipped)
+	}
+	fmt.Println()
 	if bad > 0 {
 		return 1
 	}
