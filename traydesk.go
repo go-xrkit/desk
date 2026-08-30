@@ -114,13 +114,22 @@ const TrayIconPx = 44
 // TrayTooltip is what the item says when somebody rests on it.
 const TrayTooltip = "XR desk"
 
-// TrayIcon renders the desk's own glasses, as PNG bytes.
+// TrayIcon renders the menu-bar icon, as PNG bytes.
 //
-// Through the toolkit, which draws them already: an icon painted here would be
-// an icon to maintain here, and the same glyph appears on the settings window.
+// The SYSTEM's own symbol where there is one, and the toolkit's glasses
+// otherwise. It is not a matter of taste: measured at 44 pixels, the toolkit's
+// outline inks 7% of the box and a system symbol about 62%, and the difference
+// is whether a person finds it among twenty other icons.
+//
+// The fallback is the toolkit's, not a hand-painted one: the same glyph is on
+// the settings window, and an icon painted here would be an icon to maintain
+// here.
 func TrayIcon(px int) ([]byte, error) {
 	if px <= 0 {
 		return nil, fmt.Errorf("desk: an icon of %d pixels", px)
+	}
+	if b, err := platformTrayIcon(px); err == nil {
+		return b, nil
 	}
 	buf := make([]byte, px*px*4)
 	p := painter.NewPixelPainterBGRA(buf, px, px)
@@ -135,10 +144,21 @@ func TrayIcon(px int) ([]byte, error) {
 		img.Pix[i+2] = buf[i]
 		img.Pix[i+3] = buf[i+3]
 	}
-	// The error is dropped because there is none to have: an NRGBA image with a
-	// positive size always encodes, and a bytes.Buffer never fails to be
-	// written to. TestEverySizeOfIconEncodes pins that rather than leaving a
-	// branch nothing can take.
+	return pngOf(img.Pix, px, px)
+}
+
+// pngOf encodes straight RGBA pixels as a PNG.
+//
+// The error is dropped because there is none to have: an NRGBA image with a
+// positive size always encodes, and a bytes.Buffer never fails to be written
+// to. TestEverySizeOfIconEncodes pins that rather than leaving a branch nothing
+// can take.
+func pngOf(pix []byte, w, h int) ([]byte, error) {
+	if w <= 0 || h <= 0 || len(pix) < w*h*4 {
+		return nil, fmt.Errorf("desk: %d bytes for a %dx%d picture", len(pix), w, h)
+	}
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	copy(img.Pix, pix[:w*h*4])
 	var out bytes.Buffer
 	_ = png.Encode(&out, img)
 	return out.Bytes(), nil
