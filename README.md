@@ -123,43 +123,29 @@ also Safari's tab navigation — while xrdesk runs, it wins them, and Safari
 quietly stops seeing them. That is the trade a global shortcut is; it is
 printed rather than hidden.
 
-## The band is a circle; the desktop is a line
+## The mouse does not change screens; the keyboard does
 
-The band follows the pointer: move the mouse onto another of the desk's screens
-and the picture turns to that screen. Nothing is warped and nothing is
-synthesised — it is the person's own mouse, and the picture catches up.
+A person wearing display glasses sees **one** screen. The desktop under the
+pointer is several, most of them invisible, and a pointer that can leave the
+visible one is a pointer that can be somewhere its owner cannot look.
 
-The two disagree at the ends. Pushed to the left of the **first** screen the
-pointer is against a wall: the window server clamps it there, the band cannot
-follow it anywhere, and the **last** screen is all the way back across every
-screen in between. So a push held into the end brings the pointer back at the
-other end, and the band with it.
+That was tried the other way round three times over — the band followed the
+pointer, the pointer wrapped round the ends of the band, a display nothing was
+showing was fetched onto the screen in front of the viewer when the pointer
+wandered onto it — and the report after every one of them was the same: *« j'ai
+encore perdu la souris »*. Each mechanism answered a hole left by the one
+before, and none of them answered the shape of the problem.
 
-Held, not touched. The left-hand column of pixels on the first screen is a place
-a person legitimately goes — a close button lives there — so a wrap that fired on
-merely touching the edge would put that column out of reach. `300 ms` of push is
-somebody asking for something.
+So the pointer stays. It is held to the screen the band is showing, every
+frame, and `⌃⌥⌘←` `⌃⌥⌘→` are the way to another one — which brings the pointer
+with them, to the **middle** of the screen that has arrived rather than to
+whichever edge a clamp would have dragged it to.
 
-And only where the desktop **really** ends. The screens this program makes sit
-beside the ones the machine already has, and the edge between them is the way to
-this Mac's own panel: an end with a display beyond it keeps its edge, or the
-wrap would take the real screen away. The test for that is geometric — is there
-a display that starts further out than this one — so it holds for whatever
-arrangement somebody has, on either side.
-
-With one exception, and it is the one that matters on this machine. **Measured**
-with the glasses on and six screens up, on 2026-08-29: the glasses report
-themselves at `x=-13440` and the ribbon runs `-11520..0`, so the glasses sit
-*immediately* to the left of the first screen. A pointer pushed off that edge is
-therefore never clamped anywhere — it walks onto the display showing this
-program's own window, where it is a pointer on a picture: it can click nothing,
-and nothing in the view says where it went. That is the mouse people lose.
-
-So the desk's own screen is not somewhere the pointer can go. It does not hold
-an end open — the left edge really is the end of the desktop — and a pointer
-that lands on it is brought back **at once**, with no hold, at whichever end it
-left from. That screen is identified by its **rectangle** rather than its size:
-two identical monitors are the same size and are not in the same place.
+It is held to what a position **shows**, not to what this program made: a
+position mirroring this Mac's own panel is how somebody reaches their real
+desktop, and the pointer has to be able to live there. A position showing
+nothing, or a display the machine will not measure, is not a fence at all — the
+pointer is left alone rather than held against a rectangle nobody knows.
 
 ## The Mac's own screen, in the glasses
 
@@ -168,21 +154,14 @@ the displays this program made: they are both in the sources list, and `⌃⌥�
 walks through it. Somebody with one screen in the glasses can therefore see the
 screen they already have.
 
-**Usually without asking for it.** Following ends where the ribbon does: a
-pointer that leaves every screen a position is showing — onto this Mac's own
-panel, which sits right beside the ribbon — is invisible to somebody wearing
-the glasses. They have not lost the mouse exactly; they have lost the screen it
-is on. So after `700 ms` there, the desk puts that display on the position in
-front of them. Crossing a screen to reach another stays ordinary: the hold is
-what tells passing through from arriving.
+**And the pointer goes with it.** A position showing this Mac's panel is a
+screen of the band like any other, so the pointer is held to *it* while it is
+the one in front of you: that is how somebody in the glasses reaches their real
+desktop, with the menu bar and everything on it.
 
 Measured, end to end, with the glasses on:
 
 ```
-pointer put at 1000,600 — this Mac's own panel
-  the pointer is on display 1, which no screen is showing
-  screen 1: display 1 (main) — where the pointer went
-  1 of this Mac's screens are off while the ribbon shows them
 backlight of display 1:  0.41 → 0.00 → 0.41 when the desk stopped
 ```
 
@@ -231,8 +210,10 @@ missing and both were found the hard way, in one session:
   crash now stops the desk the ordinary way, with the stack logged, so every
   restore runs;
 - **unplugging the glasses** left it drawing for nobody while holding the
-  backlight off and six displays that do not exist. The desk now notices its own
-  screen has gone and stops itself.
+  backlight off and six displays that do not exist. The desk looks every second
+  for the screen it is on, and stops itself the moment it has gone -- « quand on
+  débranche les lunettes il faut rallumer l'écran », and stopping is what does
+  that.
 
 ### A screen takes the shape of what it shows
 
