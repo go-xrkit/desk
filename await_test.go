@@ -297,3 +297,25 @@ func TestAwaitGivesAppKitTheMainThreadWhileItWaits(t *testing.T) {
 			pumped, *calls)
 	}
 }
+
+func TestAwaitAsksOnceAndThenGetsOnWithIt(t *testing.T) {
+	// Ask, nobody answers, ask again: that is a loop, and the bench caught it
+	// on an unattended machine -- one session's log with the settings window
+	// opening over and over. A person who closes that window sees the same.
+	list, _ := lister([]glasses.Display{aMonitor, otherGlasses})
+	var lines []string
+
+	got, err := Await(context.Background(), AwaitOptions{
+		Want: theGlasses.Name, Asked: true,
+		List: list, Logf: record(&lines), Every: time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	if got.Name != otherGlasses.Name {
+		t.Errorf("chose %q, want the headset that is here, %q", got.Name, otherGlasses.Name)
+	}
+	if said := strings.Join(lines, "\n"); !strings.Contains(said, "nobody chose") {
+		t.Errorf("said %q, want it to say it is getting on with it", said)
+	}
+}

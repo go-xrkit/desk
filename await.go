@@ -51,6 +51,19 @@ type AwaitOptions struct {
 	Actions <-chan Action
 	// Every overrides [AwaitPoll].
 	Every time.Duration
+	// Asked says the person has ALREADY been asked which headset to use, and
+	// did not choose one.
+	//
+	// Without it a settings file naming a headset that is not here, and a
+	// headset here that nobody has chosen, is a loop: ask, no answer, ask
+	// again. Measured by the bench on an unattended machine -- the settings
+	// window opening over and over in one session's log -- and it would look
+	// the same to a person who closed it.
+	//
+	// Asked once, the answer is to get on with it: use the headset that is
+	// here and say so.
+	Asked bool
+
 	// Logf says what is happening. Nil is silence.
 	Logf func(string, ...any)
 }
@@ -118,6 +131,12 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 		// here: glasses.Headsets asks it.
 		if hs := glasses.Headsets(ds); len(hs) > 0 && opt.Want != "" {
 			logf("%v", why)
+			if opt.Asked {
+				// Asked once and nobody chose. Getting on with it beats asking
+				// again, which is a loop.
+				logf("nobody chose, so: %s", hs[0])
+				return hs[0], nil
+			}
 			if len(hs) == 1 {
 				logf("%s is here instead; asking which to use", hs[0])
 			} else {
