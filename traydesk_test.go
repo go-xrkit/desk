@@ -144,13 +144,20 @@ func TestTheIconIsAPictureOfGlasses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("what came back is not a PNG: %v", err)
 	}
-	if w := img.Bounds().Dx(); w != TrayIconPx {
-		t.Errorf("the icon is %d pixels wide, want %d", w, TrayIconPx)
+	// The LONGER side is the one asked for, and neither exceeds it: a system
+	// symbol is not square, and a menu bar scales by height, so forcing a
+	// square would show the glyph stretched.
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	if w != TrayIconPx && h != TrayIconPx {
+		t.Errorf("the icon is %dx%d; one side should be the %d asked for", w, h, TrayIconPx)
+	}
+	if w > TrayIconPx || h > TrayIconPx {
+		t.Errorf("the icon is %dx%d, bigger than the %d asked for", w, h, TrayIconPx)
 	}
 	// Something was drawn: an icon of nothing is an item nobody can find.
 	inked := 0
-	for y := 0; y < TrayIconPx; y++ {
-		for x := 0; x < TrayIconPx; x++ {
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
 			if _, _, _, a := img.At(x, y).RGBA(); a > 0 {
 				inked++
 			}
@@ -237,8 +244,8 @@ func TestEverySizeOfIconEncodes(t *testing.T) {
 			t.Errorf("TrayIcon(%d) is not a PNG: %v", px, err)
 			continue
 		}
-		if got := img.Bounds().Dx(); got != px {
-			t.Errorf("TrayIcon(%d) is %d wide", px, got)
+		if w, h := img.Bounds().Dx(), img.Bounds().Dy(); w != px && h != px {
+			t.Errorf("TrayIcon(%d) is %dx%d; one side should be %d", px, w, h, px)
 		}
 	}
 	for _, px := range []int{0, -1} {
