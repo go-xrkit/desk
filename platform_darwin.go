@@ -302,10 +302,25 @@ func OpenOffer(ctx context.Context, plan Plan, o Offer) (Feed, error) {
 	if _, err := fmt.Sscanf(o.ID, "display-%d", &id); err != nil {
 		return nil, fmt.Errorf("%w: %q is not a display on this platform", ErrNoSuchOffer, o.ID)
 	}
+	// AT ITS OWN SHAPE, at the band's height.
+	//
+	// Asked for the band's width as well, ScreenCaptureKit letterboxes into it
+	// -- measured: 124 flat columns down each side of a 1920x1080 frame of this
+	// Mac's 2056x1329 panel -- and those bands are then part of the picture, on
+	// a screen that cannot be told to drop them. Captured at its own shape
+	// instead, the frame is all screen, and the desk gives the SCREEN that
+	// shape: see Desk.fit and Plan.WithScreenWidth.
+	//
+	// The panel has no 16:9 mode to be put into either, which was the other way
+	// round: its sixty modes are 1.547 and 1.600 and nothing else.
+	w := plan.ScreenW
+	if o.W > 0 && o.H > 0 {
+		w = o.W * plan.ScreenH / o.H
+	}
 	st, err := screencapture.CaptureDisplay(ctx,
-		screencapture.Display{ID: id, Width: plan.ScreenW, Height: plan.ScreenH},
+		screencapture.Display{ID: id, Width: w, Height: plan.ScreenH},
 		screencapture.Options{
-			Width: plan.ScreenW, Height: plan.ScreenH, FPS: 60, ShowsCursor: true,
+			Width: w, Height: plan.ScreenH, FPS: 60, ShowsCursor: true,
 		})
 	if err != nil {
 		return nil, fmt.Errorf("desk: cannot capture %s: %w", o, err)

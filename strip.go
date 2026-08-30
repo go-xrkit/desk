@@ -44,7 +44,10 @@ type Strip struct {
 	viewW, viewH int
 	total        int
 	srcW, srcH   int
-	srcY         []int32
+	// srcWidths is the source width of each screen that is not the shape of
+	// the band. See [Strip.SetSourceWidths].
+	srcWidths []int
+	srcY      []int32
 }
 
 // NewStrip lays the ribbon's screens out flat for a view of viewW x viewH.
@@ -158,8 +161,8 @@ func (s *Strip) append(dst []ribbon.Blit, i, left, w int) []ribbon.Blit {
 	return append(dst, ribbon.Blit{
 		Screen:   i,
 		Dst:      stereo.Rect{X: x0, Y: 0, W: x1 - x0, H: s.viewH},
-		SrcX:     int64(skip) * int64(s.srcW) << fracBits / int64(w),
-		SrcXStep: int64(s.srcW) << fracBits / int64(w),
+		SrcX:     int64(skip) * int64(s.sourceWidth(i)) << fracBits / int64(w),
+		SrcXStep: int64(s.sourceWidth(i)) << fracBits / int64(w),
 		SrcY:     s.srcY,
 	})
 }
@@ -204,4 +207,27 @@ func (s *Strip) Toward(yaw float64, focus int) float64 {
 		d += float64(s.n)
 	}
 	return d
+}
+
+// SetSourceWidths gives screens their own source widths.
+//
+// A screen mirroring a display this program did not make is not the shape of
+// the glasses -- this Mac's panel is 1.547 against the band's 1.778 -- so its
+// capture is that shape too, and the arc it takes on the ribbon was worked out
+// from the same number. Mapping it through the band's width instead would
+// stretch it across a quad that is not its shape, which is the very thing
+// giving that screen its own arc was for.
+//
+// A nil or short slice, or an entry of zero, leaves that screen on the width
+// every other screen has.
+func (s *Strip) SetSourceWidths(w []int) {
+	s.srcWidths = append(s.srcWidths[:0], w...)
+}
+
+// sourceWidth is how wide screen i's pixels are.
+func (s *Strip) sourceWidth(i int) int {
+	if i < 0 || i >= len(s.srcWidths) || s.srcWidths[i] <= 0 {
+		return s.srcW
+	}
+	return s.srcWidths[i]
 }
