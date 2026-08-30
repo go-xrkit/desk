@@ -20,4 +20,12 @@ import "github.com/go-macos/objc"
 //
 // A pump rather than a run: the wait has to keep polling for the glasses, and
 // -[NSApplication run] does not return.
-func platformPump() { _ = objc.PumpRunLoop(0.02) }
+func platformPump() { _ = objc.PumpRunLoop(pumpSlice) }
+
+// pumpSlice is how long AppKit gets each time.
+//
+// Long enough that a press is delivered and AppKit's own menu tracking takes
+// over -- it runs a nested loop of its own from there, so this only has to get
+// the press through -- and short enough that the wait still notices the glasses
+// being plugged in, and a Quit chosen from that very menu.
+const pumpSlice = 0.05
