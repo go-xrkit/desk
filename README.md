@@ -220,6 +220,20 @@ Three screens are never darkened:
 
 `-dim=false` leaves every screen lit.
 
+**And nothing holds a backlight off after the desk stops.** Two ways out were
+missing and both were found the hard way, in one session:
+
+- a **panic in the frame loop** is a panic in another goroutine: it kills the
+  process without running the deferred call that puts the backlight back. That
+  happened, and the report that came back was « j'ai débranché les lunettes car
+  j'avais perdu l'accès et il n'y avait pas l'icon dans la tray pour que je coupe
+  l'application » — the icon was there, on a panel that had been turned off. A
+  crash now stops the desk the ordinary way, with the stack logged, so every
+  restore runs;
+- **unplugging the glasses** left it drawing for nobody while holding the
+  backlight off and six displays that do not exist. The desk now notices its own
+  screen has gone and stops itself.
+
 ### A screen takes the shape of what it shows
 
 A screen of the band is a whole view of the glasses, so they are all one shape —

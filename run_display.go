@@ -371,63 +371,91 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	frames, beatAt := 0, time.Now()
 	beat := func(now time.Time) {
 		frames++
-		if d := now.Sub(beatAt); d >= 5*time.Second {
-			logf("%d frames in %v", frames, d.Round(time.Millisecond))
+		since := now.Sub(beatAt)
+		if since >= 5*time.Second {
+			logf("%d frames in %v", frames, since.Round(time.Millisecond))
 			frames, beatAt = 0, now
+			// AND THE SCREEN IT IS ON IS STILL THERE.
+			//
+			// Unplug the glasses and this program is drawing for nobody, on a
+			// window the window server has moved somewhere else -- while it
+			// holds this Mac's backlight off and six displays that do not
+			// exist. "j'ai debranche les lunettes car j'avais perdu l'acces et
+			// il n'y avait pas l'icon dans la tray pour que je coupe
+			// l'application": the icon was there, on a panel that had been
+			// turned off. So the desk stops itself, and stopping is what puts
+			// everything back.
+			if _, err := currentScreen(opt.Screen.Name); err != nil {
+				logf("%v -- stopping, and putting back everything this changed", err)
+				d.Do(ActionQuit)
+			}
 		}
 	}
 
 	stop := make(chan struct{})
 	done := make(chan struct{})
+	// crashed is what the loop panicked with, if it did. A panic in here is a
+	// panic in another goroutine: left alone it kills the process without
+	// running the deferred calls that put this Mac's backlight back and take the
+	// virtual displays away. See Safely.
+	var crashed error
 	go func() {
 		defer close(done)
-		t := time.NewTicker(FrameInterval)
-		defer t.Stop()
-		var deadline <-chan time.Time
-		if opt.For > 0 {
-			timer := time.NewTimer(opt.For)
-			defer timer.Stop()
-			deadline = timer.C
-		}
-		last := time.Now()
-		for {
-			select {
-			case <-stop:
-				return
-			case <-ctx.Done():
-				d.Do(ActionQuit)
-			case <-deadline:
-				d.Do(ActionQuit)
-			case a := <-global:
-				act(d, logf, "shortcut", a)
-				sync()
-			case a := <-bareC:
-				act(d, logf, "gallery key", a)
-				sync()
-			case a := <-opt.Actions:
-				act(d, logf, "menu bar", a)
-				sync()
-			case now := <-t.C:
-				dt := now.Sub(last).Seconds()
-				last = now
-				wrap(now)
-				follow()
-				fetch(now)
-				d.Advance(dt)
-				v.draw(d.Render())
-				repaint()
-				beat(now)
+		crashed = Safely(logf, func() {
+			t := time.NewTicker(FrameInterval)
+			defer t.Stop()
+			var deadline <-chan time.Time
+			if opt.For > 0 {
+				timer := time.NewTimer(opt.For)
+				defer timer.Stop()
+				deadline = timer.C
 			}
-			if d.Quit() {
-				_ = win.Close()
-				return
+			last := time.Now()
+			for {
+				select {
+				case <-stop:
+					return
+				case <-ctx.Done():
+					d.Do(ActionQuit)
+				case <-deadline:
+					d.Do(ActionQuit)
+				case a := <-global:
+					act(d, logf, "shortcut", a)
+					sync()
+				case a := <-bareC:
+					act(d, logf, "gallery key", a)
+					sync()
+				case a := <-opt.Actions:
+					act(d, logf, "menu bar", a)
+					sync()
+				case now := <-t.C:
+					dt := now.Sub(last).Seconds()
+					last = now
+					wrap(now)
+					follow()
+					fetch(now)
+					d.Advance(dt)
+					v.draw(d.Render())
+					repaint()
+					beat(now)
+				}
+				if d.Quit() {
+					_ = win.Close()
+					return
+				}
 			}
-		}
+		})
+		// However it ended, the window has to stop or the run never returns
+		// and nothing it changed goes back.
+		_ = win.Close()
 	}()
 
 	err = win.Run(surface)
 	close(stop)
 	<-done
+	if crashed != nil {
+		return crashed
+	}
 	return err
 }
 
