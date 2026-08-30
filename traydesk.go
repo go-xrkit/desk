@@ -106,9 +106,12 @@ func (t *Tray) Attach() error { return t.t.Attach() }
 // Close takes the item away.
 func (t *Tray) Close() error { t.t.Quit(); return nil }
 
-// TrayIconPx is how big the icon is rendered, in pixels. Twice the menu bar's
-// own height, so it is still sharp on a display that draws two pixels per
-// point.
+// TrayIconPx is the icon's LONGER side, in pixels.
+//
+// Twice the menu bar's own height, so it is still sharp on a display that draws
+// two pixels per point. The other side follows the glyph: a system symbol is
+// not square -- visionpro is 21 by 13 points -- and the bar scales what it is
+// given by height, so a picture forced square would show the glyph stretched.
 const TrayIconPx = 44
 
 // TrayTooltip is what the item says when somebody rests on it.

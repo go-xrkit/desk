@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/go-freedesktop/screencast v0.1.0
 	github.com/go-macos/accessibility v0.3.2
-	github.com/go-macos/appicon v0.2.0
+	github.com/go-macos/appicon v0.3.0
 	github.com/go-macos/brightness v0.1.1
 	github.com/go-macos/hotkey v0.6.0
 	github.com/go-macos/iokit v0.1.0
