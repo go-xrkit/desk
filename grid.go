@@ -195,7 +195,8 @@ func (g *Grid) Select(i int) error {
 	return nil
 }
 
-// Move walks the selection. Left and right wrap; up and down clamp.
+// Move walks the selection. Left and right wrap; up and down stay in their
+// column, and do nothing when it has no cell that way.
 func (g *Grid) Move(d ribbon.Direction) error {
 	switch d {
 	case ribbon.Right:
@@ -207,8 +208,14 @@ func (g *Grid) Move(d ribbon.Direction) error {
 			g.sel -= g.cols
 		}
 	case ribbon.Down:
-		if g.sel/g.cols < (g.n-1)/g.cols {
-			g.sel = min(g.sel+g.cols, g.n-1)
+		// Only when there is a cell DIRECTLY below. Clamping to the last cell
+		// instead moved the selection sideways: with six screens the grid is
+		// three columns and the last row holds only the cell that adds one, so
+		// a person pressing down in the middle column arrived in the first --
+		// measured, 4 -> 6, and reported as "un probleme de deplacement
+		// colonne". Down is a COLUMN move; a column that ends, ends.
+		if g.sel+g.cols < g.n {
+			g.sel += g.cols
 		}
 	default:
 		return fmt.Errorf("%w: %s", ErrScreens, d)

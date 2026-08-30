@@ -279,3 +279,69 @@ func TestPastNineTheShapeIsChosen(t *testing.T) {
 			"shape should be chosen by what leaves the screens biggest")
 	}
 }
+
+// TestUpAndDownStayInTheirColumn.
+//
+// Reported from the glasses as "un probleme de deplacement colonne", and
+// measured before it was fixed: six screens make a grid of three columns whose
+// last row holds only the cell that adds a screen, and Down from the middle
+// column clamped to that last cell -- 4 -> 6, which is one row down and two
+// columns LEFT. Down is a column move; a column that ends, ends.
+func TestUpAndDownStayInTheirColumn(t *testing.T) {
+	g, err := NewGrid(6, 1920, 1080, 1920, 1080, 8)
+	if err != nil {
+		t.Fatalf("NewGrid = %v", err)
+	}
+	cols, rows := g.Shape()
+	if cols != 3 || rows != 3 || g.Cells() != 7 {
+		t.Fatalf("grid is %dx%d with %d cells, want 3x3 with 7", cols, rows, g.Cells())
+	}
+
+	for _, c := range []struct {
+		from, want int
+		d          ribbon.Direction
+		why        string
+	}{
+		{0, 3, ribbon.Down, "a cell directly below"},
+		{3, 6, ribbon.Down, "the adder, which is in this very column"},
+		{4, 4, ribbon.Down, "nothing below the middle column's last cell"},
+		{5, 5, ribbon.Down, "nor below the right column's last cell"},
+		{6, 3, ribbon.Up, "back up the same column"},
+		{2, 5, ribbon.Down, "the right column has a second row"},
+		{0, 0, ribbon.Up, "nothing above the top row"},
+	} {
+		if err := g.Select(c.from); err != nil {
+			t.Fatalf("Select(%d) = %v", c.from, err)
+		}
+		if err := g.Move(c.d); err != nil {
+			t.Fatalf("Move(%s) from %d = %v", c.d, c.from, err)
+		}
+		if got := g.Selected(); got != c.want {
+			t.Errorf("%s from %d = %d, want %d — %s", c.d, c.from, got, c.want, c.why)
+		}
+	}
+
+	// And the property behind every line of it: a vertical move never changes
+	// the column, whatever the shape and wherever it starts.
+	for _, n := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+		g, err := NewGrid(n, 1920, 1080, 1920, 1080, 8)
+		if err != nil {
+			t.Fatalf("NewGrid(%d) = %v", n, err)
+		}
+		cols, _ := g.Shape()
+		for i := 0; i < g.Cells(); i++ {
+			for _, d := range []ribbon.Direction{ribbon.Up, ribbon.Down} {
+				if err := g.Select(i); err != nil {
+					t.Fatalf("Select(%d) of %d = %v", i, g.Cells(), err)
+				}
+				if err := g.Move(d); err != nil {
+					t.Fatalf("Move = %v", err)
+				}
+				if got := g.Selected(); got%cols != i%cols {
+					t.Errorf("%d screens: %s from cell %d landed on %d, column %d instead of %d",
+						n, d, i, got, got%cols, i%cols)
+				}
+			}
+		}
+	}
+}
