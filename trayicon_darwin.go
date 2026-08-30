@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/go-macos/appicon"
+	"github.com/go-widgets/toolkit"
 )
 
 // platformTrayIcon draws the system's own symbol.
@@ -29,4 +30,22 @@ func platformTrayIcon(px int) ([]byte, error) {
 	}
 	// appicon hands back straight RGBA, which is the order a PNG wants.
 	return pngOf(pix.Pix, pix.W, pix.H)
+}
+
+// platformGlassesIcon is the system's symbol as an icon a widget can draw.
+//
+// The SAME glyph the menu bar carries, so the settings window and the bar
+// agree about what a pair of glasses looks like. A stencil rather than a
+// picture: the symbol comes back as black with an alpha channel, and drawn as
+// pixels it would be a black glyph on whatever the theme's card happens to be,
+// with no highlight when its tile is the chosen one.
+//
+// A system with no such symbol answers nil, and the caller keeps the toolkit's
+// own drawn glasses.
+func platformGlassesIcon(px int) toolkit.IconFunc {
+	pix, err := appicon.Symbol(TraySymbol, px)
+	if err != nil {
+		return nil
+	}
+	return toolkit.StencilIcon(pix.Pix, pix.W, pix.H)
 }

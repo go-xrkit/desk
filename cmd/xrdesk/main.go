@@ -253,6 +253,14 @@ func run() int {
 			return false, false, 1
 		}
 		fmt.Printf("on %s\n", chosen)
+		// THE MENU BAR SAYS SO. A green dot on the icon while a desk is up,
+		// and the plain glyph when there is none: a person glancing at their
+		// menu bar learns whether the glasses are live without opening
+		// anything, which is the one thing a menu bar is for.
+		if menuBar != nil {
+			menuBar.State().Set(desk.TrayRunning)
+			defer menuBar.State().Set(desk.TrayWaiting)
+		}
 
 		if advice := glasses.ScalingAdvice(chosen); advice != "" {
 			logf("%s", advice)
