@@ -1,2 +1,10 @@
 cover.out
 portable.txt
+
+# Built binaries. `go build ./cmd/xrdesk` with no -o writes one HERE, named
+# after the package, and a 22 MB file in a repository is 22 MB in every clone
+# for ever. One was committed that way; see the commit that removed it.
+/xrdesk
+/deskchaos
+/deskcheck
+/build/
