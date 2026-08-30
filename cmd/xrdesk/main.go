@@ -88,6 +88,18 @@ func run() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+
+	// A panel a run before this one left dark, before anything here touches a
+	// backlight. That run was killed -- SIGKILL, a force quit, a crash -- and
+	// could not put it back itself; nothing runs after SIGKILL. Measured by the
+	// bench: "display 1 was left at 0.00, from 0.79".
+	if said, err := desk.PutBackWhatWasLeftDark(); err != nil {
+		logf("putting back a screen left dark: %v", err)
+	} else {
+		for _, line := range said {
+			fmt.Printf("%s\n", line)
+		}
+	}
 	if *settingsWin {
 		if err := desk.RunSettings(desk.SettingsOptions{
 			Logf: logf, DisplayH: tallestDisplay(),
@@ -415,6 +427,11 @@ func run() int {
 				was := dark.Dark()
 				if err := dark.Showing(desk.Mirrors(on, ours, own)); err != nil {
 					logf("darkening: %v", err)
+				}
+				// Written down before this run can be killed. Nothing runs
+				// after SIGKILL, so the note is what puts a panel back.
+				if err := dark.Note(); err != nil {
+					logf("noting what is dark: %v", err)
 				}
 				if n := dark.Dark(); n != was {
 					fmt.Printf("%d of this Mac's screens are off while the ribbon shows them\n", n)
