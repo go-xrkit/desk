@@ -35,7 +35,7 @@ func round(bin, headset string, f fault, rng *rand.Rand) []string {
 // start makes a headset, remembers what the machine looked like, and runs a
 // desk at it.
 func start(bin, headset string, rng *rand.Rand) (*session, error) {
-	s := &session{name: headset, wasLit: map[uint32]float64{}}
+	s := &session{bin: bin, name: headset, wasLit: map[uint32]float64{}}
 
 	// What every panel was lit at, BEFORE anything is asked to darken one.
 	ids, err := pointer.Displays()
@@ -166,16 +166,19 @@ func (s *session) leftBehind() []string {
 	// nobody asks: measured, 0.70 before a session and 0.68 after one that
 	// never touched it, and 0.78 a minute later. What a person notices is a
 	// screen left DARK, not two hundredths.
-	for id, was := range s.wasLit {
-		b, err := brightness.Of(id)
-		if err != nil {
-			continue
-		}
-		if b < was-driftAllowed {
-			found = append(found, fmt.Sprintf(
-				"display %d was left at %.2f, from %.2f", id, b, was))
+	dark := s.stillDark()
+	if len(dark) > 0 && s.killed {
+		// A killed run cannot put a panel back -- nothing runs after SIGKILL --
+		// so what has to be true is that the NEXT START does. Anything else
+		// leaves a person in front of a black screen with no way to see the
+		// menu that would fix it.
+		s.startAgain()
+		dark = s.stillDark()
+		for i := range dark {
+			dark[i] += ", and the next start did not put it back"
 		}
 	}
+	found = append(found, dark...)
 
 	// No display outlives the process that made it -- but the window server
 	// takes them away in its own time, and looking too early reports a defect
@@ -247,3 +250,33 @@ func waitForDisplaysToGo() []string {
 // here because this bench is OUTSIDE the desk: it reads a machine, not a
 // package, and a machine only knows the names.
 const madePrefix = "XR desk "
+
+// stillDark is every panel darker than it was before this session.
+func (s *session) stillDark() []string {
+	var out []string
+	for id, was := range s.wasLit {
+		b, err := brightness.Of(id)
+		if err != nil {
+			continue
+		}
+		if b < was-driftAllowed {
+			out = append(out, fmt.Sprintf("display %d was left at %.2f, from %.2f", id, b, was))
+		}
+	}
+	return out
+}
+
+// startAgain runs the desk for a moment, the way a person would after finding
+// their screen dark, and lets it do whatever it does about that.
+//
+// It is given no headset: the note a killed run leaves is read before anything
+// is chosen, so a start that goes straight back to waiting is enough.
+func (s *session) startAgain() {
+	cmd := exec.Command(s.bin, "-for", "5s")
+	cmd.Stdout, cmd.Stderr = s.log, s.log
+	if err := cmd.Start(); err != nil {
+		return
+	}
+	_ = cmd.Wait()
+	settleArrangement()
+}

@@ -108,6 +108,7 @@ type session struct {
 	log     *os.File
 	logPath string
 
+	bin     string
 	stand   *virtualdisplay.Display
 	extra   *virtualdisplay.Display
 	name    string
