@@ -219,27 +219,28 @@ func TestDescribeDisplaysNamesNothing(t *testing.T) {
 // never depend on which model is which.
 var otherGlasses = glasses.Display{Name: "VITURE Beast", Width: 1920, Height: 1080}
 
-func TestAwaitUsesTheHeadsetThatIsHereWhenTheChosenOneIsNot(t *testing.T) {
-	// MEASURED on the machine this was reported from: the settings named one
-	// model, the pair on the desk was another, and the desk waited two and a
-	// half minutes with the glasses plugged in the whole time.
+func TestAwaitAsksWhenTheHeadsetThatIsHereIsNotTheChosenOne(t *testing.T) {
+	// Two measurements, and they pull in different directions. The settings
+	// named one model, the pair on the desk was another, and the desk waited
+	// two and a half minutes with the glasses plugged in -- so it must not
+	// wait. And taking the other one silently was reported straight back:
+	// "quand j'ai branche les lunettes j'aurais du avoir un panneau de choix
+	// des lunettes". So it asks.
 	list, _ := lister([]glasses.Display{aMonitor, otherGlasses})
 	var lines []string
 
-	got, err := Await(context.Background(), AwaitOptions{
+	_, err := Await(context.Background(), AwaitOptions{
 		Want: theGlasses.Name, List: list, Logf: record(&lines), Every: time.Millisecond,
 	})
-	if err != nil {
-		t.Fatalf("Await: %v", err)
+	if !errors.Is(err, ErrAwaitSettings) {
+		t.Fatalf("Await = %v, want it to ask", err)
 	}
-	if got.Name != otherGlasses.Name {
-		t.Errorf("chose %q, want the headset that is attached, %q", got.Name, otherGlasses.Name)
-	}
-	// And it SAYS so: a desk that quietly used something else would be a desk
-	// whose settings appear to be ignored.
 	said := strings.Join(lines, "\n")
-	if !strings.Contains(said, "using the one that is here instead") {
-		t.Errorf("said %q, want it to say which one it used and why", said)
+	if !strings.Contains(said, "asking which to use") {
+		t.Errorf("said %q, want it to say what is here and that it is asking", said)
+	}
+	if !strings.Contains(said, otherGlasses.Name) {
+		t.Errorf("said %q, want it to name the headset that IS here", said)
 	}
 }
 

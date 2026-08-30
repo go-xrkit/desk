@@ -115,6 +115,10 @@ func (s *Screens) Release() error {
 // afterwards: setting a mode on one leaves it on the desktop until the process
 // exits, however carefully it is released. So the size is asked for once, here,
 // and a display that comes up wrong is refused rather than corrected.
+// displayTries is how many times one virtual display is asked for before the
+// session gives up on all of them. See the loop in Provide.
+const displayTries = 3
+
 func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screens, error) {
 	if logf == nil {
 		logf = func(string, ...any) {}
@@ -134,14 +138,30 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	// so concurrency here buys NOTHING, and it would cost the simple failure
 	// path below, which closes what it made when one is refused.
 	for i := 0; i < plan.Count(); i++ {
-		d, err := virtualdisplay.Open(virtualdisplay.Spec{
-			Name:   fmt.Sprintf("XR desk %d", i+1),
-			Width:  uint32(plan.ScreenW),
-			Height: uint32(plan.ScreenH),
-			// OnTerminate is deliberately nil: the block can fire while the Go
-			// runtime is shutting down, and it has been seen to crash a process
-			// on the way out.
-		})
+		// ASKED AGAIN BEFORE GIVING UP. Measured, with the glasses on: "display
+		// 141 never became active within 5s" on the first of five, and the whole
+		// session fell back to the two screens the machine already had -- one of
+		// which was the glasses showing themselves. A window server that is busy
+		// for five seconds is usually not busy for another five, and a second
+		// ask costs 375ms against losing the session.
+		var d *virtualdisplay.Display
+		var err error
+		for try := 1; try <= displayTries; try++ {
+			d, err = virtualdisplay.Open(virtualdisplay.Spec{
+				Name:   fmt.Sprintf("XR desk %d", i+1),
+				Width:  uint32(plan.ScreenW),
+				Height: uint32(plan.ScreenH),
+				// OnTerminate is deliberately nil: the block can fire while the
+				// Go runtime is shutting down, and it has been seen to crash a
+				// process on the way out.
+			})
+			if err == nil {
+				break
+			}
+			if try < displayTries {
+				logf("virtual display %d of %d refused (%v); asking again", i+1, plan.Count(), err)
+			}
+		}
 		if err != nil {
 			// Whatever was made so far must go, or the person is left with
 			// displays nobody asked for.
