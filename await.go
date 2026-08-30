@@ -24,6 +24,10 @@ var (
 	ErrAwaitSettings = errors.New("desk: asked for the settings while waiting for a display")
 )
 
+// pump is the seam: the platform gives AppKit the main thread for a moment, and
+// a test replaces it.
+var pump = platformPump
+
 // AwaitPoll is how often Await asks again.
 //
 // A second, because that is under the time it takes to look up after pushing a
@@ -132,6 +136,8 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 				logf("  the %s in the menu bar still works: Settings, or Quit", TrayTitle)
 			}
 		}
+
+		pump()
 
 		select {
 		case <-ctx.Done():
