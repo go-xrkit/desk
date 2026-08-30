@@ -311,9 +311,6 @@ type Desk struct {
 	// marks number the gallery's cells and light the chosen one.
 	marks *marks
 
-	// mouse is where the pointer is. See [Desk.SetPointer].
-	mouse mouse
-
 	// err is the last thing a viewer's action returned. The gallery can refuse
 	// — a direction it has no cell for, choosing outside it — and a refusal that
 	// nobody can see is a key that silently does nothing.
@@ -720,7 +717,6 @@ func (d *Desk) mark(inGallery bool) {
 		d.marks.draw(d.canvas, d.grid, d.grid.Selected())
 		return
 	}
-	d.drawMouse()
 	d.badge.show(d.nav.Focus(), d.plan.Count())
 	d.badge.draw(d.canvas)
 }
@@ -1177,48 +1173,4 @@ func (d *Desk) fit() {
 	if err := d.reshape(next); err != nil {
 		d.err = err
 	}
-}
-
-// SetPointer says where the mouse is: the ribbon position it is on, and how far
-// across that screen it is, as a fraction out of [PointerScale].
-//
-// A fraction rather than a pixel because the caller measures a RECTANGLE in
-// points and the desk draws a SOURCE in pixels, and the two are not the same
-// number -- a captured screen is not always the size of the display it came
-// from, and a screen mirroring this Mac's panel is not even the same shape.
-//
-// The desk draws it, because macOS does not draw a cursor on a display this
-// program made -- measured, 2003 pixels change when the pointer crosses this
-// Mac's own panel and 14 when it crosses one of the desk's screens. Somebody in
-// the glasses sees their windows, sees them respond, and cannot see the mouse.
-//
-// ok false means it is not on a screen of the band, and nothing is drawn.
-func (d *Desk) SetPointer(pos, px, py int, ok bool) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	d.mouse = mouse{pos: pos, x: px, y: py, on: ok}
-}
-
-// mouse is where the pointer is, as the last frame was told.
-type mouse struct {
-	pos, x, y int
-	on        bool
-}
-
-// drawMouse paints the pointer where the picture put its screen.
-//
-// Not in a gallery: the pointer is held to ONE screen and a grid of all of them
-// is a chooser, not a desktop. Called with the lock held, from mark.
-func (d *Desk) drawMouse() {
-	if !d.mouse.on {
-		return
-	}
-	srcW, srcH := d.plan.ScreenWidth(d.mouse.pos), d.plan.ScreenH
-	px := d.mouse.x * srcW / PointerScale
-	py := d.mouse.y * srcH / PointerScale
-	x, y, ok := CursorAt(d.blits, d.slants, d.mouse.pos, px, py, srcW, srcH)
-	if !ok {
-		return
-	}
-	drawCursor(d.canvas, x, y)
 }
