@@ -325,6 +325,7 @@ func Sources(ctx context.Context, s *Screens) ([]Offer, error) {
 			Kind: KindDisplay,
 			W:    d.PixelWidth,
 			H:    d.PixelHeight,
+			Main: d.Main,
 		})
 	}
 	return append(mine, theirs...), nil

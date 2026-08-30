@@ -448,3 +448,18 @@ func TestTheSplaySetting(t *testing.T) {
 		}
 	}
 }
+
+func TestMirrorIsOnUnlessTheFileSaysOtherwise(t *testing.T) {
+	var none Config
+	if !none.Mirror() {
+		t.Error("a settings file that says nothing does not ask for the mirror")
+	}
+	off := false
+	on := true
+	if (Config{Ribbon: &ConfigRibbon{Mirror: &off}}).Mirror() {
+		t.Error("mirror = false was not obeyed")
+	}
+	if !(Config{Ribbon: &ConfigRibbon{Mirror: &on}}).Mirror() {
+		t.Error("mirror = true was not obeyed")
+	}
+}

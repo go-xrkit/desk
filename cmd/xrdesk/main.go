@@ -208,7 +208,28 @@ func run() int {
 		}
 		logf("%s", plan)
 
-		screens, err := desk.Provide(ctx, plan, logf)
+		// SCREEN 1 IS THIS MAC'S OWN SCREEN.
+		//
+		// Somebody wearing the glasses still has a Mac in front of them, with a
+		// menu bar, a Dock and whatever was already open on it. Reaching it
+		// should not mean taking the glasses off, and it should not mean
+		// knowing a key: it is where the band starts.
+		//
+		// So one virtual display FEWER is made, and the position it would have
+		// taken goes to the machine's own screen. Everything that maps a ribbon
+		// position to a display goes through ribbonIDs from here on, because
+		// screens.IDs is now the virtual ones only and position i is IDs[i-1].
+		mirror := settings.Mirror()
+		// macID is the display screen 1 shows, so that every place that maps a
+		// ribbon POSITION to a display can do it: with the mirror in front,
+		// position i is the screen this program made at i-1, and position 0 is
+		// this one. Zero until the sources have been listed.
+		var macID uint64
+		made := plan
+		if mirror {
+			made = plan.WithScreens(plan.Count() - 1)
+		}
+		screens, err := desk.Provide(ctx, made, logf)
 		if err != nil {
 			// Back to waiting rather than out of the program.
 			//
@@ -244,38 +265,15 @@ func run() int {
 			}
 		}()
 
-		// The applications, before the pixels. A screen with nothing on it is what
-		// the first version of this showed a person wearing the glasses, and it
-		// read as broken rather than as empty.
-		//
-		// ONLY onto screens this desk made. When the window server refuses a
-		// virtual display, Provide falls back to the displays the machine
-		// already has -- and placing an application then means picking up
-		// somebody's windows and rearranging their actual desktop, which no
-		// setting in a file about a headset asked for. Measured: a run where
-		// creation failed moved Firefox onto the main screen.
-		if places := settings.Placements(); len(places) > 0 && !screens.Virtual {
-			logf("not placing %d application(s): these are the displays this Mac "+
-				"already has (%s), and moving your windows about on them is not "+
-				"what a desk setting asks for", len(places), screens.Why)
-		} else if len(places) > 0 {
-			done, err := desk.Send(desk.TheBench(), screens.IDs, places)
-			for _, line := range done {
-				logf("%s", line)
-			}
-			if err != nil {
-				// Not fatal. A desk of six applications where one is not running
-				// should show the other five.
-				for _, line := range strings.Split(err.Error(), "\n") {
-					logf("%s", line)
-				}
-			}
-		}
-
-		feeds, err := desk.Capture(ctx, plan, screens, logf)
+		feeds, err := desk.Capture(ctx, made, screens, logf)
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			return false, false, 1
+		}
+		// Position 0 is left empty for now: what goes there is opened once the
+		// inventory can name it, through the same path as every other source.
+		if mirror {
+			feeds = append([]desk.Feed{nil}, feeds...)
 		}
 		d, err := desk.New(plan, feeds)
 		if err != nil {
@@ -309,11 +307,66 @@ func run() int {
 				return out
 			}
 
-			// Fill the ribbon the way one key would, so a session starts with
-			// something on every position rather than with a ring of holes.
+			// Screen 1 first, and it is this Mac's own screen when the settings
+			// ask for it. Assigned by NAME rather than taken by cycling: the
+			// cycle walks the desk's own screens first, so the machine's would
+			// never come up on position 1 by itself.
+			if mirror {
+				if o, ok := mainDisplay(inv.Offers()); ok {
+					macID, _ = desk.DisplayOf(o)
+					if err := inv.Assign(0, o.ID); err != nil {
+						logf("screen 1: %v", err)
+					} else if f, err := desk.OpenOffer(ctx, plan, o); err != nil {
+						logf("screen 1: %v", err)
+					} else if old, err := d.SetFeed(0, f); err != nil {
+						logf("screen 1: %v", err)
+						closeFeed(f)
+					} else {
+						closeFeed(old)
+						logf("screen 1: %s — this Mac's own screen", o.Name)
+					}
+				} else {
+					logf("screen 1: this Mac offers no screen to show here")
+				}
+			}
+			// Then the rest, filled the way one key would, so a session starts
+			// with something on every position rather than with a ring of holes.
 			for i := 0; i < plan.Count(); i++ {
+				if mirror && i == 0 {
+					continue
+				}
 				if o, ok := inv.Cycle(i); ok {
 					logf("screen %d: %s", i+1, o.Name)
+				}
+			}
+			// The applications, once the band knows what each position shows. It used
+			// to happen earlier, before the sources were listed -- and then a
+			// place "Firefox" { screen = 1 } went to the first screen this program
+			// MADE, which is no longer position 1. A screen with nothing on it still
+			// reads as broken rather than as empty, so this is still before the
+			// first frame; it is just after the arrangement is known.
+			//
+			// ONLY onto screens this desk made. When the window server refuses a
+			// virtual display, Provide falls back to the displays the machine
+			// already has -- and placing an application then means picking up
+			// somebody's windows and rearranging their actual desktop, which no
+			// setting in a file about a headset asked for. Measured: a run where
+			// creation failed moved Firefox onto the main screen.
+			if places := settings.Placements(); len(places) > 0 && !screens.Virtual {
+				logf("not placing %d application(s): these are the displays this Mac "+
+					"already has (%s), and moving your windows about on them is not "+
+					"what a desk setting asks for", len(places), screens.Why)
+			} else if len(places) > 0 {
+				done, err := desk.Send(desk.TheBench(), ribbonIDs(mirror, macID, screens.IDs), places)
+				for _, line := range done {
+					logf("%s", line)
+				}
+				if err != nil {
+					// Not fatal. A desk of six applications where one is not running
+					// should show the other five.
+					for _, line := range strings.Split(err.Error(), "\n") {
+						logf("%s", line)
+					}
 				}
 			}
 			// And with this Mac's own panels dark while the ribbon shows a copy
@@ -368,6 +421,14 @@ func run() int {
 			// called, so what is left is the platform work.
 			d.OnRemove = func(pos int, f desk.Feed) {
 				closeFeed(f)
+				if mirror && pos == 0 {
+					fmt.Printf("screen 1 is this Mac's own screen; it cannot be taken away\n")
+					return
+				}
+				if mirror {
+					// Position i is the screen this program made at i-1.
+					pos--
+				}
 				if err := screens.Remove(pos); err != nil {
 					fmt.Printf("%v\n", err)
 					return
@@ -461,7 +522,7 @@ func run() int {
 						"Mac already has (%s)\n", screens.Why)
 					return
 				}
-				done, err := desk.Send(desk.TheBench(), screens.IDs, places)
+				done, err := desk.Send(desk.TheBench(), ribbonIDs(mirror, macID, screens.IDs), places)
 				for _, line := range done {
 					fmt.Printf("%s\n", line)
 				}
@@ -514,7 +575,7 @@ func run() int {
 			Actions: actions,
 			// And the band follows the pointer onto any of these, whether it is a
 			// screen this program made or this Mac's own panel mirrored onto one.
-			Screens: screens.IDs,
+			Screens: ribbonIDs(mirror, macID, screens.IDs),
 			Showing: showing,
 		}
 		if *snap {
@@ -660,4 +721,32 @@ func tallestDisplay() int {
 		}
 	}
 	return tallest
+}
+
+// mainDisplay is the offer for this machine's own main screen.
+//
+// By the property, not by the label: Offer.Main says which screen carries the
+// menu bar, and a caller that looked for "(main)" in the NAME would be reading
+// a sentence back out of something written for a person to read.
+func mainDisplay(offers []desk.Offer) (desk.Offer, bool) {
+	for _, o := range offers {
+		if o.Kind == desk.KindDisplay && o.Main {
+			return o, true
+		}
+	}
+	return desk.Offer{}, false
+}
+
+// ribbonIDs is the display each ribbon position shows, in order.
+//
+// It exists because "the screens this program made" and "the screens on the
+// band" stopped being the same list the day screen 1 became this Mac's own.
+// Everything that maps a POSITION to a display -- placing an application,
+// taking a screen away, following the pointer -- has to ask this and not
+// Screens.IDs, or it is off by one for the whole session.
+func ribbonIDs(mirror bool, mac uint64, made []uint64) []uint64 {
+	if !mirror || mac == 0 {
+		return made
+	}
+	return append([]uint64{mac}, made...)
 }
