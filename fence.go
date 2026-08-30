@@ -131,31 +131,21 @@ func clamp(v, lo, hi float64) float64 {
 	return v
 }
 
-// Where says which ribbon position the pointer is on and where it is on that
-// screen's own source, in pixels.
+// The desk does NOT draw a cursor, and this is where somebody would put one.
 //
-// It is the fence's because the fence already holds the answer: the pointer is
-// on the screen the band is showing, and the rectangle it is held to is the one
-// this converts through. srcW and srcH are asked for rather than assumed --
-// a screen mirroring this Mac's panel is not the shape of the band.
-func (f *Fence) Where(showing []uint64, focus int) (pos, px, py int, ok bool) {
-	if focus < 0 || focus >= len(showing) || showing[focus] == 0 {
-		return 0, 0, 0, false
-	}
-	r, ok := displayRect(showing[focus])
-	if !ok || r.W <= 0 || r.H <= 0 {
-		return 0, 0, 0, false
-	}
-	x, y, ok := pointerAt()
-	if !ok || !inside(x, y, r) {
-		return 0, 0, 0, false
-	}
-	// In FRACTIONS of the screen. The source's pixel size is the caller's --
-	// a capture is not always the same size as the rectangle it came from.
-	return focus, int((x - r.X) / r.W * PointerScale), int((y - r.Y) / r.H * PointerScale), true
-}
-
-// PointerScale is the unit [Fence.Where] answers in: the pointer's place across
-// the screen as a number out of this. The caller multiplies by its own source
-// size, which is the only thing that knows how many pixels that screen has.
-const PointerScale = 1 << 16
+// It drew one for a while, on a measurement that was wrong. Moving the pointer
+// across a screen this program made and comparing two captures of it changed 14
+// pixels, which read as "macOS does not draw a cursor on a display it did not
+// make". It does. That measurement was taken while a defect was pulling the
+// pointer off the very screen being measured -- the inventory and the band
+// disagreed about which display a position showed -- so it was measuring an
+// empty screen.
+//
+// Asked again with that fixed, and with nothing else running:
+//
+//	a display this program made:  1328 pixels
+//	this Mac's own panel:         2003 pixels
+//
+// The capture carries the cursor. Drawing another one puts a second mouse on
+// top of the first -- "arrete de dessiner une souris sur la souris" -- so the
+// only pointer in the picture is the one the window server drew.
