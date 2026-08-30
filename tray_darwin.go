@@ -56,13 +56,17 @@ func OpenTray(logf func(string, ...any), actions chan<- Action) (Closer, error) 
 	// not. An item built in a process whose main thread never runs a loop is,
 	// in go-macos's own words, indistinguishable from Go from one that works.
 	// Since v0.2.0 it is not: OnScreen asks AppKit.
+	// The symbol, with the emoji left as what it falls back to.
+	if err := it.SetSymbol(TraySymbol, TrayLabel); err != nil {
+		logf("keeping %s in the menu bar: %v", TrayTitle, err)
+	}
 	on, err := it.OnScreen()
 	if err != nil {
 		logf("the menu bar item cannot say whether it is there: %v", err)
 	} else if !on {
 		logf("the %s is NOT in the menu bar, though it was made: nothing has drawn it yet", TrayTitle)
 	} else {
-		logf("the menu bar carries %s with %d rows", TrayTitle, len(items))
+		logf("the menu bar carries the %s symbol with %d rows", TraySymbol, len(items))
 	}
 	return it, nil
 }
