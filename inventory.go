@@ -67,6 +67,14 @@ type Offer struct {
 	// W and H are its pixel size, or zero when it has none yet — a panel's size
 	// is decided when it is opened.
 	W, H int
+	// Main reports the machine's own primary screen: the one carrying the menu
+	// bar, which is what somebody means by "my Mac's screen".
+	//
+	// A field rather than a word in the name. The name is for a person to read
+	// and a caller that looked for "(main)" in it would be reading a sentence
+	// back out of a label -- and would stop working the day the label changed,
+	// silently.
+	Main bool
 }
 
 // String renders an offer the way a person would identify it.
