@@ -190,84 +190,38 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// declared here because the window's own key handler calls it too.
 	sync := func() {}
 
-	// THE BAND FOLLOWS THE POINTER.
+	// THE POINTER STAYS ON THE SCREEN THE BAND IS SHOWING.
 	//
-	// This is what makes a desk of captured screens usable rather than
-	// something to look at. The band shows ONE screen; the pointer lives on the
-	// desktop, which is several. Move the mouse off the right-hand edge of the
-	// screen in front of you and on a real desk you have arrived at the next
-	// monitor -- here you had simply lost it somewhere you could not see.
+	// A person wearing display glasses sees ONE screen. The desktop under the
+	// pointer is several, most of them invisible, and a pointer that can leave
+	// the visible one is a pointer that can be somewhere its owner cannot look.
 	//
-	// Nothing is warped and nothing is synthesised: the pointer stays exactly
-	// where the person put it, and the picture catches up. Asked once a frame,
-	// which is two CoreGraphics calls and no allocation.
-	// What each position is showing, now: a mirrored panel is a screen of the
-	// band like any other, and the pointer is just as lost on it.
+	// This was the other way round three times over -- the band followed the
+	// pointer, the pointer wrapped at the ends of the band, a display nothing
+	// was showing was fetched when the pointer wandered onto it -- and the
+	// report after every one of them was the same: "j'ai encore perdu la
+	// souris". So the mouse no longer changes screens at all. The keyboard
+	// does, and the pointer comes with it.
+	//
+	// What each position is showing, now: a position mirroring this Mac's own
+	// panel is a screen of the band like any other, and holding the pointer to
+	// it is how somebody reaches their real desktop.
 	showing := opt.Showing
 	if showing == nil {
 		showing = func() []uint64 { return opt.Screens }
 	}
-	var followed = -1
-	follow := func() {
-		pos, ok := PositionOf(showing())
-		if !ok || pos == followed {
-			return
-		}
-		followed = pos
-		if err := d.Look(pos); err != nil {
-			logf("following the pointer: %v", err)
-			return
-		}
-		logf("the pointer is on screen %d", pos+1)
-	}
-
-	// AND IT COMES BACK AT THE OTHER END.
-	//
-	// The band is a circle and the desktop is a line. Pushed to the left of the
-	// first screen the pointer is against a wall: the band cannot follow it
-	// anywhere, and the last screen is all the way back across every screen in
-	// between. Edges closes the circle -- only where the desktop really ends,
-	// so the edge that leads to this Mac's own panel still leads there.
-	//
-	// Before follow, so that the band catches up with the arrival in the same
-	// frame rather than the next one.
-	// The desk's own screen, by id: the glasses sit beside the ribbon, and a
-	// pointer that walks onto them is on a picture of this program.
-	owned, _ := OwnDisplay(opt.Screen.Name)
-	edges := &Edges{Own: owned}
-	wrap := func(now time.Time) {
-		moved, err := edges.Step(now, showing())
+	fence := &Fence{}
+	hold := func() {
+		moved, err := fence.Step(showing(), d.Focus())
 		if err != nil {
-			// Once a frame; only worth a line when it says something new.
+			// Once a frame: only worth a line when it says something new.
 			if !errors.Is(err, ErrPointerLost) {
-				logf("wrapping the pointer: %v", err)
+				logf("holding the pointer: %v", err)
 			}
 			return
 		}
 		if moved {
-			logf("the pointer came back at the other end of the band")
-		}
-	}
-
-	// AND IT GOES AND GETS THE SCREEN THE POINTER WENT TO.
-	//
-	// Following ends where the ribbon does. A pointer that leaves every screen
-	// a position is showing -- onto this Mac's own panel, most often, which
-	// sits right beside the ribbon -- is invisible to somebody wearing the
-	// glasses. They have not lost the mouse exactly: they have lost the screen
-	// it is on. So the desk fetches that screen onto the position in front of
-	// them, which is also the answer to "I never saw my Mac's screen in here".
-	// Read once: the seam is set before Run and the frame loop is another
-	// goroutine.
-	lost, onLost := &Lost{}, d.OnLost
-	fetch := func(now time.Time) {
-		if onLost == nil {
-			return
-		}
-		id, ok := underPointer()
-		if want := lost.Step(now, uint64(id), ok, showing(), owned); want != 0 {
-			logf("the pointer is on display %d, which no screen is showing", want)
-			onLost(want, d.Focus())
+			logf("the pointer is on screen %d", d.Focus()+1)
 		}
 	}
 	surface := toolkit.NewSurface(v.frame)
@@ -372,6 +326,29 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// shapes is the width each screen had at the last beat, so a screen that
 	// takes the shape of what it shows is reported once rather than every frame.
 	var shapes []int
+
+	// AND THE SCREEN IT IS ON IS STILL THERE.
+	//
+	// Unplug the glasses and this program is drawing for nobody, on a window the
+	// window server has moved somewhere else -- while it holds this Mac's
+	// backlight off. "quand on debranche les lunettes il faut rallumer
+	// l'ecran": stopping is what puts everything back, so the desk stops itself.
+	//
+	// Every second rather than every frame, because it asks the window server
+	// for the whole arrangement; and every second rather than every beat,
+	// because five seconds of a dark screen with the glasses already off is five
+	// seconds of somebody wondering what has happened to their Mac.
+	lookedAt := time.Now()
+	watch := func(now time.Time) {
+		if now.Sub(lookedAt) < time.Second {
+			return
+		}
+		lookedAt = now
+		if _, err := currentScreen(opt.Screen.Name); err != nil {
+			logf("%v -- stopping, and putting back everything this changed", err)
+			d.Do(ActionQuit)
+		}
+	}
 	beat := func(now time.Time) {
 		frames++
 		since := now.Sub(beatAt)
@@ -404,10 +381,6 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 						i+1, w, d.Plan().ScreenH)
 				}
 				shapes[i] = w
-			}
-			if _, err := currentScreen(opt.Screen.Name); err != nil {
-				logf("%v -- stopping, and putting back everything this changed", err)
-				d.Do(ActionQuit)
 			}
 		}
 	}
@@ -451,9 +424,8 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				case now := <-t.C:
 					dt := now.Sub(last).Seconds()
 					last = now
-					wrap(now)
-					follow()
-					fetch(now)
+					hold()
+					watch(now)
 					d.Advance(dt)
 					v.draw(d.Render())
 					repaint()

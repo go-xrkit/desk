@@ -258,15 +258,6 @@ type Desk struct {
 	// platform's business and this file has no operating system in it.
 	OnAdd func() (Feed, error)
 
-	// OnLost, when set, is called with a display no ribbon position is showing,
-	// once the pointer has stayed on it, and with the position in front of the
-	// viewer. Putting that display THERE is the caller's business: opening a
-	// source is platform work.
-	//
-	// It is what stops a pointer disappearing off the end of the band. Nil
-	// leaves a wandering pointer where it went.
-	OnLost func(display uint64, pos int)
-
 	// OnCycle, when set, is called with the FOCUSED position when the viewer
 	// asks for the next source there. It is called without the desk's lock held,
 	// so a handler may call SetFeed — which is the whole point of it.
