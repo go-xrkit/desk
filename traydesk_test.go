@@ -136,7 +136,7 @@ func TestAChoiceNobodyIsListeningForIsDroppedAndSaidSo(t *testing.T) {
 }
 
 func TestTheIconIsAPictureOfGlasses(t *testing.T) {
-	b, err := TrayIcon(TrayIconPx)
+	b, err := TrayIcon(TrayIconPx, false)
 	if err != nil {
 		t.Fatalf("TrayIcon = %v", err)
 	}
@@ -166,7 +166,7 @@ func TestTheIconIsAPictureOfGlasses(t *testing.T) {
 	if inked < TrayIconPx {
 		t.Errorf("%d pixels of the icon are drawn; it is empty", inked)
 	}
-	if _, err := TrayIcon(0); err == nil {
+	if _, err := TrayIcon(0, false); err == nil {
 		t.Error("an icon of no pixels was rendered")
 	}
 }
@@ -235,7 +235,7 @@ func TestEverySizeOfIconEncodes(t *testing.T) {
 	// size always encodes. This is that assumption, pinned: the size it uses,
 	// the smallest that means anything, and one far larger.
 	for _, px := range []int{1, 16, TrayIconPx, 256} {
-		b, err := TrayIcon(px)
+		b, err := TrayIcon(px, false)
 		if err != nil {
 			t.Fatalf("TrayIcon(%d) = %v", px, err)
 		}
@@ -249,7 +249,7 @@ func TestEverySizeOfIconEncodes(t *testing.T) {
 		}
 	}
 	for _, px := range []int{0, -1} {
-		if _, err := TrayIcon(px); err == nil {
+		if _, err := TrayIcon(px, false); err == nil {
 			t.Errorf("TrayIcon(%d) made an icon", px)
 		}
 	}
@@ -276,5 +276,203 @@ func TestPngOfRefusesWhatIsNotAPicture(t *testing.T) {
 	// And enough bytes, with some to spare, is a picture.
 	if b, err := pngOf(make([]byte, 2*2*4+7), 2, 2); err != nil || len(b) == 0 {
 		t.Errorf("pngOf = %d bytes, %v; want a PNG", len(b), err)
+	}
+}
+
+// greenish says a colour is the dot rather than the glyph. The dot is drawn
+// with antialiasing, so its rim is a blend; what separates it from a black or
+// white glyph is that green LEADS.
+func greenish(r, g, b uint32) bool { return g > r+0x2000 && g > b+0x2000 }
+
+func TestTheDotSaysTheGlassesAreOn(t *testing.T) {
+	plain, err := TrayIcon(TrayIconPx, false)
+	if err != nil {
+		t.Fatalf("TrayIcon(false) = %v", err)
+	}
+	lit, err := TrayIcon(TrayIconPx, true)
+	if err != nil {
+		t.Fatalf("TrayIcon(true) = %v", err)
+	}
+	if bytes.Equal(plain, lit) {
+		t.Fatal("the icon with the glasses on is the same picture as the one without")
+	}
+
+	img, err := png.Decode(bytes.NewReader(lit))
+	if err != nil {
+		t.Fatalf("the lit icon is not a PNG: %v", err)
+	}
+	w, h := img.Bounds().Dx(), img.Bounds().Dy()
+	// Where the dot is, and where it is NOT: bottom right, not over the middle
+	// of the glyph. Counting green anywhere would pass an icon dyed green.
+	corner, elsewhere := 0, 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, b, a := img.At(img.Bounds().Min.X+x, img.Bounds().Min.Y+y).RGBA()
+			if a == 0 || !greenish(r, g, b) {
+				continue
+			}
+			if x >= w/2 && y >= h/2 {
+				corner++
+			} else {
+				elsewhere++
+			}
+		}
+	}
+	if corner == 0 {
+		t.Error("no green in the bottom right; there is no dot")
+	}
+	if elsewhere > 0 {
+		t.Errorf("%d green pixels outside the bottom right; the dot is not where it should be", elsewhere)
+	}
+
+	// And the platform must not paint the green away. A menu bar recolours a
+	// TEMPLATE image to match the bar, which is exactly what the icon without
+	// the dot wants and exactly what would erase the dot.
+	if !tray.IsTemplate(plain) {
+		t.Error("the plain icon is not a template; it will not follow a dark menu bar")
+	}
+	if tray.IsTemplate(lit) {
+		t.Error("the lit icon reads as a template; the platform would recolour the dot away")
+	}
+}
+
+func TestTheIconFollowsTheState(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, menu := h.Snapshot()
+		return menu != nil && len(menu.Items) > 0
+	}, "the menu to arrive")
+
+	lit, err := TrayIcon(TrayIconPx, true)
+	if err != nil {
+		t.Fatalf("TrayIcon(true) = %v", err)
+	}
+	// Nothing is told to redraw: the state is set, and the icon follows.
+	item.State().Set(TrayRunning)
+	waitFor(t, func() bool {
+		icon, _, _ := h.Snapshot()
+		return bytes.Equal(icon, lit)
+	}, "the icon to light up")
+
+	plain, err := TrayIcon(TrayIconPx, false)
+	if err != nil {
+		t.Fatalf("TrayIcon(false) = %v", err)
+	}
+	item.State().Set(TrayWaiting)
+	waitFor(t, func() bool {
+		icon, _, _ := h.Snapshot()
+		return bytes.Equal(icon, plain)
+	}, "the icon to go dark again")
+}
+
+func TestADotOnWhatIsNotAPicture(t *testing.T) {
+	if _, err := withDot([]byte("not a PNG")); err == nil {
+		t.Error("a dot was drawn on something that is not a picture")
+	}
+	if _, err := withDotPixels(make([]byte, 4), 8, 8); err == nil {
+		t.Error("a dot was drawn on 4 bytes of an 8x8 picture")
+	}
+	if _, err := withDotPixels(nil, 0, 0); err == nil {
+		t.Error("a dot was drawn on a picture of no size")
+	}
+	// An icon too small to hold the smallest dot still yields a picture rather
+	// than a box hanging off its own left edge.
+	if _, err := withDotPixels(make([]byte, 4*4*4), 4, 4); err != nil {
+		t.Errorf("a 4x4 icon: %v", err)
+	}
+}
+
+// noSystemIcon takes the system symbol away for one test, which is what a
+// machine that is not a Mac looks like from here.
+func noSystemIcon(t *testing.T) {
+	t.Helper()
+	was := systemIcon
+	systemIcon = func(int) ([]byte, error) { return nil, errors.New("no symbols here") }
+	t.Cleanup(func() { systemIcon = was })
+}
+
+func TestTheToolkitGlassesWhenTheSystemHasNoSymbol(t *testing.T) {
+	noSystemIcon(t)
+	for _, dot := range []bool{false, true} {
+		b, err := TrayIcon(TrayIconPx, dot)
+		if err != nil {
+			t.Fatalf("TrayIcon(dot=%v) = %v", dot, err)
+		}
+		img, err := png.Decode(bytes.NewReader(b))
+		if err != nil {
+			t.Fatalf("dot=%v: not a PNG: %v", dot, err)
+		}
+		// Square, here: the fallback is the toolkit's own glyph, which is drawn
+		// to the box it is given rather than to a system symbol's proportions.
+		if w, h := img.Bounds().Dx(), img.Bounds().Dy(); w != TrayIconPx || h != TrayIconPx {
+			t.Errorf("dot=%v: the icon is %dx%d, want %d square", dot, w, h, TrayIconPx)
+		}
+		green := 0
+		for y := 0; y < TrayIconPx; y++ {
+			for x := 0; x < TrayIconPx; x++ {
+				if r, g, bl, a := img.At(x, y).RGBA(); a > 0 && greenish(r, g, bl) {
+					green++
+				}
+			}
+		}
+		if dot != (green > 0) {
+			t.Errorf("dot=%v but %d green pixels", dot, green)
+		}
+	}
+	// And the size is still refused before anything is drawn.
+	if _, err := TrayIcon(0, true); err == nil {
+		t.Error("an icon of no pixels was rendered")
+	}
+}
+
+func TestTheDotFitsAnIconThatIsNotSquare(t *testing.T) {
+	// A system symbol is never square, and the dot is sized off the SHORTER
+	// side so it stays a dot instead of a bar down one edge. Tall and wide are
+	// both tried: only one of them exercises the side that is picked.
+	for _, box := range [][2]int{{12, 40}, {40, 12}} {
+		w, h := box[0], box[1]
+		b, err := withDotPixels(make([]byte, w*h*4), w, h)
+		if err != nil {
+			t.Fatalf("%dx%d: %v", w, h, err)
+		}
+		img, err := png.Decode(bytes.NewReader(b))
+		if err != nil {
+			t.Fatalf("%dx%d: not a PNG: %v", w, h, err)
+		}
+		minX, minY, maxX, maxY := w, h, -1, -1
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				if _, _, _, a := img.At(x, y).RGBA(); a > 0 {
+					minX, minY = min(minX, x), min(minY, y)
+					maxX, maxY = max(maxX, x), max(maxY, y)
+				}
+			}
+		}
+		if maxX < 0 {
+			t.Fatalf("%dx%d: nothing was drawn", w, h)
+		}
+		short := min(w, h)
+		if got := max(maxX-minX+1, maxY-minY+1); got > short {
+			t.Errorf("%dx%d: the dot is %d across, wider than the %d it has to fit in",
+				w, h, got, short)
+		}
+		// In the corner it was asked for, not floating in the middle. Not
+		// flush against the edge: the toolkit leaves its own inset inside the
+		// box, which is what keeps the dot off the rim.
+		if minX < w/2 || minY < h/2 {
+			t.Errorf("%dx%d: the dot starts at %d,%d, out of the bottom right quarter",
+				w, h, minX, minY)
+		}
+		if w-1-maxX > short/3 || h-1-maxY > short/3 {
+			t.Errorf("%dx%d: the dot ends at %d,%d, further from the corner than its own box",
+				w, h, maxX, maxY)
+		}
 	}
 }

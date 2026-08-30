@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-widgets/painter"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-xrkit/xrkit/glasses"
 )
@@ -738,5 +739,84 @@ func TestAShortcutThatHadToBeSubstitutedSaysSoUnderItsName(t *testing.T) {
 	}
 	if r.Control == nil {
 		t.Error("the granted combination is not in the trailing slot")
+	}
+}
+
+// glassesTilePixels draws the headset tiles and hands back the pixels.
+//
+// PIXELS, because the claim being tested is about what a person can SEE: an
+// outline that inks a fourteenth of its box and a filled symbol that inks most
+// of it are the same widget with the same label, and only what lands on screen
+// separates them. Counting ink alone would not have done it -- the chosen
+// tile is filled behind its icon, so those pixels count as ink whatever the
+// icon is, and the outline and the symbol came out to the same number.
+func glassesTilePixels(t *testing.T) []byte {
+	t.Helper()
+	cfg := &Config{}
+	root, _ := settingsRoot(cfg, []glasses.USB{oneS}, nil, func() {})
+	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
+	grids := found[*toolkit.IconGrid](root)
+	if len(grids) != 1 {
+		t.Fatalf("the window has %d icon grids, want the headset tiles", len(grids))
+	}
+	b := grids[0].Bounds()
+	if b.W <= 0 || b.H <= 0 {
+		t.Fatalf("the tiles measure %dx%d", b.W, b.H)
+	}
+	buf := make([]byte, b.W*b.H*4)
+	p := painter.NewPixelPainterBGRA(buf, b.W, b.H)
+	grids[0].SetBounds(toolkit.Rect{X: 0, Y: 0, W: b.W, H: b.H})
+	theme := toolkit.DefaultLight()
+	p.FillRect(toolkit.Rect{W: b.W, H: b.H}, theme.Surface)
+	grids[0].Draw(p, theme)
+	return buf
+}
+
+// TestTheSettingsTilesShowTheSystemSymbolWhenThereIsOne pins the wiring, not
+// the platform: the seam is fed a stencil on every machine, so a runner with no
+// system symbols tests the same thing a Mac does.
+func TestTheSettingsTilesShowTheSystemSymbolWhenThereIsOne(t *testing.T) {
+	was := glassesIcon
+	t.Cleanup(func() { glassesIcon = was })
+
+	// A solid square of alpha: the densest thing a symbol could be, which is
+	// the point -- a system glyph inks most of its box where the drawn outline
+	// inks a fourteenth of it.
+	box := 0
+	glassesIcon = func(px int) toolkit.IconFunc {
+		if px <= 0 {
+			t.Errorf("the tiles asked for an icon of %d pixels", px)
+			px = 1
+		}
+		pix := make([]byte, px*px*4)
+		for i := range pix {
+			pix[i] = 0xFF
+		}
+		stencil := toolkit.StencilIcon(pix, px, px)
+		return func(p painter.Painter, r toolkit.Rect, ink toolkit.RGBA) {
+			box = r.W * r.H
+			stencil(p, r, ink)
+		}
+	}
+	symbol := glassesTilePixels(t)
+
+	glassesIcon = func(int) toolkit.IconFunc { return nil }
+	drawn := glassesTilePixels(t)
+
+	if box == 0 {
+		t.Fatal("the tiles never asked for an icon")
+	}
+	changed := 0
+	for i := 0; i+3 < len(symbol) && i+3 < len(drawn); i += 4 {
+		if symbol[i] != drawn[i] || symbol[i+1] != drawn[i+1] || symbol[i+2] != drawn[i+2] {
+			changed++
+		}
+	}
+	// Half the icon box at least: the stencil is solid, the toolkit's glasses
+	// are an outline, and swapping one for the other has to repaint most of
+	// the square. A window still drawing the outline would change nothing.
+	if changed < box/2 {
+		t.Errorf("swapping the outline for the system symbol changed %d pixels of "+
+			"a %d-pixel icon box; the window is not showing the symbol", changed, box)
 	}
 }

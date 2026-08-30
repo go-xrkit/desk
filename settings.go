@@ -66,12 +66,21 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	// DRAWN, not photographed. A photograph of a manufacturer's product is the
 	// manufacturer's picture, and this application has nowhere to fetch one from:
 	// it runs with no network and ships no artwork.
-	// toolkit.DrawIconGlasses is in the stock icon set for exactly this.
+	// toolkit.DrawIconGlasses is in the stock icon set for exactly this, and
+	// the SYSTEM's own symbol is used instead where there is one -- the same
+	// glyph the menu bar carries, so the window and the bar do not disagree
+	// about what a pair of glasses looks like. Measured at 44 pixels, the drawn
+	// outline inks 7% of its box and the system symbol 62%, which is the
+	// difference between a shape you notice and one you do not.
 	names := headsetNames(attached)
+	icon := toolkit.DrawIconGlasses
+	if sym := glassesIcon(toolkit.Scaled(GlassesIconPx)); sym != nil {
+		icon = sym
+	}
 	cells := make([]toolkit.IconCell, 0, len(names))
 	for _, n := range names {
 		cells = append(cells, toolkit.IconCell{
-			Icon:  toolkit.DrawIconGlasses,
+			Icon:  icon,
 			Label: n,
 			Key:   n,
 		})
