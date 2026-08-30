@@ -472,44 +472,6 @@ func run() int {
 				}
 			}
 
-			// The pointer went somewhere no screen is showing. Rather than
-			// leaving somebody hunting for a mouse they cannot see, the desk
-			// puts that display on the position in front of them -- which is
-			// also, on a Mac, how its own screen first appears in the glasses
-			// without anybody having to know a key.
-			show := func(pos int, o desk.Offer) bool {
-				f, err := desk.OpenOffer(ctx, plan, o)
-				if err != nil {
-					fmt.Printf("screen %d: %v\n", pos+1, err)
-					return false
-				}
-				old, err := d.SetFeed(pos, f)
-				if err != nil {
-					fmt.Printf("screen %d: %v\n", pos+1, err)
-					closeFeed(f)
-					return false
-				}
-				closeFeed(old)
-				if err := inv.Assign(pos, o.ID); err != nil {
-					// Worth saying: the picture and the inventory disagreeing
-					// is what makes a later Cycle jump somewhere unexpected.
-					logf("inventory: %v", err)
-				}
-				remirror()
-				return true
-			}
-			d.OnLost = func(display uint64, pos int) {
-				for _, o := range inv.Offers() {
-					if id, ok := desk.DisplayOf(o); !ok || id != display {
-						continue
-					}
-					if show(pos, o) {
-						fmt.Printf("screen %d: %s — where the pointer went\n", pos+1, o.Name)
-					}
-					return
-				}
-				logf("the pointer is on display %d and there is no source for it", display)
-			}
 			d.OnCycle = func(pos int) {
 				o, ok := inv.Cycle(pos)
 				if !ok {
