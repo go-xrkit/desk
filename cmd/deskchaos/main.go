@@ -27,6 +27,8 @@ func run() int {
 	deskBin := flag.String("desk", "xrdesk", "the desk to run")
 	seed := flag.Int64("seed", 0, "the seed to replay; 0 picks one and prints it")
 	only := flag.String("fault", "", "run only the fault whose name contains this")
+	out := flag.String("report", "", "write a JSON report here, for a job to pick up")
+	budget := flag.Duration("budget", 0, "stop starting rounds after this long; 0 runs them all")
 	flag.Parse()
 
 	if !*take {
@@ -56,8 +58,19 @@ func run() int {
 	}
 	defer os.RemoveAll(dir)
 
+	rep := &report{Seed: *seed, Started: time.Now()}
+	if ids, err := pointer.Displays(); err == nil {
+		rep.Machine.Displays = len(ids)
+	}
+
 	bad, skipped := 0, 0
 	for i := 1; i <= *rounds; i++ {
+		if *budget > 0 && time.Since(rep.Started) > *budget {
+			// A night has an end. Stopping on time beats a run somebody has to
+			// kill in the morning, and the rounds that did happen still count.
+			fmt.Printf("\nout of time after %d round(s)\n", i-1)
+			break
+		}
 		f := pick(rng, *only)
 		if f == nil {
 			fmt.Fprintf(os.Stderr, "no fault matches %q; there are:\n", *only)
@@ -73,15 +86,20 @@ func run() int {
 			return 1
 		}
 		fmt.Printf("\n── round %d/%d — %s\n   a %q, %s\n", i, *rounds, f.name, name, how)
+		said := roundSaid{N: i, Fault: f.name, Headset: name, Settings: how}
 		waitForAQuietMachine()
 		found, err := round(*deskBin, name, setting, *f, rng)
 		if err != nil {
+			said.Skipped = err.Error()
+			rep.Rounds = append(rep.Rounds, said)
 			// The bench could not set the round up. Not a defect, and not a
 			// pass either: said, counted separately, and the run goes on.
 			fmt.Printf("   — skipped: %v\n", err)
 			skipped++
 			continue
 		}
+		said.Found = found
+		rep.Rounds = append(rep.Rounds, said)
 		for _, s := range found {
 			fmt.Printf("   ✗ %s\n", s)
 		}
@@ -91,11 +109,13 @@ func run() int {
 		}
 		bad += len(found)
 	}
-	fmt.Printf("\n%d thing(s) left behind over %d rounds", bad, *rounds)
-	if skipped > 0 {
-		fmt.Printf(", %d of which the machine was too tired to run", skipped)
+	rep.Found, rep.Skipped = bad, skipped
+	rep.Took = time.Since(rep.Started).Round(time.Second).String()
+	fmt.Printf("\n%s\n", rep.summary())
+	if err := rep.write(*out); err != nil {
+		fmt.Fprintf(os.Stderr, "writing the report: %v\n", err)
+		return 1
 	}
-	fmt.Println()
 	if bad > 0 {
 		return 1
 	}
