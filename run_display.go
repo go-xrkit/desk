@@ -211,8 +211,15 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		showing = func() []uint64 { return opt.Screens }
 	}
 	fence := &Fence{}
+	// said is the screen the pointer was last REPORTED on. The fence acts every
+	// frame -- a mouse pushed against the edge of a screen is put back sixty
+	// times a second -- and saying so every time buried the session: 129 lines
+	// of it in one run. What is worth a line is the pointer arriving somewhere
+	// NEW.
+	said := -1
 	hold := func() {
-		moved, err := fence.Step(showing(), d.Focus())
+		at := d.Focus()
+		moved, err := fence.Step(showing(), at)
 		if err != nil {
 			// Once a frame: only worth a line when it says something new.
 			if !errors.Is(err, ErrPointerLost) {
@@ -220,8 +227,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			}
 			return
 		}
-		if moved {
-			logf("the pointer is on screen %d", d.Focus()+1)
+		if moved && at != said {
+			said = at
+			logf("the pointer is on screen %d", at+1)
 		}
 	}
 	surface := toolkit.NewSurface(v.frame)
