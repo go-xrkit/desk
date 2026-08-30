@@ -422,15 +422,15 @@ and windows instead. That is fewer screens, and everything else is identical.
 ## Building it
 
 ```
-go build -tags tray_native ./cmd/xrdesk
+go build ./cmd/xrdesk
 ```
 
-**The tag is not optional if you want the menu bar item.** The item and its menu
-are [go-widgets/tray](https://github.com/go-widgets/tray)'s, whose native
-backends are behind `tray_native` so the package keeps its coverage gate on code
-that runs everywhere. Without it, `tray` has no backend, there is no 👓 in the
-menu bar at all, and the desk says so at start-up rather than leaving somebody
-looking for it.
+Nothing else to know, and that took a change in another repository to be true:
+the item and its menu are [go-widgets/tray](https://github.com/go-widgets/tray)'s,
+whose native backends were behind a `tray_native` build tag so the package could
+keep a single coverage figure at 100%. A program built the obvious way got a
+tray that quietly did not exist. tray v0.6.0 links them by default and gates its
+coverage by file shape instead.
 
 That item is also what holds the platform's run loop while the desk waits for a
 pair of glasses. Nothing is drawn — and no menu is ever *opened* — without one,

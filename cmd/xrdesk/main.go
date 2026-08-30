@@ -218,8 +218,6 @@ func run() int {
 				// simply no item, which is worth saying twice: a menu bar
 				// nobody can use, in silence, cost an afternoon.
 				logf("no menu bar item: %v", herr)
-				logf("  a menu-bar item needs go-widgets/tray's native backend, which is " +
-					"behind a build tag: go build -tags tray_native ./cmd/xrdesk")
 			}
 			<-done
 			return got, err
