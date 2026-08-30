@@ -12,9 +12,14 @@ import (
 // ErrNoDimming is what a platform with no backlight control answers.
 var ErrNoDimming = errors.New("desk: darkening a display is not available on this platform")
 
-// dimDisplay is the seam: the platform turns a panel off and hands back the way
-// home. Tests replace it, and so does every platform that cannot do it.
-var dimDisplay = platformDim
+// The seams: the platform turns a panel off and hands back the way home, and
+// reads and sets a level for the note that has to outlive this process. Tests
+// replace them, and so does every platform that cannot do it.
+var (
+	dimDisplay = platformDim
+	dimRead    = platformDimRead
+	dimSet     = platformDimSet
+)
 
 // Dimmer keeps the machine's own panels dark while a copy of them is on the
 // ribbon.
@@ -35,6 +40,9 @@ var dimDisplay = platformDim
 type Dimmer struct {
 	mu sync.Mutex
 	on map[uint64]func() error
+	// was is what each darkened panel was lit at, for the note that outlives
+	// this process. See darkstate.go.
+	was map[uint64]float64
 }
 
 // Showing tells the dimmer which of the machine's own displays are on the
@@ -58,6 +66,7 @@ func (m *Dimmer) Showing(ids []uint64) error {
 			continue
 		}
 		delete(m.on, id)
+		delete(m.was, id)
 		if err := restore(); err != nil {
 			errs = append(errs, err)
 		}
@@ -66,6 +75,9 @@ func (m *Dimmer) Showing(ids []uint64) error {
 		if m.on[id] != nil {
 			continue
 		}
+		// What it is lit at now, BEFORE it goes out: it is what a later run
+		// puts back if this one never gets the chance.
+		level, levelErr := dimRead(id)
 		restore, err := dimDisplay(id)
 		if err != nil {
 			errs = append(errs, err)
@@ -73,8 +85,12 @@ func (m *Dimmer) Showing(ids []uint64) error {
 		}
 		if m.on == nil {
 			m.on = make(map[uint64]func() error, len(want))
+			m.was = make(map[uint64]float64, len(want))
 		}
 		m.on[id] = restore
+		if levelErr == nil {
+			m.was[id] = level
+		}
 	}
 	return errors.Join(errs...)
 }
