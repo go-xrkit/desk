@@ -247,3 +247,27 @@ func TestEverySizeOfIconEncodes(t *testing.T) {
 		}
 	}
 }
+
+func TestPngOfRefusesWhatIsNotAPicture(t *testing.T) {
+	// The caller hands in pixels and a size, and the two can disagree: a
+	// platform that answered with fewer bytes than it promised would otherwise
+	// be encoded as whatever was next in memory.
+	for _, c := range []struct {
+		name string
+		pix  []byte
+		w, h int
+	}{
+		{"no width", make([]byte, 16), 0, 2},
+		{"no height", make([]byte, 16), 2, 0},
+		{"a negative side", make([]byte, 16), -2, 2},
+		{"fewer bytes than pixels", make([]byte, 8), 2, 2},
+	} {
+		if _, err := pngOf(c.pix, c.w, c.h); err == nil {
+			t.Errorf("%s: pngOf said yes", c.name)
+		}
+	}
+	// And enough bytes, with some to spare, is a picture.
+	if b, err := pngOf(make([]byte, 2*2*4+7), 2, 2); err != nil || len(b) == 0 {
+		t.Errorf("pngOf = %d bytes, %v; want a PNG", len(b), err)
+	}
+}

@@ -44,8 +44,8 @@ const (
 	TrayLabel  = "XR desk"
 )
 
-// TrayTitle is what the item falls back to when the system has no such symbol:
-// an older macOS, or a name Apple has retired.
+// TrayTitle is the desk in one glyph, for anywhere a picture will not do -- a
+// log line, a window title, a person asking what to look for in their menu bar.
 const TrayTitle = "\U0001F453"
 
 // TrayQueue is how many menu choices are held for the run loop.
