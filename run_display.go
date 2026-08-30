@@ -369,6 +369,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// number that separates them, and a desk drawing sixty a second says it in a
 	// line every five.
 	frames, beatAt := 0, time.Now()
+	// shapes is the width each screen had at the last beat, so a screen that
+	// takes the shape of what it shows is reported once rather than every frame.
+	var shapes []int
 	beat := func(now time.Time) {
 		frames++
 		since := now.Sub(beatAt)
@@ -385,6 +388,23 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			// l'application": the icon was there, on a panel that had been
 			// turned off. So the desk stops itself, and stopping is what puts
 			// everything back.
+			// And a screen that has taken the shape of what it shows says so.
+			// Without this the only evidence that it worked is a picture
+			// somebody has to be wearing the glasses to see.
+			for i := 0; i < d.Plan().Count(); i++ {
+				w := d.Plan().ScreenWidth(i)
+				if i < len(shapes) && shapes[i] == w {
+					continue
+				}
+				for len(shapes) <= i {
+					shapes = append(shapes, 0)
+				}
+				if shapes[i] != 0 {
+					logf("screen %d is now %dx%d, the shape of what it shows",
+						i+1, w, d.Plan().ScreenH)
+				}
+				shapes[i] = w
+			}
 			if _, err := currentScreen(opt.Screen.Name); err != nil {
 				logf("%v -- stopping, and putting back everything this changed", err)
 				d.Do(ActionQuit)
