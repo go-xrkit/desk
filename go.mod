@@ -9,7 +9,7 @@ require (
 	github.com/go-macos/brightness v0.1.1
 	github.com/go-macos/hotkey v0.6.0
 	github.com/go-macos/iokit v0.1.0
-	github.com/go-macos/objc v0.5.0
+	github.com/go-macos/objc v0.7.0
 	github.com/go-macos/pointer v0.1.0
 	github.com/go-macos/screencapture v0.1.1
 	github.com/go-macos/statusitem v0.3.0
@@ -44,7 +44,8 @@ require (
 	github.com/go-richdoc/richdoc v0.2.0 // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
 	github.com/go-widgets/android v0.13.1 // indirect
-	github.com/go-widgets/mvvm v0.7.0 // indirect
+	github.com/go-widgets/mvvm v0.8.0 // indirect
+	github.com/go-widgets/tray v0.5.1 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect

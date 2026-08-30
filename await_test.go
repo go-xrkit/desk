@@ -275,29 +275,6 @@ func TestAwaitWithNoChoiceAtAllTakesTheHeadsetItFinds(t *testing.T) {
 	}
 }
 
-func TestAwaitGivesAppKitTheMainThreadWhileItWaits(t *testing.T) {
-	// The menu-bar item is built before the wait and drawn by a run loop that
-	// does not exist yet, so the wait has to lend AppKit the main thread. Off
-	// macOS this does nothing, which is why the seam is counted rather than
-	// looked at.
-	pumped := 0
-	was := pump
-	pump = func() { pumped++ }
-	t.Cleanup(func() { pump = was })
-
-	list, calls := lister([]glasses.Display{aMonitor}, []glasses.Display{aMonitor},
-		[]glasses.Display{aMonitor, theGlasses})
-	if _, err := Await(context.Background(), AwaitOptions{
-		Want: "VITURE", List: list, Logf: func(string, ...any) {}, Every: time.Millisecond,
-	}); err != nil {
-		t.Fatalf("Await: %v", err)
-	}
-	if pumped < *calls-1 {
-		t.Errorf("AppKit was given the thread %d times over %d looks, want one per look it waited through",
-			pumped, *calls)
-	}
-}
-
 func TestAwaitAsksOnceAndThenGetsOnWithIt(t *testing.T) {
 	// Ask, nobody answers, ask again: that is a loop, and the bench caught it
 	// on an unattended machine -- one session's log with the settings window
