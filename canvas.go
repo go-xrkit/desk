@@ -203,8 +203,20 @@ func (c *Canvas) Slant(s Slant, src Source) {
 			if srow == nil {
 				continue
 			}
+			// A column outside the source is background, not a crash. The
+			// caller says which source column to read and it can be wrong --
+			// a screen showing a MIRROR of a display is not the shape of the
+			// band, and a fan still holding the band's width read past the end
+			// of the row: "slice bounds out of range [:6684] with capacity
+			// 6680", with the glasses on. The fan was fixed; this is the floor
+			// under it, because a renderer that can be crashed by a source of
+			// the wrong size will be.
+			sx := int(col.Src)
+			if sx < 0 || sx >= src.W {
+				continue
+			}
 			o := (d.X + i) * 4
-			copy(drow[o:o+4], srow[int(col.Src)*4:int(col.Src)*4+4])
+			copy(drow[o:o+4], srow[sx*4:sx*4+4])
 		}
 	}
 }

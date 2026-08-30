@@ -102,6 +102,23 @@ type Plan struct {
 
 	// splayDeg is the angle between one screen and the next. See [Plan.SplayDeg].
 	splayDeg float64
+
+	// widths is the pixel WIDTH of each screen, when one of them is not the
+	// shape of the glasses. Nil, and every entry of zero, mean ScreenW.
+	//
+	// A screen of the band is a whole view of the glasses, so they are all one
+	// shape -- until a position MIRRORS a display this program did not make.
+	// This Mac's own panel is 2056x1329, a ratio of 1.547 against the band's
+	// 1.778, and it has no 16:9 mode to be put into: its 60 modes are 1.547 and
+	// 1.600 and nothing else, which was measured before this field existed. Fit
+	// it into a screen of the band's shape and there is an empty band 124 pixels
+	// wide down each side of it.
+	//
+	// So the SCREEN takes the shape instead. Same height as its neighbours,
+	// narrower, and the ribbon already knew how to place that: a screen's span
+	// on the circle comes from its aspect ratio, which is what keeps the pixels
+	// square.
+	widths []int
 }
 
 // String renders the plan the way a person would want it logged.
@@ -117,15 +134,54 @@ func (p Plan) String() string {
 		p.Model, p.count, p.ScreenW, p.ScreenH, optics)
 }
 
-// Screens is the ribbon's screens, all identical because each one is a whole
-// view of the glasses.
+// Screens is the ribbon's screens: each one a whole view of the glasses, except
+// any that has been given a shape of its own by [Plan.WithScreenWidth].
 func (p Plan) Screens() []ribbon.Screen {
 	out := make([]ribbon.Screen, p.count)
 	for i := range out {
-		out[i] = ribbon.Screen{ID: fmt.Sprintf("screen-%d", i+1), W: p.ScreenW, H: p.ScreenH}
+		out[i] = ribbon.Screen{ID: fmt.Sprintf("screen-%d", i+1), W: p.ScreenWidth(i), H: p.ScreenH}
 	}
 	return out
 }
+
+// ScreenWidth is how wide screen i is, which is [Plan.ScreenW] unless it has
+// been given a shape of its own.
+func (p Plan) ScreenWidth(i int) int {
+	if i < 0 || i >= len(p.widths) || p.widths[i] <= 0 {
+		return p.ScreenW
+	}
+	return p.widths[i]
+}
+
+// WithScreenWidth returns the plan with screen i that many pixels wide, at the
+// same height as every other screen. A width of zero or less puts it back to
+// the shape of the glasses.
+//
+// The plan is copied, widths and all: a plan handed out and then changed under
+// its holder is a band and a navigator disagreeing about where a screen is.
+func (p Plan) WithScreenWidth(i, w int) Plan {
+	if i < 0 || i >= p.count {
+		return p
+	}
+	widths := make([]int, p.count)
+	copy(widths, p.widths)
+	if w >= p.ScreenH*MinAspectNum/MinAspectDen && w <= p.ScreenH*MaxAspectNum/MaxAspectDen {
+		widths[i] = w
+	} else {
+		widths[i] = 0
+	}
+	p.widths = widths
+	return p
+}
+
+// The shapes a screen is allowed to take, as fractions of its height: from a
+// tall panel on its side to an ultrawide. A source outside that is not a shape
+// somebody chose, it is a capture that has gone wrong, and giving the band a
+// screen a hundred times too wide would leave nothing else visible.
+const (
+	MinAspectNum, MinAspectDen = 1, 4
+	MaxAspectNum, MaxAspectDen = 8, 1
+)
 
 // NewPlan works out how to fill these glasses.
 func NewPlan(d glasses.Display, opts Options) (Plan, error) {
@@ -398,4 +454,17 @@ func (p Plan) WithSplay(deg float64) Plan {
 	}
 	p.splayDeg = deg
 	return p
+}
+
+// sameShapes says whether two plans give their screens the same widths.
+func (p Plan) sameShapes(q Plan) bool {
+	if p.count != q.count || p.ScreenW != q.ScreenW {
+		return false
+	}
+	for i := 0; i < p.count; i++ {
+		if p.ScreenWidth(i) != q.ScreenWidth(i) {
+			return false
+		}
+	}
+	return true
 }

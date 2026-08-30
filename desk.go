@@ -656,6 +656,10 @@ func (d *Desk) Render() *Canvas {
 		}
 	}
 
+	// A screen showing something that is not the shape of the glasses takes
+	// that shape, rather than sitting in an empty band.
+	d.fit()
+
 	d.blits = d.blits[:0]
 	inGallery := d.nav.Mode() == ribbon.ModeGallery
 	switch d.nav.Mode() {
@@ -959,6 +963,14 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("desk: laying out the band: %w", err)
 	}
+	// And a screen that is not the shape of the glasses reads its own pixels
+	// through its own width. The ARC it takes already came from that shape,
+	// through Plan.Screens above.
+	widths := make([]int, plan.Count())
+	for i := range widths {
+		widths[i] = plan.ScreenWidth(i)
+	}
+	strip.SetSourceWidths(widths)
 	// Every screen at once, folded into the same view. It is head-locked, so
 	// unlike the band it has no offset to follow and nothing to rebuild.
 	grid, err := NewGrid(plan.Count(), plan.ScreenW, plan.ScreenH,
@@ -966,6 +978,7 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("desk: folding the gallery: %w", err)
 	}
+	grid.SetSourceWidths(widths)
 	// The fan, when there is an angle to turn the screens by. A nil fan is the
 	// flat band and the strip draws it: every panel square on is every panel a
 	// rectangle, which is a run of row copies rather than a pixel at a time.
@@ -979,6 +992,10 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 	var fan *Fan
 	if plan.SplayDeg() > 0 {
 		fan, _ = NewFan(plan)
+		// And the turned panels read their own widths too. Without this a panel
+		// gathers columns past the end of a narrower source, which is not a
+		// stretched picture but a PANIC.
+		fan.SetSourceWidths(widths)
 	}
 	return r, strip, grid, fan, nil
 }
@@ -995,7 +1012,7 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 // The caller holds the lock.
 func (d *Desk) reshape(plan Plan) error {
 	if plan.Distance() == d.plan.Distance() && plan.Count() == d.plan.Count() &&
-		plan.SplayDeg() == d.plan.SplayDeg() {
+		plan.SplayDeg() == d.plan.SplayDeg() && plan.sameShapes(d.plan) {
 		// Already there: at either end of the range every further press means
 		// this, and rebuilding the band to put it back exactly as it was would
 		// make the desk twitch for nothing.
@@ -1132,4 +1149,37 @@ func (d *Desk) Focus() int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.nav.Focus()
+}
+
+// fit gives a screen whose pixels are not the shape of the band a shape of its
+// own, and rebuilds the band when one changes.
+//
+// It is driven by the PIXELS rather than by whoever opened the capture, because
+// what a position shows changes while the desk runs -- a mirror of this Mac's
+// own panel arrives on one key -- and the shape arrives with the first frame,
+// not with the decision.
+//
+// Called with the lock held, from Render.
+func (d *Desk) fit() {
+	next, changed := d.plan, false
+	for i, s := range d.sources {
+		// Only a source that is the band's height: the capture is asked for
+		// that height, so anything else is a frame that has not settled and not
+		// a shape somebody chose.
+		if s.W <= 0 || s.H != d.plan.ScreenH || s.W == d.plan.ScreenWidth(i) {
+			continue
+		}
+		next, changed = next.WithScreenWidth(i, s.W), true
+	}
+	if !changed || next.sameShapes(d.plan) {
+		return
+	}
+	// Reported rather than dropped, and it really can happen: a wide enough
+	// screen stops the band fitting in 360 degrees, which is a property of the
+	// shape AND of how many screens there are, so no fixed limit on one screen
+	// can rule it out. TestAShapeTheBandCannotHoldIsRefused measures it. The
+	// band is left exactly as it was: reshape builds before it assigns.
+	if err := d.reshape(next); err != nil {
+		d.err = err
+	}
 }

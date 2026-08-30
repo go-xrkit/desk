@@ -34,6 +34,9 @@ type Fan struct {
 	distance                 float64
 	hw, panelH, f            float64
 	viewW, viewH, srcW, srcH int
+	// srcWidths is the source width of each screen that is not the shape of the
+	// band. See [Fan.SetSourceWidths].
+	srcWidths []int
 
 	// slots holds one column buffer per panel a frame can show, reused frame to
 	// frame. A slant's columns are a slice into one of these, so a caller may
@@ -116,8 +119,9 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	slot := 0
 	for j := -FanReach; j <= FanReach; j++ {
 		lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.distance, turn)
-		s, ok := slantOf(f.slots[slot], f.screenAt(focus+j), lx, lz, rx, rz,
-			f.panelH, f.f, f.viewW, f.viewH, f.srcW, f.srcH)
+		at := f.screenAt(focus + j)
+		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
+			f.panelH, f.f, f.viewW, f.viewH, f.sourceWidth(at), f.srcH)
 		if !ok {
 			continue
 		}
@@ -137,4 +141,26 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 // because panel n is screen 0 one turn further out.
 func (f *Fan) screenAt(j int) int {
 	return ((j % f.n) + f.n) % f.n
+}
+
+// SetSourceWidths gives screens their own source widths.
+//
+// It is not decoration: the columns of a turned panel are gathered one pixel at
+// a time out of the source row, so a panel told it is 1920 pixels wide when its
+// capture is 1670 reads past the end of the row. That is a PANIC, and it is how
+// this was found -- "slice bounds out of range [:6684] with capacity 6680",
+// where 6680 is 1670 pixels of BGRA, with the app running and the glasses on.
+//
+// A nil or short slice, or an entry of zero, leaves that screen on the width
+// every other screen has.
+func (f *Fan) SetSourceWidths(w []int) {
+	f.srcWidths = append(f.srcWidths[:0], w...)
+}
+
+// sourceWidth is how wide screen i's pixels are.
+func (f *Fan) sourceWidth(i int) int {
+	if i < 0 || i >= len(f.srcWidths) || f.srcWidths[i] <= 0 {
+		return f.srcW
+	}
+	return f.srcWidths[i]
 }
