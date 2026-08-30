@@ -54,3 +54,17 @@ package main
 // gone a second later, and a backlight read 0.68 against 0.70 on a session that
 // never touched it. An invariant that fires on a machine mid-change is an
 // invariant nobody will believe the third time.
+
+// # A night of it
+//
+// The bench is meant to run where nobody is: a Mac kept for it, with a
+// self-hosted runner labelled xrdesk-bench and the Screen Recording and
+// Accessibility grants. .github/workflows/nightly-bench.yml is that job.
+//
+//	deskchaos -take-the-machine -rounds 20 -budget 90m -report bench.json
+//
+// -budget gives the night an end, because stopping on time beats a run
+// somebody has to kill in the morning. -report writes down the seed, and every
+// round's fault, headset and arrangement: a defect that needs four screens, a
+// mirror and a particular headset to appear is a defect nobody reproduces from
+// "something went wrong".
