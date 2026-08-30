@@ -49,6 +49,20 @@ func OpenTray(logf func(string, ...any), actions chan<- Action) (Closer, error) 
 	if err != nil {
 		return nil, fmt.Errorf("desk: no menu-bar item: %w", err)
 	}
-	logf("the menu bar carries %s with %d rows", TrayTitle, len(items))
+	// SAY WHETHER IT IS THERE, rather than that it was asked for.
+	//
+	// "je devrais voir le tray icon meme sans lunette" -- and the log said the
+	// menu bar carried it while a person was looking at a menu bar that did
+	// not. An item built in a process whose main thread never runs a loop is,
+	// in go-macos's own words, indistinguishable from Go from one that works.
+	// Since v0.2.0 it is not: OnScreen asks AppKit.
+	on, err := it.OnScreen()
+	if err != nil {
+		logf("the menu bar item cannot say whether it is there: %v", err)
+	} else if !on {
+		logf("the %s is NOT in the menu bar, though it was made: nothing has drawn it yet", TrayTitle)
+	} else {
+		logf("the menu bar carries %s with %d rows", TrayTitle, len(items))
+	}
 	return it, nil
 }
