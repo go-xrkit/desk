@@ -288,9 +288,14 @@ func run() int {
 
 		// What a ribbon position shows is chosen while it runs. The inventory is the
 		// list; Cycle is that list reduced to one key.
+		// Everything this Mac can show, except the screen the desk is ON. The
+		// glasses are a display like any other to the window server, and a
+		// position showing them shows this program's own window -- a picture
+		// inside itself, which is what "l'affichage a bugue" looked like.
+		own, _ := desk.OwnDisplay(chosen.Name)
 		if offers, err := desk.Sources(ctx, screens); err != nil {
 			logf("cannot list what could be shown: %v", err)
-		} else if inv, err := desk.NewInventory(plan.Count(), offers); err != nil {
+		} else if inv, err := desk.NewInventory(plan.Count(), desk.Without(offers, own)); err != nil {
 			logf("inventory: %v", err)
 		} else {
 			// A position mirroring this Mac's own panel is a screen of the band
