@@ -80,8 +80,6 @@ github.com/go-widgets/window v0.57.0 h1:FNPDgAddoQV3NSUid4X4OL0qNP1tD34daEOum89/
 github.com/go-widgets/window v0.57.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
-github.com/go-xrkit/xrkit v0.6.0 h1:ZIMkszW11YHjYZ8pVf51X9ooaKQyNX+LvjwaNTGKYY8=
-github.com/go-xrkit/xrkit v0.6.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
 github.com/go-xrkit/xrkit v0.7.0 h1:6DWgOpO9A2scJzxIXSTy/oDGKUTiZMhwKgu3ruIBBd0=
 github.com/go-xrkit/xrkit v0.7.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
