@@ -55,7 +55,7 @@ In the window, and in the glasses:
 | key | on the ribbon | in the screen gallery | in the application gallery |
 |---|---|---|---|
 | `←` `→` | turn the band | move the selection — it wraps, because the ribbon is a circle | move the selection, the same way |
-| `↑` `↓` | nothing: a band has no rows | move a row — it clamps, because the fold has no seam | move a row, the same way |
+| `↑` `↓` | nothing: a band has no rows | move a row — and stay in the column, so a column that ends, ends | move a row, the same way |
 | `Enter` | — | go to the highlighted screen, the short way round | **put the highlighted application on the screen the band is showing** |
 | `Space` / `f` | fill the view with the focused screen | — | — |
 | `g` | show every screen at once | put the ribbon back exactly as it was | — |
@@ -203,6 +203,14 @@ Three screens are never darkened:
   glasses, because then the desk is a window on one of them.
 
 `-dim=false` leaves every screen lit.
+
+And a panel this program turned off is put back even when the run that did it
+never gets the chance. It writes down what it is about to darken BEFORE
+darkening it, and the next start reads that note and lights the panel again:
+nothing runs after a `SIGKILL`, so the screen is dark until then -- there is no
+way around that -- but it is one start away from being right rather than a
+setting somebody has to find in the dark. A panel that is ALREADY brighter than
+the note says is left alone, because somebody turned it up in the meantime.
 
 **And nothing holds a backlight off after the desk stops.** Two ways out were
 missing and both were found the hard way, in one session:
@@ -441,6 +449,49 @@ It reads the SYSTEM's display list, not ours: six screens appear there under the
 names macOS shows, and are gone by the time `Close` returns. Remove the wait in
 `Screens.Close` and it fails naming each screen still listed — which is how the
 wait was shown to be doing something.
+
+
+### And a bench that breaks it on purpose
+
+Tests say what functions do to values. Every defect this program had in a week
+was about what a **session** does to a **machine**, and every one of them was
+found by somebody wearing the glasses and saying so.
+
+`cmd/deskchaos` is the other half. It runs real sessions under real faults — one
+left to finish, the glasses unplugged mid-session, killed outright the way a
+crash does, a second headset plugged in — and then asks what is still true of
+the machine that should not be:
+
+- a display outliving the process that made it;
+- a backlight **left dark** — and, for a killed session, whether the next start
+  puts it back, because nothing runs after `SIGKILL`;
+- the desk's own screen on its own band;
+- a panic;
+- a session that opened its window and never drew a frame;
+- a session whose screen went and never said it was stopping.
+
+It also watches **while** the session runs: a session that misbehaves for ten
+seconds and tidies up on the way out leaves nothing behind at all, which is
+exactly what a pointer nobody can find looks like.
+
+**It needs no glasses.** A virtual display named from the catalogue is a headset
+as far as this program can tell, so the bench makes its own. The only thing it
+cannot exercise is the optics.
+
+```
+deskchaos -take-the-machine -rounds 20 -budget 90m -report bench.json
+```
+
+It refuses to start without `-take-the-machine`, because sessions warp the
+pointer sixty times a second, turn a backlight off, make and destroy displays
+and move applications between them — and this kills them halfway through on
+purpose. `.github/workflows/nightly-bench.yml` is that, on a Mac kept for it.
+
+One thing it taught about Macs rather than about the desk: after several hundred
+displays made and destroyed in a day, the window server refuses new ones for the
+best part of a minute and takes as long to let old ones go. Rounds after that
+report the machine, not the program, so the bench tells the two apart and says
+**skipped** rather than counting it.
 
 ## Licence
 
