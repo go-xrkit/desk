@@ -214,3 +214,62 @@ func TestDescribeDisplaysNamesNothing(t *testing.T) {
 		t.Errorf("describeDisplays = %q, want it to name the display", got)
 	}
 }
+
+// otherGlasses is a second headset the catalogue also knows, so these tests
+// never depend on which model is which.
+var otherGlasses = glasses.Display{Name: "VITURE Beast", Width: 1920, Height: 1080}
+
+func TestAwaitUsesTheHeadsetThatIsHereWhenTheChosenOneIsNot(t *testing.T) {
+	// MEASURED on the machine this was reported from: the settings named one
+	// model, the pair on the desk was another, and the desk waited two and a
+	// half minutes with the glasses plugged in the whole time.
+	list, _ := lister([]glasses.Display{aMonitor, otherGlasses})
+	var lines []string
+
+	got, err := Await(context.Background(), AwaitOptions{
+		Want: theGlasses.Name, List: list, Logf: record(&lines), Every: time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	if got.Name != otherGlasses.Name {
+		t.Errorf("chose %q, want the headset that is attached, %q", got.Name, otherGlasses.Name)
+	}
+	// And it SAYS so: a desk that quietly used something else would be a desk
+	// whose settings appear to be ignored.
+	said := strings.Join(lines, "\n")
+	if !strings.Contains(said, "using the one that is here instead") {
+		t.Errorf("said %q, want it to say which one it used and why", said)
+	}
+}
+
+func TestAwaitAsksWhenSeveralHeadsetsAreHereAndNoneIsTheChosenOne(t *testing.T) {
+	list, _ := lister([]glasses.Display{aMonitor, otherGlasses,
+		{Name: "Rokid Max", Width: 1920, Height: 1080}})
+	var lines []string
+
+	_, err := Await(context.Background(), AwaitOptions{
+		Want: theGlasses.Name, List: list, Logf: record(&lines), Every: time.Millisecond,
+	})
+	if !errors.Is(err, ErrAwaitSettings) {
+		t.Fatalf("Await = %v, want it to ask", err)
+	}
+	if said := strings.Join(lines, "\n"); !strings.Contains(said, "none of them is the one chosen") {
+		t.Errorf("said %q, want it to say why it is asking", said)
+	}
+}
+
+func TestAwaitWithNoChoiceAtAllTakesTheHeadsetItFinds(t *testing.T) {
+	// Nothing chosen: ChooseDisplay already answers this, and it must keep
+	// answering it -- the preference above must not become a requirement.
+	list, _ := lister([]glasses.Display{aMonitor, otherGlasses})
+	got, err := Await(context.Background(), AwaitOptions{
+		List: list, Logf: func(string, ...any) {}, Every: time.Millisecond,
+	})
+	if err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	if got.Name != otherGlasses.Name {
+		t.Errorf("chose %q, want %q", got.Name, otherGlasses.Name)
+	}
+}

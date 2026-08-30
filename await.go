@@ -94,6 +94,33 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 			}
 			return chosen, nil
 		}
+
+		// THE MODEL IN THE SETTINGS IS A PREFERENCE, NOT A LOCK.
+		//
+		// A person who chose a headset once should not be made to wait for that
+		// headset for ever. Measured on this machine: the settings named a
+		// "VITURE Luma Ultra", the pair on the desk was a Beast, and the desk
+		// waited two and a half minutes and created nothing -- with the glasses
+		// plugged in the whole time.
+		//
+		// So when the chosen one is not here and exactly ONE headset is, that
+		// is the one. Recognising a headset is the catalogue's job, not a name
+		// written down here: glasses.Headsets asks it.
+		//
+		// Two of them and nothing to choose between is a question for a person,
+		// not a coin toss, and it is asked the same way as at start-up.
+		if hs := glasses.Headsets(ds); len(hs) > 0 && opt.Want != "" {
+			if len(hs) == 1 {
+				logf("%v", why)
+				logf("using the one that is here instead: %s", hs[0])
+				return hs[0], nil
+			}
+			if !waited {
+				logf("%v", why)
+				logf("%d headsets are attached and none of them is the one chosen", len(hs))
+				return glasses.Display{}, ErrAwaitSettings
+			}
+		}
 		if now := describeDisplays(ds); now != said {
 			said = now
 			logf("%v", why)
