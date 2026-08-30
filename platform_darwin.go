@@ -267,31 +267,65 @@ func Sources(ctx context.Context, s *Screens) ([]Offer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
 	}
+	byID := make(map[uint32]screencapture.Display, len(ds))
+	for _, d := range ds {
+		byID[d.ID] = d
+	}
 
+	// THE DESK'S OWN SCREENS COME BACK IN THE BAND'S ORDER, not in the window
+	// server's.
+	//
+	// This is the whole reason this function does not simply walk ds. The band
+	// draws position i from Screens.IDs[i]; the inventory says what position i
+	// is SHOWING; and everything that has to agree with the picture -- which
+	// screen the pointer is held to, where the pointer is drawn -- goes through
+	// the inventory. MEASURED, with four screens made left to right:
+	//
+	//	position 1 draws display 107, and the inventory said 108
+	//	position 2 draws display 108, and the inventory said 107
+	//
+	// ScreenCaptureKit does not list displays in the order they were created,
+	// so the pointer was being held to a screen the band was not showing. The
+	// report was "je ne peux plus interragir avec les app".
 	ours := make(map[uint32]bool, len(s.IDs))
+	var mine []Offer
 	if s != nil && s.Virtual {
 		for _, id := range s.IDs {
 			ours[uint32(id)] = true
+			d, ok := byID[uint32(id)]
+			if !ok {
+				// Made, but not offered for capture: it is not a source, and
+				// putting it on the ribbon would be putting up a black screen.
+				continue
+			}
+			mine = append(mine, Offer{
+				ID:   offerID(d.ID),
+				Name: fmt.Sprintf("XR screen %d", len(mine)+1),
+				Kind: KindDisplay,
+				W:    d.PixelWidth,
+				H:    d.PixelHeight,
+			})
 		}
 	}
-	var mine, theirs []Offer
+
+	// And then the machine's own screens, in whatever order it lists them --
+	// nothing here depends on that one.
+	var theirs []Offer
 	for _, d := range ds {
-		o := Offer{
+		if ours[d.ID] {
+			continue
+		}
+		name := fmt.Sprintf("display %d", d.ID)
+		if d.Main {
+			name += " (main)"
+		}
+		theirs = append(theirs, Offer{
 			ID:   offerID(d.ID),
+			Name: name,
 			Kind: KindDisplay,
 			W:    d.PixelWidth,
 			H:    d.PixelHeight,
-		}
-		if ours[d.ID] {
-			o.Name = fmt.Sprintf("XR screen %d", len(mine)+1)
-			mine = append(mine, o)
-			continue
-		}
-		o.Name = fmt.Sprintf("display %d", d.ID)
-		if d.Main {
-			o.Name += " (main)"
-		}
-		theirs = append(theirs, o)
+		})
 	}
 	return append(mine, theirs...), nil
 }
