@@ -156,20 +156,36 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 			}
 		}
 
-		pump()
-
-		select {
-		case <-ctx.Done():
-			return glasses.Display{}, ctx.Err()
-		case a := <-opt.Actions:
-			switch a {
-			case ActionQuit:
-				return glasses.Display{}, ErrAwaitQuit
-			case ActionSettings:
-				return glasses.Display{}, ErrAwaitSettings
+		// The wait is spent INSIDE AppKit, not asleep beside it.
+		//
+		// A menu is not drawn, it is TRACKED: the press has to be delivered
+		// and then AppKit runs its own loop until the person lets go. Lending
+		// it twenty milliseconds a second was enough to draw the item in the
+		// menu bar and not enough to open it -- "l'icon est visible dans le
+		// tray mais je n'ai aucun menu" -- because the press landed in one of
+		// the gaps.
+		//
+		// So the poll interval is spent pumping, in slices, and the channels
+		// are looked at between slices rather than waited on.
+		done := time.Now().Add(every)
+		for {
+			select {
+			case <-ctx.Done():
+				return glasses.Display{}, ctx.Err()
+			case a := <-opt.Actions:
+				switch a {
+				case ActionQuit:
+					return glasses.Display{}, ErrAwaitQuit
+				case ActionSettings:
+					return glasses.Display{}, ErrAwaitSettings
+				}
+				// Anything else needs a desk to act on. Keep waiting.
+			default:
 			}
-			// Anything else needs a desk to act on. Keep waiting.
-		case <-time.After(every):
+			if !time.Now().Before(done) {
+				break
+			}
+			pump()
 		}
 	}
 }
