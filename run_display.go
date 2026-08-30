@@ -231,6 +231,12 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			said = at
 			logf("the pointer is on screen %d", at+1)
 		}
+		// AND THE DESK DRAWS IT. macOS does not draw a cursor on a display
+		// this program made -- 2003 pixels change when the pointer crosses
+		// this Mac's own panel and 14 when it crosses one of ours -- so
+		// without this somebody in the glasses sees their windows respond to a
+		// mouse they cannot see.
+		d.SetPointer(fence.Where(showing(), at))
 	}
 	surface := toolkit.NewSurface(v.frame)
 	surface.OnInput = func(ev toolkit.Event) {

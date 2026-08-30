@@ -234,3 +234,45 @@ func TestThePointerIsBroughtBackOnBothEdgesAndBothWays(t *testing.T) {
 		}
 	}
 }
+
+func TestWhereSaysHowFarAcrossTheScreenThePointerIs(t *testing.T) {
+	dt := asMeasured()
+	dt.install(t)
+	// Screen 1 is display 59 at -11520..-9600, 0..1080.
+	dt.x, dt.y = -11520+480, 270 // a quarter across, a quarter down
+
+	var f Fence
+	pos, px, py, ok := f.Where(band, 0)
+	if !ok || pos != 0 {
+		t.Fatalf("Where = %d,%v, want screen 0", pos, ok)
+	}
+	if px != PointerScale/4 || py != PointerScale/4 {
+		t.Errorf("Where = %d,%d out of %d, want a quarter of each", px, py, PointerScale)
+	}
+	// A pointer that is NOT on that screen is not on the band as far as the
+	// picture is concerned: drawing it there would put a cursor on a screen it
+	// is not over.
+	dt.x = 1000
+	if _, _, _, ok := f.Where(band, 0); ok {
+		t.Error("Where placed a pointer that is on another display")
+	}
+	// And the refusals that mean there is no screen to be across.
+	for _, c := range []struct {
+		name    string
+		showing []uint64
+		focus   int
+	}{
+		{"a position showing nothing", []uint64{0}, 0},
+		{"a display nothing can measure", []uint64{404}, 0},
+		{"a focus off the end", band, 99},
+	} {
+		if _, _, _, ok := f.Where(c.showing, c.focus); ok {
+			t.Errorf("%s: Where said yes", c.name)
+		}
+	}
+	// A pointer the window server will not report is not a place either.
+	dt.lost = true
+	if _, _, _, ok := f.Where(band, 0); ok {
+		t.Error("Where placed a pointer nobody can find")
+	}
+}

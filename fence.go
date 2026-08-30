@@ -130,3 +130,32 @@ func clamp(v, lo, hi float64) float64 {
 	}
 	return v
 }
+
+// Where says which ribbon position the pointer is on and where it is on that
+// screen's own source, in pixels.
+//
+// It is the fence's because the fence already holds the answer: the pointer is
+// on the screen the band is showing, and the rectangle it is held to is the one
+// this converts through. srcW and srcH are asked for rather than assumed --
+// a screen mirroring this Mac's panel is not the shape of the band.
+func (f *Fence) Where(showing []uint64, focus int) (pos, px, py int, ok bool) {
+	if focus < 0 || focus >= len(showing) || showing[focus] == 0 {
+		return 0, 0, 0, false
+	}
+	r, ok := displayRect(showing[focus])
+	if !ok || r.W <= 0 || r.H <= 0 {
+		return 0, 0, 0, false
+	}
+	x, y, ok := pointerAt()
+	if !ok || !inside(x, y, r) {
+		return 0, 0, 0, false
+	}
+	// In FRACTIONS of the screen. The source's pixel size is the caller's --
+	// a capture is not always the same size as the rectangle it came from.
+	return focus, int((x - r.X) / r.W * PointerScale), int((y - r.Y) / r.H * PointerScale), true
+}
+
+// PointerScale is the unit [Fence.Where] answers in: the pointer's place across
+// the screen as a number out of this. The caller multiplies by its own source
+// size, which is the only thing that knows how many pixels that screen has.
+const PointerScale = 1 << 16
