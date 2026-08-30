@@ -47,6 +47,15 @@ func run() int {
 		return 1
 	}
 
+	// Its own directory for the settings it writes: a person's own are never
+	// read and never written.
+	dir, err := os.MkdirTemp("", "deskchaos-")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	defer os.RemoveAll(dir)
+
 	bad := 0
 	for i := 1; i <= *rounds; i++ {
 		f := pick(rng, *only)
@@ -58,8 +67,13 @@ func run() int {
 			return 2
 		}
 		name := names[rng.Intn(len(names))]
-		fmt.Printf("\n── round %d/%d — %s, standing in a %q\n", i, *rounds, f.name, name)
-		found := round(*deskBin, name, *f, rng)
+		setting, how, err := settingsFor(dir, rng)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "writing the settings for this round: %v\n", err)
+			return 1
+		}
+		fmt.Printf("\n── round %d/%d — %s\n   a %q, %s\n", i, *rounds, f.name, name, how)
+		found := round(*deskBin, name, setting, *f, rng)
 		for _, s := range found {
 			fmt.Printf("   ✗ %s\n", s)
 		}
@@ -91,6 +105,7 @@ var faults = []fault{
 	{"the glasses unplugged mid-session", func(s *session, rng *rand.Rand) {
 		s.settle(rng)
 		s.unplugGlasses()
+		s.expectStopWithin = 8 * time.Second
 	}},
 	{"killed outright, the way a crash does", func(s *session, rng *rand.Rand) {
 		s.settle(rng)
@@ -110,11 +125,18 @@ type session struct {
 
 	bin     string
 	stand   *virtualdisplay.Display
-	extra   *virtualdisplay.Display
-	name    string
-	killed  bool
-	wasLit  map[uint32]float64
-	pointer pointer.Point
+	eyes    *watcher
+	setting string
+	// expectStopWithin is how long the session may take to notice a fault and
+	// stop. Zero means it is left to its own deadline.
+	expectStopWithin time.Duration
+	unpluggedAt      time.Time
+	stopped          time.Time
+	extra            *virtualdisplay.Display
+	name             string
+	killed           bool
+	wasLit           map[uint32]float64
+	pointer          pointer.Point
 }
 
 // pick chooses a fault, or the one a person asked for by name.

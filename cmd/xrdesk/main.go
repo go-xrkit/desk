@@ -151,6 +151,10 @@ func run() int {
 	// released before the settings window opens -- a desk holding six virtual
 	// displays while a person changes how many there should be is a desk that
 	// then has to be told twice.
+	// askedAboutGlasses remembers that a person has already been shown the
+	// choice once. Asking twice with the same answer is a loop.
+	askedAboutGlasses := false
+
 	session := func(n int, model string, dist, splay float64, settings desk.Config) (again, wantSettings bool, code int) {
 		// Ctrl-C must reach the same exit as the quit key, or a session left
 		// running keeps virtual displays the person never asked for. It is set
@@ -176,7 +180,7 @@ func run() int {
 		// of two actions matter: this returns at once when the display is
 		// already there, and says nothing in that case.
 		chosen, err := desk.Await(ctx, desk.AwaitOptions{
-			Want: model, Actions: actions, Logf: logf,
+			Want: model, Actions: actions, Logf: logf, Asked: askedAboutGlasses,
 			List: func() ([]glasses.Display, error) {
 				ss, err := window.Screens()
 				if err != nil {
@@ -199,6 +203,7 @@ func run() int {
 			fmt.Printf("gave up waiting after %s; nothing was created\n", *forDur)
 			return false, false, 0
 		case errors.Is(err, desk.ErrAwaitSettings):
+			askedAboutGlasses = true
 			return true, true, 0
 		case err != nil:
 			fmt.Printf("%v\n", err)
