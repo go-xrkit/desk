@@ -1,0 +1,77 @@
+# The chaos bench, on a Mac nobody is using.
+#
+# It is NOT on a schedule yet, and that is deliberate: a scheduled job with no
+# runner to take it queues until it times out, every night, which is noise
+# nobody reads. Add the schedule the day a runner answers to these labels.
+#
+# What it needs of that machine:
+#
+#   * a self-hosted runner labelled xrdesk-bench,
+#   * Screen Recording and Accessibility granted to the runner,
+#   * nobody working on it: the bench moves the pointer, turns a backlight off,
+#     makes and destroys displays, and kills sessions halfway through.
+#
+# It needs no glasses. A virtual display named from the catalogue is a headset
+# as far as the desk can tell.
+name: nightly bench
+
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: how many sessions to run
+        default: "20"
+      budget:
+        description: stop starting rounds after this long
+        default: 90m
+  # schedule:
+  #   - cron: "0 2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  chaos:
+    runs-on: [self-hosted, macOS, xrdesk-bench]
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Build the desk and the bench
+        run: |
+          CGO_ENABLED=0 go build -o build/xrdesk ./cmd/xrdesk
+          CGO_ENABLED=0 go build -o build/deskchaos ./cmd/deskchaos
+
+      # Nothing of a previous night, and nothing of a person's session: a bench
+      # that starts on a machine already holding six displays measures that.
+      - name: Make sure nothing is running
+        run: pkill -x xrdesk || true
+
+      - name: Run it
+        id: run
+        run: |
+          ./build/deskchaos \
+            -take-the-machine \
+            -desk "$PWD/build/xrdesk" \
+            -rounds "${{ inputs.rounds || 20 }}" \
+            -budget "${{ inputs.budget || '90m' }}" \
+            -report bench.json
+
+      # The report is kept whatever happened: a night that found something is
+      # the one somebody needs the seed from.
+      - name: Keep the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-report
+          path: bench.json
+          if-no-files-found: warn
+
+      - name: Put the machine back
+        if: always()
+        run: pkill -x xrdesk || true

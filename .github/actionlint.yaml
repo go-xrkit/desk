@@ -1,0 +1,8 @@
+# The labels this repository's own runners answer to.
+#
+# actionlint knows GitHub's hosted labels and nothing else, so a self-hosted
+# one reads as a typo. Written down here rather than silenced, because the
+# point of the check is to catch the day somebody writes xrdesk-banch.
+self-hosted-runner:
+  labels:
+    - xrdesk-bench
