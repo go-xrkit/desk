@@ -18,11 +18,34 @@ package desk
 // testable; putting one in the menu bar is the platform's business
 // (tray_darwin.go).
 
-// TrayTitle is what the item says in the menu bar.
+// TraySymbol is the system symbol the item shows in the menu bar, and
+// TrayLabel is what a screen reader says about it.
 //
-// Glasses, in one glyph. Text would be four characters of somebody's menu bar
-// for something they use twice a session, and the menu bar is not ours to
-// spend.
+// A SYMBOL RATHER THAN AN EMOJI, and it was measured rather than argued.
+// In the item's own strip of the menu bar:
+//
+//	emoji title 👓            79 pixels of ink
+//	symbol eyeglasses        100
+//	symbol rectangle.3.group 161
+//	symbol visionpro         182
+//	symbol display           206
+//
+// "l'icon de lunettes de la tray n'est pas tres lisible" is what the first of
+// those looks like to somebody using it: a title is TEXT, so an emoji arrives
+// at the height of a lowercase letter, flat in the bar's own ink, among twenty
+// other items. A symbol is vector, aligned to the bar's cap height, and takes
+// the bar's appearance in every theme.
+//
+// visionpro rather than the darkest of them: a headset says what this program
+// is, where a monitor says what everything else is. eyeglasses is the shape of
+// the old icon and half the ink, which is the trade this was reported for.
+const (
+	TraySymbol = "visionpro"
+	TrayLabel  = "XR desk"
+)
+
+// TrayTitle is what the item falls back to when the system has no such symbol:
+// an older macOS, or a name Apple has retired.
 const TrayTitle = "\U0001F453"
 
 // TrayQueue is how many menu choices are held for the run loop.

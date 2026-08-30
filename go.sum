@@ -48,8 +48,8 @@ github.com/go-macos/pointer v0.1.0 h1:3EzOYpglD00NPPbfbvxATgPADhjx8FT+3kObqvAkki
 github.com/go-macos/pointer v0.1.0/go.mod h1:5tUH5BYtStY5ArNrru/icDD7RfGJLdq7ekmgKr4mwOk=
 github.com/go-macos/screencapture v0.1.1 h1:6w6pimUDVdGwNQSVOiX9GQjY5hrHXX5zrxbDOi2q3sA=
 github.com/go-macos/screencapture v0.1.1/go.mod h1:v/+0ftetufZ7nNdIWgwp4f8w1Yg+LFxS4iBHoNFyA4Y=
-github.com/go-macos/statusitem v0.2.0 h1:DmqUFioNKN6bbo3tMJ0VxBKehWFVRfWOwgQ8yfuDZqg=
-github.com/go-macos/statusitem v0.2.0/go.mod h1:aMYbvRziP2qgjNTICILPnSpwztf6W4bwEmEBW774OYE=
+github.com/go-macos/statusitem v0.3.0 h1:SRmSMwBsBLcwvteBoENsukdS4DLawsLMTKtNB9+0UAQ=
+github.com/go-macos/statusitem v0.3.0/go.mod h1:aMYbvRziP2qgjNTICILPnSpwztf6W4bwEmEBW774OYE=
 github.com/go-macos/virtualdisplay v0.2.1 h1:Yg1IPEjsToMCfSHVuiVKGtL3NpOgI68VGgA53euQtOY=
 github.com/go-macos/virtualdisplay v0.2.1/go.mod h1:X2uyrY28G2kJ8dVDxnCGUa7Q1ScB5rr0Vmd83Smx+uY=
 github.com/go-mswin/screencapture v0.2.0 h1:2wuzUiORPoQehjNrfBAkhlT7DJ12sd53B5U+x+4XoR0=
