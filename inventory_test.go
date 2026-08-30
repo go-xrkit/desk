@@ -236,3 +236,44 @@ func TestOfferAndKindStrings(t *testing.T) {
 		}
 	}
 }
+
+func TestWithoutKeepsTheDesksOwnScreenOutOfItsOwnBand(t *testing.T) {
+	offers := []Offer{
+		{ID: "display-101", Name: "XR screen 1", Kind: KindDisplay},
+		{ID: "display-3", Name: "display 3", Kind: KindDisplay},
+		{ID: "display-1", Name: "display 1 (main)", Kind: KindDisplay, Main: true},
+		{ID: "panel-7", Name: "a panel", Kind: KindPanel},
+	}
+	got := Without(offers, 3)
+	if len(got) != 3 {
+		t.Fatalf("Without left %d offers, want 3", len(got))
+	}
+	for _, o := range got {
+		if o.ID == "display-3" {
+			t.Error("the display the desk is on is still on offer")
+		}
+	}
+	// A panel has no display behind it and is not touched by a display id.
+	if got[2].ID != "panel-7" {
+		t.Errorf("the last offer is %q, want the panel left alone", got[2].ID)
+	}
+	// Nothing to leave out, and nothing that CAN be left out, both give the
+	// list back rather than a copy missing something.
+	for _, c := range []struct {
+		name string
+		ids  []uint64
+	}{
+		{"no displays named", nil},
+		{"only a zero, which is no display", []uint64{0}},
+	} {
+		if got := Without(offers, c.ids...); len(got) != len(offers) {
+			t.Errorf("%s: Without left %d offers, want all %d", c.name, len(got), len(offers))
+		}
+	}
+	// And an offer this cannot read a display out of stays: leaving out what
+	// you do not understand is how a band ends up with holes in it.
+	odd := []Offer{{ID: "not-a-display", Kind: KindDisplay}}
+	if got := Without(odd, 3); len(got) != 1 {
+		t.Errorf("Without dropped an offer it could not read: %v", got)
+	}
+}

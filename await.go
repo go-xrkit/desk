@@ -99,31 +99,31 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 			return chosen, nil
 		}
 
-		// THE MODEL IN THE SETTINGS IS A PREFERENCE, NOT A LOCK.
+		// THE MODEL IN THE SETTINGS IS A PREFERENCE, AND A HEADSET THAT IS NOT
+		// IT IS A QUESTION.
 		//
 		// A person who chose a headset once should not be made to wait for that
-		// headset for ever. Measured on this machine: the settings named a
-		// "VITURE Luma Ultra", the pair on the desk was a Beast, and the desk
-		// waited two and a half minutes and created nothing -- with the glasses
-		// plugged in the whole time.
+		// headset for ever: measured, the settings named a "VITURE Luma Ultra",
+		// the pair on the desk was a Beast, and the desk waited two and a half
+		// minutes and created nothing with the glasses plugged in.
 		//
-		// So when the chosen one is not here and exactly ONE headset is, that
-		// is the one. Recognising a headset is the catalogue's job, not a name
-		// written down here: glasses.Headsets asks it.
+		// But taking the other one silently is not right either -- "quand j'ai
+		// branché les lunettes j'aurais dû avoir un panneau de choix des
+		// lunettes". Nobody has said anything about THIS pair, and a setting
+		// that appears to be ignored is worse than one that is asked about. So
+		// it asks, once, and the answer is written down: the next session with
+		// the same glasses starts without a word.
 		//
-		// Two of them and nothing to choose between is a question for a person,
-		// not a coin toss, and it is asked the same way as at start-up.
+		// Recognising a headset is the catalogue's job, not a name written down
+		// here: glasses.Headsets asks it.
 		if hs := glasses.Headsets(ds); len(hs) > 0 && opt.Want != "" {
+			logf("%v", why)
 			if len(hs) == 1 {
-				logf("%v", why)
-				logf("using the one that is here instead: %s", hs[0])
-				return hs[0], nil
-			}
-			if !waited {
-				logf("%v", why)
+				logf("%s is here instead; asking which to use", hs[0])
+			} else {
 				logf("%d headsets are attached and none of them is the one chosen", len(hs))
-				return glasses.Display{}, ErrAwaitSettings
 			}
+			return glasses.Display{}, ErrAwaitSettings
 		}
 		if now := describeDisplays(ds); now != said {
 			said = now

@@ -317,3 +317,37 @@ func DisplayOf(o Offer) (uint64, bool) {
 	}
 	return id, true
 }
+
+// Without returns the offers with the ones showing these displays left out.
+//
+// It is how the desk keeps its OWN screen out of its own band. The glasses are
+// a display like any other to the window server, so the sources list offers
+// them -- and a position showing them shows this program's window, which is
+// showing that position: a picture inside itself. Measured, with a session
+// whose virtual displays were refused and which fell back to the two screens
+// the machine had: "screen 2: display 3", display 3 being the glasses.
+//
+// A display that is not offered is not merely hidden from the cycle: it cannot
+// be assigned, so nothing can put it back by accident.
+func Without(offers []Offer, displays ...uint64) []Offer {
+	if len(displays) == 0 {
+		return offers
+	}
+	skip := make(map[uint64]bool, len(displays))
+	for _, id := range displays {
+		if id != 0 {
+			skip[id] = true
+		}
+	}
+	if len(skip) == 0 {
+		return offers
+	}
+	out := make([]Offer, 0, len(offers))
+	for _, o := range offers {
+		if id, ok := DisplayOf(o); ok && skip[id] {
+			continue
+		}
+		out = append(out, o)
+	}
+	return out
+}
