@@ -106,6 +106,15 @@ type ConfigRibbon struct {
 	// moves. Nil means [DefaultBadgeSeconds]; zero turns it off.
 	BadgeSeconds *float64 `hcl:"badge_seconds"`
 
+	// Mirror reserves the FIRST ribbon position for this Mac's own screen, and
+	// makes one virtual display fewer. Nil means true.
+	//
+	// Somebody wearing the glasses still has a Mac in front of them, with a menu
+	// bar, a Dock and whatever was already open on it. Reaching it should not
+	// mean taking the glasses off, and it should not mean knowing a key: it is
+	// screen 1, where the band starts.
+	Mirror *bool `hcl:"mirror"`
+
 	// Immersive covers the glasses display's own menu bar and Dock. Nil means
 	// true.
 	//
@@ -385,4 +394,13 @@ func (c Config) BadgeSeconds() float64 {
 		return DefaultBadgeSeconds
 	}
 	return *c.Ribbon.BadgeSeconds
+}
+
+// Mirror says whether the first ribbon position shows this Mac's own screen.
+// A file that does not say asks for it.
+func (c Config) Mirror() bool {
+	if c.Ribbon == nil || c.Ribbon.Mirror == nil {
+		return true
+	}
+	return *c.Ribbon.Mirror
 }

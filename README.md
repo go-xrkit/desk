@@ -149,10 +149,15 @@ pointer is left alone rather than held against a rectangle nobody knows.
 
 ## The Mac's own screen, in the glasses
 
-A ribbon position can show one of this Mac's real displays as easily as one of
-the displays this program made: they are both in the sources list, and `⌃⌥⌘C`
-walks through it. Somebody with one screen in the glasses can therefore see the
-screen they already have.
+**Screen 1 is this Mac's own screen.** Somebody wearing the glasses still has a
+Mac in front of them, with a menu bar, a Dock and whatever was already open on
+it; reaching it should not mean taking the glasses off, and it should not mean
+knowing a key. So one virtual display FEWER is made and the position it would
+have taken goes to the machine's own screen — `mirror = false` in the `ribbon`
+block turns that off.
+
+Every other position can show one too: they are all in the sources list, and
+`⌃⌥⌘C` walks through it.
 
 **And the pointer goes with it.** A position showing this Mac's panel is a
 screen of the band like any other, so the pointer is held to *it* while it is
