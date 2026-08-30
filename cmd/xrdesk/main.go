@@ -140,10 +140,11 @@ func run() int {
 	// somewhere to click. Choosing a row sends an action into the queue the run
 	// loop reads.
 	actions := make(chan desk.Action, desk.TrayQueue)
-	if tray, err := desk.OpenTray(logf, actions); err != nil {
+	menuBar, err := desk.OpenTray(logf, actions)
+	if err != nil {
 		logf("%v", err)
 	} else {
-		defer func() { _ = tray.Close() }()
+		defer func() { _ = menuBar.Close() }()
 	}
 
 	// What the command line asked for, kept apart from what the settings say: a
@@ -188,7 +189,42 @@ func run() int {
 		// The glasses are a cable. Wait for them rather than making the order
 		// of two actions matter: this returns at once when the display is
 		// already there, and says nothing in that case.
-		chosen, err := desk.Await(ctx, desk.AwaitOptions{
+		// THE MENU BAR HOLDS THE LOOP WHILE THIS WAITS.
+		//
+		// A menu-bar item is an object with a window, and neither is drawn --
+		// nor is a menu ever opened -- without a platform run loop. There is
+		// none here yet: the window that will own one needs a display, and the
+		// display is what this is waiting for. So the tray runs the loop and
+		// the waiting happens on a goroutine, which is the way round
+		// go-widgets/tray is built for: Run when a program has no loop of its
+		// own, Attach when it does.
+		await := func(opt desk.AwaitOptions) (glasses.Display, error) {
+			if menuBar == nil {
+				return desk.Await(ctx, opt)
+			}
+			var got glasses.Display
+			var err error
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				got, err = desk.Await(ctx, opt)
+				// Whatever it found, the loop has to stop so the window can
+				// have the main thread.
+				menuBar.Release()
+			}()
+			if herr := menuBar.Hold(); herr != nil {
+				// No loop to hold -- a build without the native tray, or a
+				// platform without one. The wait still works and there is
+				// simply no item, which is worth saying twice: a menu bar
+				// nobody can use, in silence, cost an afternoon.
+				logf("no menu bar item: %v", herr)
+				logf("  a menu-bar item needs go-widgets/tray's native backend, which is " +
+					"behind a build tag: go build -tags tray_native ./cmd/xrdesk")
+			}
+			<-done
+			return got, err
+		}
+		chosen, err := await(desk.AwaitOptions{
 			Want: model, Actions: actions, Logf: logf, Asked: askedAboutGlasses,
 			List: func() ([]glasses.Display, error) {
 				ss, err := window.Screens()

@@ -24,10 +24,6 @@ var (
 	ErrAwaitSettings = errors.New("desk: asked for the settings while waiting for a display")
 )
 
-// pump is the seam: the platform gives AppKit the main thread for a moment, and
-// a test replaces it.
-var pump = platformPump
-
 // AwaitPoll is how often Await asks again.
 //
 // A second, because that is under the time it takes to look up after pushing a
@@ -156,36 +152,24 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 			}
 		}
 
-		// The wait is spent INSIDE AppKit, not asleep beside it.
-		//
-		// A menu is not drawn, it is TRACKED: the press has to be delivered
-		// and then AppKit runs its own loop until the person lets go. Lending
-		// it twenty milliseconds a second was enough to draw the item in the
-		// menu bar and not enough to open it -- "l'icon est visible dans le
-		// tray mais je n'ai aucun menu" -- because the press landed in one of
-		// the gaps.
-		//
-		// So the poll interval is spent pumping, in slices, and the channels
-		// are looked at between slices rather than waited on.
-		done := time.Now().Add(every)
-		for {
-			select {
-			case <-ctx.Done():
-				return glasses.Display{}, ctx.Err()
-			case a := <-opt.Actions:
-				switch a {
-				case ActionQuit:
-					return glasses.Display{}, ErrAwaitQuit
-				case ActionSettings:
-					return glasses.Display{}, ErrAwaitSettings
-				}
-				// Anything else needs a desk to act on. Keep waiting.
-			default:
+		// ASLEEP, and that is right again. This used to spend the wait lending
+		// AppKit the main thread in slices, because the menu-bar item needs a
+		// run loop and there was none until a window opened. Owning a platform
+		// loop is go-widgets's job, not this one's: the caller holds it now
+		// (see Tray.Hold), which means THIS runs on a goroutine and must not
+		// touch AppKit at all.
+		select {
+		case <-ctx.Done():
+			return glasses.Display{}, ctx.Err()
+		case a := <-opt.Actions:
+			switch a {
+			case ActionQuit:
+				return glasses.Display{}, ErrAwaitQuit
+			case ActionSettings:
+				return glasses.Display{}, ErrAwaitSettings
 			}
-			if !time.Now().Before(done) {
-				break
-			}
-			pump()
+			// Anything else needs a desk to act on. Keep waiting.
+		case <-time.After(every):
 		}
 	}
 }

@@ -418,6 +418,34 @@ refusal is about MAKING a display, not about using the one you were given.
 Where virtual displays are not available the ribbon carries the real displays
 and windows instead. That is fewer screens, and everything else is identical.
 
+
+## Building it
+
+```
+go build -tags tray_native ./cmd/xrdesk
+```
+
+**The tag is not optional if you want the menu bar item.** The item and its menu
+are [go-widgets/tray](https://github.com/go-widgets/tray)'s, whose native
+backends are behind `tray_native` so the package keeps its coverage gate on code
+that runs everywhere. Without it, `tray` has no backend, there is no 👓 in the
+menu bar at all, and the desk says so at start-up rather than leaving somebody
+looking for it.
+
+That item is also what holds the platform's run loop while the desk waits for a
+pair of glasses. Nothing is drawn — and no menu is ever *opened* — without one,
+and the window that will own a loop needs a display that is not there yet. So
+the tray runs the loop and the waiting happens beside it, which is the way round
+`tray` is built for: `Run` when a program has no loop of its own, `Attach` when
+it does.
+
+This was learned the long way. The item was mine for a while, built straight on
+`NSStatusItem`, and I lent AppKit slices of the main thread to keep it alive.
+That drew the icon and never opened its menu, because a menu is not drawn, it is
+tracked, and tracking needs the loop running rather than sampled — measured by
+clicking the item and counting what appears below the bar: **0 pixels** with the
+slices, a menu with the loop.
+
 ## Tests
 
 ```

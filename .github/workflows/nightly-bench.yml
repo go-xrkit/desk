@@ -44,7 +44,7 @@ jobs:
 
       - name: Build the desk and the bench
         run: |
-          CGO_ENABLED=0 go build -o build/xrdesk ./cmd/xrdesk
+          CGO_ENABLED=0 go build -tags tray_native -o build/xrdesk ./cmd/xrdesk
           CGO_ENABLED=0 go build -o build/deskchaos ./cmd/deskchaos
 
       # Nothing of a previous night, and nothing of a person's session: a bench
