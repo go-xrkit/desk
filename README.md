@@ -220,6 +220,45 @@ Three screens are never darkened:
 
 `-dim=false` leaves every screen lit.
 
+### A screen takes the shape of what it shows
+
+A screen of the band is a whole view of the glasses, so they are all one shape —
+until a position mirrors a display this program did not make. This Mac's panel
+is 2056x1329, a ratio of **1.547** against the band's **1.778**, and asked for a
+1920x1080 frame of it ScreenCaptureKit letterboxes: measured, **124 flat columns
+down each side**. Those bands are then part of the picture, on a screen that
+cannot be told to drop them.
+
+Changing the Mac's resolution does not help, which was worth measuring before
+building anything: its **sixty display modes are 1.547 and 1.600 and nothing
+else**. There is no 16:9 mode to put a MacBook panel into.
+
+So the screen takes the shape instead — same height as its neighbours, narrower
+— and the ribbon already knew how to place that: a screen's span on the circle
+comes from its aspect ratio, which is what keeps its pixels square. The capture
+is asked for at the source's own shape (`1670x1080`, **0 flat columns**), the
+band gives that screen its own arc, and the gallery draws it narrower inside a
+cell of the usual size rather than stretching it across one.
+
+It is driven by the PIXELS, not by whoever opened the capture: what a position
+shows changes while the desk runs, and the shape arrives with the first frame.
+
+A band that cannot hold the shape says so and stays as it was — four screens of
+the eye's own shape already take 343° of the available 360°, so a *wider* screen
+often does not fit at all.
+
+**This is also where a crash came from**, with the glasses on:
+
+```
+panic: slice bounds out of range [:6684] with capacity 6680
+```
+
+6680 is 1670 pixels of BGRA. A turned panel gathers its columns one at a time
+out of the source row, and the fan was still using the band's 1920. The fan now
+reads each screen's own width — and `Canvas.Slant` treats a column outside the
+source as background rather than as a place to read from, because a renderer
+that can be crashed by a source of the wrong size will be.
+
 ## How it is put together
 
 | | |

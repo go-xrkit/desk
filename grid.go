@@ -30,6 +30,9 @@ const DefaultGapPx = 48
 // is next to the first. Up and down CLAMP, because the fold into rows is this
 // type's invention and has no seam to walk through.
 type Grid struct {
+	// srcWidths is the source width of each screen that is not the shape of the
+	// band. See [Grid.SetSourceWidths].
+	srcWidths  []int
 	n          int
 	cols, rows int
 	viewW      int
@@ -162,11 +165,16 @@ func (g *Grid) Frame(dst []ribbon.Blit) []ribbon.Blit {
 		// look for.
 		x := g.padX + col*(g.cellW+g.gap)
 		y := g.padY + row*(g.cellH+g.gap)
+		x, w := g.inset(i, x, g.cellW)
+		srcW := g.srcW
+		if i < len(g.srcWidths) && g.srcWidths[i] > 0 {
+			srcW = g.srcWidths[i]
+		}
 		dst = append(dst, ribbon.Blit{
 			Screen:   i,
-			Dst:      stereo.Rect{X: x, Y: y, W: g.cellW, H: g.cellH},
+			Dst:      stereo.Rect{X: x, Y: y, W: w, H: g.cellH},
 			SrcX:     0,
-			SrcXStep: int64(g.srcW) << fracBits / int64(g.cellW),
+			SrcXStep: int64(srcW) << fracBits / int64(w),
 			SrcY:     g.srcY,
 		})
 	}
@@ -273,4 +281,31 @@ func (g *Grid) Adder() (int, bool) {
 func (g *Grid) IsAdder(i int) bool {
 	a, ok := g.Adder()
 	return ok && i == a
+}
+
+// SetSourceWidths gives cells their own source widths, for screens that are not
+// the shape of the band.
+//
+// The cells stay the same size -- a gallery whose tiles were different widths
+// would be a grid nobody could scan -- so a narrower screen is drawn NARROWER
+// INSIDE its cell, centred, rather than stretched across it. Stretching would
+// be worse than the empty band it replaces: proportions a person recognises are
+// how they tell one desktop from another at a glance.
+//
+// A nil or short slice, or an entry of zero, leaves that cell as it was.
+func (g *Grid) SetSourceWidths(w []int) {
+	g.srcWidths = append(g.srcWidths[:0], w...)
+}
+
+// inset is where screen i's pixels go inside its cell, keeping their shape.
+func (g *Grid) inset(i, x, w int) (int, int) {
+	if i < 0 || i >= len(g.srcWidths) || g.srcWidths[i] <= 0 || g.srcWidths[i] == g.srcW {
+		return x, w
+	}
+	// The cell's height is fixed, so the width follows from the source's shape.
+	fit := g.srcWidths[i] * g.cellH / g.srcH
+	if fit <= 0 || fit >= w {
+		return x, w
+	}
+	return x + (w-fit)/2, fit
 }
