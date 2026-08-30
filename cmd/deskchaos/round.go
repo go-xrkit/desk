@@ -5,6 +5,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -20,10 +21,13 @@ import (
 )
 
 // round runs one session under one fault and reports what was left behind.
-func round(bin, headset, setting string, f fault, rng *rand.Rand) []string {
+func round(bin, headset, setting string, f fault, rng *rand.Rand) ([]string, error) {
 	s, err := start(bin, headset, setting, rng)
 	if err != nil {
-		return []string{fmt.Sprintf("the session would not start: %v", err)}
+		if errors.Is(err, errMachineNotReady) {
+			return nil, fmt.Errorf("%w", err)
+		}
+		return []string{fmt.Sprintf("the session would not start: %v", err)}, nil
 	}
 	defer s.cleanup()
 
@@ -33,7 +37,7 @@ func round(bin, headset, setting string, f fault, rng *rand.Rand) []string {
 	if s.eyes != nil {
 		found = append(found, s.eyes.close()...)
 	}
-	return found
+	return found, nil
 }
 
 // start makes a headset, remembers what the machine looked like, and runs a
@@ -53,11 +57,23 @@ func start(bin, headset, setting string, rng *rand.Rand) (*session, error) {
 	}
 	s.pointer, _ = pointer.Position()
 
-	d, err := virtualdisplay.Open(virtualdisplay.Spec{
-		Name: headset, Width: 1920, Height: 1080,
-	})
+	// ASKED AGAIN, for the same reason the desk asks again: a window server
+	// that has just taken six displays away refuses the next one for a while.
+	// Measured -- four rounds in a row that could not start, on a machine where
+	// a single display made on its own succeeded straight away.
+	var d *virtualdisplay.Display
+	for try := 1; try <= standTries; try++ {
+		d, err = virtualdisplay.Open(virtualdisplay.Spec{
+			Name: headset, Width: 1920, Height: 1080,
+		})
+		if err == nil {
+			break
+		}
+		time.Sleep(time.Duration(try) * 5 * time.Second)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("standing in a %q: %w", headset, err)
+		return nil, fmt.Errorf("%w: standing in a %q, %d times over: %v",
+			errMachineNotReady, headset, standTries, err)
 	}
 	s.stand = d
 	settleArrangement()
@@ -85,7 +101,7 @@ func start(bin, headset, setting string, rng *rand.Rand) (*session, error) {
 	}
 	// Watching starts once it is drawing: before that the pointer is wherever
 	// the person left it, and the desk has made no promise about it.
-	s.eyes = watch(headset)
+	s.eyes = watch(headset, s.running)
 	return s, nil
 }
 
@@ -157,6 +173,23 @@ func (s *session) cleanup() {
 
 // settleArrangement gives the window server time to finish rearranging.
 func settleArrangement() { time.Sleep(900 * time.Millisecond) }
+
+// waitForAQuietMachine waits until nothing this bench or the desk made is left,
+// and then a little longer.
+//
+// MEASURED, and it is why rounds started failing to start at all: a round of
+// seven or eight displays leaves the window server busy enough that the NEXT
+// round's stand-in is refused with "never became active within 5s". A bench
+// that reports the machine it exhausted is a bench reporting itself.
+func waitForAQuietMachine() {
+	if left := waitForDisplaysToGo(); len(left) > 0 {
+		return
+	}
+	// And then longer than it takes to LIST them as gone: measured, a round of
+	// six leaves the window server refusing the next stand-in for several
+	// seconds after the last display has left the list.
+	time.Sleep(5 * time.Second)
+}
 
 // leftBehind is the whole point: what is still true of this machine that should
 // not be.
@@ -244,6 +277,20 @@ func firstLines(s string, n int) string {
 	return "      " + strings.Join(lines, "\n      ")
 }
 
+// errMachineNotReady means the bench could not set the round up, which is not
+// something the desk did.
+//
+// It matters that these are told apart. MEASURED: after a session that made
+// five or six displays, this Mac refuses the next one for the best part of a
+// minute -- and a single display asked for on a quiet machine succeeds at once.
+// A bench that counts that as a defect is a bench reporting the machine it just
+// tired out.
+var errMachineNotReady = errors.New("the machine would not make a display")
+
+// standTries is how many times the bench asks for its stand-in headset before
+// giving up on a round. See start.
+const standTries = 6
+
 // driftAllowed is how much a backlight may differ from what it was before a
 // session before it counts as left dark. See leftBehind.
 const driftAllowed = 0.10
@@ -303,4 +350,15 @@ func (s *session) startAgain() {
 	}
 	_ = cmd.Wait()
 	settleArrangement()
+}
+
+// running says whether the session's process is still there.
+//
+// Signal 0 asks the kernel without sending anything: the answer is whether
+// there is still somebody to send to.
+func (s *session) running() bool {
+	if s.cmd == nil || s.cmd.Process == nil {
+		return false
+	}
+	return s.cmd.Process.Signal(syscall.Signal(0)) == nil
 }

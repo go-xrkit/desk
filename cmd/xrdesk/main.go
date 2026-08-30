@@ -50,6 +50,11 @@ func init() {
 // nothing happened.
 const retryAfter = 3 * time.Second
 
+// maxProvideTries is how many times the desk waits for a window server that
+// will not make a display before settling for the screens this Mac already
+// has. See the fallback in session.
+const maxProvideTries = 5
+
 func main() { os.Exit(run()) }
 
 func run() int {
@@ -154,6 +159,10 @@ func run() int {
 	// askedAboutGlasses remembers that a person has already been shown the
 	// choice once. Asking twice with the same answer is a loop.
 	askedAboutGlasses := false
+	// provideTries counts how often the window server has refused to make the
+	// screens, so a Mac that will not make any is waited for and then accepted
+	// rather than waited for for ever.
+	provideTries := 0
 
 	session := func(n int, model string, dist, splay float64, settings desk.Config) (again, wantSettings bool, code int) {
 		// Ctrl-C must reach the same exit as the quit key, or a session left
@@ -265,6 +274,36 @@ func run() int {
 			}
 			return true, false, 0
 		}
+
+		// MADE NOTHING, AND SHOWING THE MACHINE'S OWN SCREENS INSTEAD.
+		//
+		// Provide falls back to the displays this Mac already has when the
+		// window server refuses to make one, and that fallback is a bad desk: it
+		// puts the glasses' own screen on the band, it will not place an
+		// application, and it darkens a panel somebody is looking at.
+		//
+		// MEASURED, and it is not rare: after a session that made five or six
+		// displays, this Mac refuses the next one for the best part of a minute
+		// -- a single display asked for on a quiet machine succeeds at once. A
+		// person who quits the desk and starts it again lands exactly there.
+		//
+		// So it waits, a few times, before settling for that.
+		if !screens.Virtual && provideTries < maxProvideTries {
+			provideTries++
+			fmt.Printf("%s\n", screens.Why)
+			fmt.Printf("waiting %v for the window server, and asking again (%d of %d)\n",
+				retryAfter, provideTries, maxProvideTries)
+			if err := screens.Close(); err != nil {
+				logf("%v", err)
+			}
+			select {
+			case <-ctx.Done():
+				return false, false, 0
+			case <-time.After(retryAfter):
+			}
+			return true, false, 0
+		}
+
 		defer func() {
 			// Waiting for the removal is right when the desk is coming back —
 			// the settings window opens next and a person may well look at

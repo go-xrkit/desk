@@ -23,7 +23,10 @@ import (
 // It goes to the bench's own directory through XRDESK_CONFIG, so a person's
 // own settings are never read and never written.
 func settingsFor(dir string, rng *rand.Rand) (string, string, error) {
-	screens := 1 + rng.Intn(9)
+	// Up to six: a round of seven or eight leaves the window server refusing
+	// the next round's displays for a while, so a bench that asks for them
+	// spends its time reporting the machine it exhausted.
+	screens := 1 + rng.Intn(6)
 	mirror := rng.Intn(4) > 0 // mostly on, which is the default
 	splay := 0.0
 	if rng.Intn(3) == 0 {
