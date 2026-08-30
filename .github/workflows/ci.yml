@@ -29,6 +29,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: nothing big is tracked
+        shell: bash
+        run: |
+          # A repository carries what it is given for ever. `go build ./cmd/x`
+          # with no -o writes a 22 MB executable into the working tree, named
+          # after the package, and one `git add -A` later it is in the history
+          # of every clone. That happened here: three binaries, 57 MB, removed
+          # by rewriting the history of a shared branch -- which is a bad
+          # afternoon and a worse one for anybody who had cloned it.
+          #
+          # A megabyte is the line. Nothing this repository legitimately tracks
+          # comes near it: the largest source file is a few tens of kilobytes.
+          big=$(git ls-files -z | xargs -0 -I{} find {} -type f -size +1024k -print)
+          if [ -n "$big" ]; then
+            echo "$big" | while read -r f; do
+              echo "::error file=$f::$f is $(du -h "$f" | cut -f1) and is tracked; \
+          a repository keeps what it is given for ever"
+            done
+            exit 1
+          fi
+          echo "nothing tracked is over a megabyte"
       - uses: actions/setup-go@v5
         with: { go-version: stable }
       - name: gofmt
