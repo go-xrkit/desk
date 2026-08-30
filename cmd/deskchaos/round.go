@@ -20,8 +20,8 @@ import (
 )
 
 // round runs one session under one fault and reports what was left behind.
-func round(bin, headset string, f fault, rng *rand.Rand) []string {
-	s, err := start(bin, headset, rng)
+func round(bin, headset, setting string, f fault, rng *rand.Rand) []string {
+	s, err := start(bin, headset, setting, rng)
 	if err != nil {
 		return []string{fmt.Sprintf("the session would not start: %v", err)}
 	}
@@ -29,13 +29,17 @@ func round(bin, headset string, f fault, rng *rand.Rand) []string {
 
 	f.do(s, rng)
 	s.wait()
-	return s.leftBehind()
+	found := s.leftBehind()
+	if s.eyes != nil {
+		found = append(found, s.eyes.close()...)
+	}
+	return found
 }
 
 // start makes a headset, remembers what the machine looked like, and runs a
 // desk at it.
-func start(bin, headset string, rng *rand.Rand) (*session, error) {
-	s := &session{bin: bin, name: headset, wasLit: map[uint32]float64{}}
+func start(bin, headset, setting string, rng *rand.Rand) (*session, error) {
+	s := &session{bin: bin, name: headset, setting: setting, wasLit: map[uint32]float64{}}
 
 	// What every panel was lit at, BEFORE anything is asked to darken one.
 	ids, err := pointer.Displays()
@@ -67,6 +71,7 @@ func start(bin, headset string, rng *rand.Rand) (*session, error) {
 	secs := 20 + rng.Intn(15)
 	s.cmd = exec.Command(bin, "-screen", headset, "-for", fmt.Sprintf("%ds", secs))
 	s.cmd.Stdout, s.cmd.Stderr = s.log, s.log
+	s.cmd.Env = configEnv(s.setting)
 	if err := s.cmd.Start(); err != nil {
 		return nil, err
 	}
@@ -74,10 +79,13 @@ func start(bin, headset string, rng *rand.Rand) (*session, error) {
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {
 		if strings.Contains(s.read(), "framebuffer ") {
-			return s, nil
+			break
 		}
 		time.Sleep(300 * time.Millisecond)
 	}
+	// Watching starts once it is drawing: before that the pointer is wherever
+	// the person left it, and the desk has made no promise about it.
+	s.eyes = watch(headset)
 	return s, nil
 }
 
@@ -92,6 +100,7 @@ func (s *session) unplugGlasses() {
 	if s.stand != nil {
 		_ = s.stand.Close()
 		s.stand = nil
+		s.unpluggedAt = time.Now()
 	}
 }
 
@@ -113,7 +122,10 @@ func (s *session) kill() {
 	}
 }
 
-func (s *session) wait() { _ = s.cmd.Wait() }
+func (s *session) wait() {
+	_ = s.cmd.Wait()
+	s.stopped = time.Now()
+}
 
 func (s *session) read() string {
 	b, err := os.ReadFile(s.logPath)
@@ -179,6 +191,18 @@ func (s *session) leftBehind() []string {
 		}
 	}
 	found = append(found, dark...)
+
+	// A session whose screen has gone must STOP, and quickly: it is drawing
+	// for nobody, on a window the window server has moved somewhere else, while
+	// it holds a backlight off. Slowly is the same as not at all to whoever is
+	// looking at their Mac wondering what happened to it.
+	if s.expectStopWithin > 0 && !s.unpluggedAt.IsZero() {
+		if took := s.stopped.Sub(s.unpluggedAt); took > s.expectStopWithin {
+			found = append(found, fmt.Sprintf(
+				"the session took %v to stop after its screen went, over the %v it may",
+				took.Round(time.Millisecond), s.expectStopWithin))
+		}
+	}
 
 	// No display outlives the process that made it -- but the window server
 	// takes them away in its own time, and looking too early reports a defect
