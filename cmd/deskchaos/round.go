@@ -251,6 +251,26 @@ func (s *session) leftBehind() []string {
 	if line := showsItsOwnScreen(log, s.name); line != "" {
 		found = append(found, "the band was showing the desk's own screen: "+line)
 	}
+
+	// AND IT DREW SOMETHING. Everything above asks what a session did to the
+	// machine; a session that came up, changed nothing and put nothing on the
+	// glasses passes all of it. "313 frames in 5.008s" is the desk saying it is
+	// alive, and a session with no such line either never got that far or
+	// stopped drawing -- which is what somebody wearing the glasses would call
+	// a black screen.
+	//
+	// Not asked of a session that was killed before its first beat: five
+	// seconds is the beat, and a fault can land sooner.
+	if !s.killed && !strings.Contains(log, "frames in ") && strings.Contains(log, "framebuffer ") {
+		found = append(found, "the session opened its window and never said it drew a frame")
+	}
+
+	// A session whose screen went must SAY it is stopping. Stopping quietly
+	// looks the same as crashing from outside, and the line is what tells a
+	// person their Mac is about to come back.
+	if !s.unpluggedAt.IsZero() && !strings.Contains(log, "is not attached any more") {
+		found = append(found, "the glasses went and the session never said why it stopped")
+	}
 	return found
 }
 
@@ -298,7 +318,17 @@ const driftAllowed = 0.10
 // waitForDisplaysToGo gives the window server time to take away the displays a
 // session made, and reports the ones that are still there when it is out.
 func waitForDisplaysToGo() []string {
-	deadline := time.Now().Add(8 * time.Second)
+	// Ninety seconds, measured up to rather than chosen. On the way OUT the
+	// desk asks the window server to take its displays away and does not wait
+	// -- waiting there was measured costing eight seconds and printing a
+	// warning nobody can act on -- so the removal finishes after the process
+	// has gone. How long after depends on the machine: eight seconds was not
+	// enough, twenty-five was not enough on a Mac that had been making and
+	// destroying displays all day, and the same display was gone a minute
+	// later. A display still listed after ninety seconds is a leak; one still
+	// listed after ten is a tired Mac, and a bench that cannot tell them apart
+	// reports the wrong one.
+	deadline := time.Now().Add(90 * time.Second)
 	for {
 		ss, err := window.Screens()
 		if err != nil {
