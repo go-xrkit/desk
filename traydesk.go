@@ -308,28 +308,34 @@ func (t *Tray) follow() func() {
 // reason systemIcon is: a test on either platform can take both paths.
 var glassesIcon = platformGlassesIcon
 
-// drawTheLight puts the state light where a headset's temple is.
+// drawTheLight puts the state light across the LENS.
 //
-// A third of the shorter side, at the right edge and half way down. It sat in
-// the bottom corner first, which put it BELOW the frame with nothing behind it
-// -- a coloured disc beside a pair of glasses rather than a light on them.
+// It was a dot beside the temple first, and it could not be seen: five or six
+// pixels of colour outside a bright glyph, on a menu bar, next to twenty other
+// icons. "on ne voit plus le point vert" -- and the suggestion that followed is
+// the right one, because a line on the lens is the biggest mark this shape can
+// carry without stopping being a pair of glasses.
 //
-// The toolkit leaves its own inset inside the box, which is wanted: it keeps
-// the light off the very rim. So what shows is about a quarter of the icon --
-// big enough to read at menu-bar size, small enough to leave the glyph legible.
+// Half the width, a sixth of the height, centred: on the lens rather than on
+// the frame, which is what makes it read as something lit up BEHIND the glass
+// instead of a sticker on the rim.
 func drawTheLight(p painter.Painter, w, h int, ink toolkit.RGBA) {
-	short := h
-	if w < short {
-		short = w
+	bar := toolkit.Rect{W: w / 2}
+	if bar.W < 4 {
+		bar.W = min(4, w)
 	}
-	d := short / 3
-	if d < 6 {
-		// Six is the smallest light worth drawing, and never wider than the
-		// icon itself: a box hanging off the left edge would put it over the
-		// glyph instead of beside it.
-		d = min(6, short)
+	// The thickness is measured against the BAR, not against the icon: a sixth
+	// of a tall narrow icon is taller than the bar is wide, and what comes out
+	// is a square rather than a line.
+	bar.H = min(h/6, bar.W/3)
+	if bar.H < 2 {
+		bar.H = min(2, h)
 	}
-	toolkit.DrawIconDot(p, toolkit.Rect{X: w - d, Y: (h - d) / 2, W: d, H: d}, ink)
+	bar.X = (w - bar.W) / 2
+	bar.Y = (h - bar.H) / 2
+	// DrawIconBar and not DrawIconDot: the dot insets its box by two pixels a
+	// side, which eats a four-pixel bar entirely and draws nothing at all.
+	toolkit.DrawIconBar(p, bar, ink)
 }
 
 // labelInk is the colour the platform paints a template menu-bar icon with, as
