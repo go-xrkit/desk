@@ -147,24 +147,43 @@ func PutBackWhatWasLeftDark() ([]string, error) {
 	}
 	var said []string
 	var errs []error
+	// A NOTE THAT COULD NOT BE HONOURED IS KEPT.
+	//
+	// The note used to be dropped whatever happened, and that loses the only
+	// record there is. Measured today: a run darkened this Mac's own panel,
+	// the lid was shut, and the next start could not read that display's
+	// brightness at all -- so it failed to put it back AND forgot that it
+	// owed it. Open the lid tomorrow and the screen is black with nothing
+	// left to say why.
+	//
+	// A display that is merely absent comes back, and the note is honoured
+	// then. Carrying it costs a few bytes; dropping it costs somebody their
+	// screen.
+	var left []darkNote
 	for _, n := range notes {
 		now, err := dimRead(n.Display)
 		if err != nil {
 			errs = append(errs, err)
+			left = append(left, n)
 			continue
 		}
 		if now >= n.Was {
-			continue
+			continue // somebody, or something, already put it back
 		}
 		if err := dimSet(n.Display, n.Was); err != nil {
 			errs = append(errs, err)
+			left = append(left, n)
 			continue
 		}
 		said = append(said, fmt.Sprintf(
 			"display %d was left dark by a run that did not finish; back to %.2f",
 			n.Display, n.Was))
 	}
-	if err := dropNote(); err != nil {
+	if len(left) == 0 {
+		if err := dropNote(); err != nil {
+			errs = append(errs, err)
+		}
+	} else if err := writeNote(left); err != nil {
 		errs = append(errs, err)
 	}
 	return said, errors.Join(errs...)
