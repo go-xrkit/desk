@@ -26,9 +26,9 @@ var ErrCrashed = errors.New("desk: the frame loop crashed")
 //
 //	panic: slice bounds out of range [:6684] with capacity 6680
 //
-// and the report that came back was "j'ai debranche les lunettes car j'avais
-// perdu l'acces et il n'y avait pas l'icon dans la tray pour que je coupe
-// l'application" -- the icon was there, on a panel that had been turned off.
+// and the report that came back was "I unplugged the glasses because I had
+// lost access and there was no icon in the tray for me to stop the
+// application" -- the icon was there, on a panel that had been turned off.
 //
 // So a crash in the frame loop stops the desk the ordinary way instead: the run
 // returns an error, every deferred restore runs, and the person gets their

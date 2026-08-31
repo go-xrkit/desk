@@ -128,9 +128,9 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 		// the pair on the desk was a Beast, and the desk waited two and a half
 		// minutes and created nothing with the glasses plugged in.
 		//
-		// But taking the other one silently is not right either -- "quand j'ai
-		// branché les lunettes j'aurais dû avoir un panneau de choix des
-		// lunettes". Nobody has said anything about THIS pair, and a setting
+		// But taking the other one silently is not right either -- "when I
+		// plugged the glasses in I should have had a panel to choose which
+		// glasses". Nobody has said anything about THIS pair, and a setting
 		// that appears to be ignored is worse than one that is asked about. So
 		// it asks, once, and the answer is written down: the next session with
 		// the same glasses starts without a word.
@@ -182,11 +182,23 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 			// here with an XREAL 1S behind a chain of hubs: 2109:0103 class 17
 			// "USB 2.0 BILLBOARD", and no display for the glasses at all.
 			for _, b := range bill {
-				logf("  %q (%04x:%04x) is a USB Billboard: something on this port supports a "+
+				logf("  %q (%04x:%04x) is a USB Billboard: whatever put it there supports a "+
 					"DisplayPort alternate mode that was NOT entered", b.Name, b.Vendor, b.Product)
-				logf("    the hardware is saying the video half failed; it is not being guessed from the silence")
-				logf("    it usually belongs to a HUB in the middle rather than to the glasses at the end")
-				logf("    plug the glasses straight into the machine, into a port that carries DisplayPort")
+				logf("    the hardware is saying so itself; it is not being guessed from the silence")
+				// WHOSE Billboard, by the vendor id.
+				//
+				// A machine with a dock has hubs on it, and a hub chip that
+				// failed an alternate mode on ITS port says nothing about the
+				// port the glasses are on. Saying "plug them in directly" to
+				// somebody whose glasses ARE plugged in directly is worse than
+				// saying nothing: it sends them to check the one thing that is
+				// already right. So the vendor decides which sentence is true.
+				if sameMakerAs(b, bus) {
+					logf("    and it is the HEADSET's own: these glasses negotiated data and not video")
+				} else {
+					logf("    it belongs to ANOTHER device on the bus -- a hub or a dock, not the glasses")
+					logf("    so it names a different port, and says nothing about the one the glasses are on")
+				}
 			}
 			if !waited {
 				// Said once, on the way in. A person who reads one line reads
@@ -261,4 +273,21 @@ func describeBus(headsets, billboards []glasses.USB) string {
 		parts = append(parts, fmt.Sprintf("billboard %04x:%04x %q", b.Vendor, b.Product, b.Name))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// sameMakerAs reports whether a Billboard was put up by the same maker as one
+// of the headsets on the bus.
+//
+// The vendor id is the whole of it: a Billboard carries no reference to what it
+// is about, so the only thing tying one to a headset is that the same maker put
+// both on the bus. It is evidence and not proof -- a maker who sells a dock as
+// well would defeat it -- which is why what it changes is a sentence and not a
+// decision.
+func sameMakerAs(billboard glasses.USB, headsets []glasses.USB) bool {
+	for _, h := range headsets {
+		if h.Vendor == billboard.Vendor {
+			return true
+		}
+	}
+	return false
 }

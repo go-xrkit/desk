@@ -273,8 +273,8 @@ func (h *Hotkeys) describe(render func(hotkey.Combo) string) string {
 // GalleryShortcuts are the BARE keys a gallery claims for as long as it is up.
 //
 // A person looking at a grid of screens or of applications should not have to
-// hold three modifiers to walk it — "quand on est dans la galerie se déplacer
-// avec juste les flèches devrait suffir", which is exactly right. So while a
+// hold three modifiers to walk it -- "in the gallery, moving with just the
+// arrows ought to be enough", which is exactly right. So while a
 // gallery covers the view, the arrows, Return and Escape mean what they look
 // like they mean.
 //

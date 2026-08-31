@@ -199,8 +199,8 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// This was the other way round three times over -- the band followed the
 	// pointer, the pointer wrapped at the ends of the band, a display nothing
 	// was showing was fetched when the pointer wandered onto it -- and the
-	// report after every one of them was the same: "j'ai encore perdu la
-	// souris". So the mouse no longer changes screens at all. The keyboard
+	// report after every one of them was the same: "I have lost the mouse
+	// again". So the mouse no longer changes screens at all. The keyboard
 	// does, and the pointer comes with it.
 	//
 	// What each position is showing, now: a position mirroring this Mac's own
@@ -339,8 +339,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	//
 	// Unplug the glasses and this program is drawing for nobody, on a window the
 	// window server has moved somewhere else -- while it holds this Mac's
-	// backlight off. "quand on debranche les lunettes il faut rallumer
-	// l'ecran": stopping is what puts everything back, so the desk stops itself.
+	// backlight off. "when the glasses are unplugged the screen has to be
+	// turned back on": stopping is what puts everything back, so the desk
+	// stops itself.
 	//
 	// Every second rather than every frame, because it asks the window server
 	// for the whole arrangement; and every second rather than every beat,
@@ -368,10 +369,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			// Unplug the glasses and this program is drawing for nobody, on a
 			// window the window server has moved somewhere else -- while it
 			// holds this Mac's backlight off and six displays that do not
-			// exist. "j'ai debranche les lunettes car j'avais perdu l'acces et
-			// il n'y avait pas l'icon dans la tray pour que je coupe
-			// l'application": the icon was there, on a panel that had been
-			// turned off. So the desk stops itself, and stopping is what puts
+			// exist. "I unplugged the glasses because I had lost access and
+			// there was no icon in the tray for me to stop the application":
+			// the icon was there, on a panel that had been turned off. So the desk stops itself, and stopping is what puts
 			// everything back.
 			// And a screen that has taken the shape of what it shows says so.
 			// Without this the only evidence that it worked is a picture

@@ -28,9 +28,9 @@ import (
 //
 // Everything that has to agree with the picture goes through the inventory --
 // which screen the pointer is held to, and where the pointer is drawn -- so the
-// pointer was held to a screen the band was not showing. The report was "la
-// souris ne correspond pas a celle du systeme" and "je ne peux plus interragir
-// avec les app".
+// pointer was held to a screen the band was not showing. The report was "the
+// mouse does not match the system's one" and "I can no longer interact with
+// the applications".
 func TestSourcesOfferTheDesksScreensInTheBandsOrder(t *testing.T) {
 	if os.Getenv("XRDESK_LIVE") == "" {
 		t.Skip("set XRDESK_LIVE=1 to run this against real virtual displays")

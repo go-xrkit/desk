@@ -306,7 +306,7 @@ func Sources(ctx context.Context, s *Screens) ([]Offer, error) {
 	//
 	// ScreenCaptureKit does not list displays in the order they were created,
 	// so the pointer was being held to a screen the band was not showing. The
-	// report was "je ne peux plus interragir avec les app".
+	// report was "I can no longer interact with the applications".
 	ours := make(map[uint32]bool, len(s.IDs))
 	var mine []Offer
 	if s != nil && s.Virtual {

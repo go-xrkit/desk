@@ -40,7 +40,7 @@ var ErrPointerLost = errors.New("desk: cannot read the pointer's position")
 // pushed off it, and a display nothing was showing was fetched onto the screen
 // in front of the viewer when the pointer wandered onto it. Three mechanisms,
 // each answering a hole left by the one before, and the report after every one
-// of them was the same: "j'ai encore perdu la souris".
+// of them was the same: "I have lost the mouse again".
 //
 // The reason is simple enough once it is said. A person wearing display glasses
 // sees ONE screen. The desktop under the pointer is several, most of them
@@ -147,5 +147,5 @@ func clamp(v, lo, hi float64) float64 {
 //	this Mac's own panel:         2003 pixels
 //
 // The capture carries the cursor. Drawing another one puts a second mouse on
-// top of the first -- "arrete de dessiner une souris sur la souris" -- so the
+// top of the first -- "stop drawing a mouse on top of the mouse" -- so the
 // only pointer in the picture is the one the window server drew.
