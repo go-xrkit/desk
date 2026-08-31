@@ -16,7 +16,7 @@ require (
 	github.com/go-widgets/mvvm v0.8.0
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.296.0
-	github.com/go-widgets/tray v0.7.2
+	github.com/go-widgets/tray v0.7.4
 	github.com/go-widgets/window v0.57.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/xrkit v0.9.1
@@ -39,7 +39,7 @@ require (
 	github.com/go-gfx/gfx v0.18.0 // indirect
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/images v0.0.0-20260815210351-4a50ef5ab734 // indirect
-	github.com/go-macos/objc v0.7.0 // indirect
+	github.com/go-macos/objc v0.9.1 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
 	github.com/go-opentype/fonts v0.8.0 // indirect
 	github.com/go-opentype/opentype v0.6.0 // indirect
