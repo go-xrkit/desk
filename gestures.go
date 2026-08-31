@@ -29,9 +29,17 @@ var watchTouches = multitouch.Watch
 // to switching spaces; reading the contacts underneath depends on neither. See
 // go-macos/multitouch.
 type Gestures struct {
-	ch   chan Action
-	w    *multitouch.Watcher
-	once sync.Once
+	ch chan Action
+	w  *multitouch.Watcher
+
+	// mu guards the send against Close. The framework calls back on its own
+	// thread, so a close racing a send would not merely be a data race: it
+	// would be a send on a closed channel, which is a panic in somebody's
+	// desk. Stopping the device does not promise that no callback is already
+	// in flight.
+	mu     sync.Mutex
+	closed bool
+
 	// why is what stopped this from working, for a caller that wants to say so
 	// rather than leave a feature silently absent.
 	why error
@@ -55,13 +63,7 @@ func ClaimGestures() *Gestures {
 			return
 		}
 		if a, ok := actionForSwipe(sw); ok {
-			// DROPPED rather than queued when the reader is behind, for the
-			// same reason a held-down key is: a queue of turns keeps turning
-			// the ribbon long after the hand has stopped.
-			select {
-			case g.ch <- a:
-			default:
-			}
+			g.send(a)
 		}
 	})
 	if err != nil {
@@ -101,12 +103,32 @@ func (g *Gestures) Why() error { return g.why }
 
 // Close stops watching. It is safe to call twice.
 func (g *Gestures) Close() error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
+		return nil
+	}
+	g.closed = true
 	var err error
-	g.once.Do(func() {
-		if g.w != nil {
-			err = g.w.Close()
-		}
-		close(g.ch)
-	})
+	if g.w != nil {
+		err = g.w.Close()
+	}
+	close(g.ch)
 	return err
+}
+
+// send offers one action, and drops it when the reader is behind.
+//
+// Dropped rather than queued for the same reason a held-down key is: a queue of
+// turns keeps turning the ribbon long after the hand has stopped.
+func (g *Gestures) send(a Action) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
+		return
+	}
+	select {
+	case g.ch <- a:
+	default:
+	}
 }

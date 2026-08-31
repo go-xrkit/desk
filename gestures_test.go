@@ -137,3 +137,34 @@ func TestCloseTwice(t *testing.T) {
 		t.Errorf("second Close: %v", err)
 	}
 }
+
+// TestClosingWhileTheHandIsMoving is a race regression, and the race was worse
+// than a race: Close closed the channel while a callback could still be sending
+// on it, which is a panic rather than a wrong answer. Stopping the device does
+// not promise that no callback is already in flight.
+func TestClosingWhileTheHandIsMoving(t *testing.T) {
+	frames := feeder(t)
+	g := ClaimGestures()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		at := time.Duration(0)
+		for s := 0; s < 200; s++ {
+			for i := 0; i <= 10; i++ {
+				select {
+				case frames <- hand(at, 3, 0.7-float32(i)*0.03):
+				default:
+				}
+				at += time.Millisecond
+			}
+		}
+	}()
+	time.Sleep(20 * time.Millisecond)
+	if err := g.Close(); err != nil {
+		t.Errorf("Close: %v", err)
+	}
+	<-done
+	// And a send after the close is dropped rather than fatal.
+	g.send(ActionNext)
+}
