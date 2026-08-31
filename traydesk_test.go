@@ -302,27 +302,34 @@ func TestTheDotSaysTheGlassesAreOn(t *testing.T) {
 		t.Fatalf("the lit icon is not a PNG: %v", err)
 	}
 	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	// Where the dot is, and where it is NOT: bottom right, not over the middle
-	// of the glyph. Counting green anywhere would pass an icon dyed green.
-	corner, elsewhere := 0, 0
+	// Where the dot is, and where it is NOT: on the RIGHT, at the height of a
+	// headset's temple, and not over the middle of the glyph. Counting green
+	// anywhere would pass an icon dyed green.
+	//
+	// It sat in the bottom corner first, which put it below the frame with
+	// nothing behind it -- a green disc BESIDE a pair of glasses rather than a
+	// light on them. "que la led soit au niveau des branches des lunettes".
+	temple, elsewhere := 0, 0
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			r, g, b, a := img.At(img.Bounds().Min.X+x, img.Bounds().Min.Y+y).RGBA()
 			if a == 0 || !greenish(r, g, b) {
 				continue
 			}
-			if x >= w/2 && y >= h/2 {
-				corner++
+			// The right third, and the middle half vertically: where a temple
+			// is. Anything above or below that is not a temple light.
+			if x >= w-w/3 && y >= h/4 && y <= h-h/4 {
+				temple++
 			} else {
 				elsewhere++
 			}
 		}
 	}
-	if corner == 0 {
-		t.Error("no green in the bottom right; there is no dot")
+	if temple == 0 {
+		t.Error("no green beside the temple; there is no dot")
 	}
 	if elsewhere > 0 {
-		t.Errorf("%d green pixels outside the bottom right; the dot is not where it should be", elsewhere)
+		t.Errorf("%d green pixels away from the temple; the dot is not where it should be", elsewhere)
 	}
 
 	// And the platform must not paint the green away. A menu bar recolours a
@@ -463,16 +470,21 @@ func TestTheDotFitsAnIconThatIsNotSquare(t *testing.T) {
 			t.Errorf("%dx%d: the dot is %d across, wider than the %d it has to fit in",
 				w, h, got, short)
 		}
-		// In the corner it was asked for, not floating in the middle. Not
-		// flush against the edge: the toolkit leaves its own inset inside the
-		// box, which is what keeps the dot off the rim.
-		if minX < w/2 || minY < h/2 {
-			t.Errorf("%dx%d: the dot starts at %d,%d, out of the bottom right quarter",
-				w, h, minX, minY)
+		// At the right edge and half way down: where a temple is. Not flush
+		// against the rim -- the toolkit leaves its own inset inside the box,
+		// which is what keeps the dot off it.
+		if minX < w/2 {
+			t.Errorf("%dx%d: the dot starts at x=%d, not on the right", w, h, minX)
 		}
-		if w-1-maxX > short/3 || h-1-maxY > short/3 {
-			t.Errorf("%dx%d: the dot ends at %d,%d, further from the corner than its own box",
-				w, h, maxX, maxY)
+		if w-1-maxX > short/3 {
+			t.Errorf("%dx%d: the dot ends at x=%d, further from the edge than its own box",
+				w, h, maxX)
+		}
+		// And CENTRED vertically, within a pixel or two of the middle: a light
+		// that has slid to the top or the bottom is not on a temple.
+		mid := (minY + maxY) / 2
+		if off := mid - h/2; off > 2 || off < -2 {
+			t.Errorf("%dx%d: the dot is centred at y=%d, %d from the middle", w, h, mid, off)
 		}
 	}
 }

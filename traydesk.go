@@ -271,11 +271,18 @@ func withDotPixels(pix []byte, w, h int) ([]byte, error) {
 		buf[i], buf[i+1], buf[i+2], buf[i+3] = pix[i+2], pix[i+1], pix[i], pix[i+3]
 	}
 	p := painter.NewPixelPainterBGRA(buf, w, h)
-	// A third of the shorter side, in the bottom right. The toolkit leaves its
-	// own inset inside that box -- which is wanted here, it keeps the dot off
-	// the very edge -- so the disc that shows is about a QUARTER of the icon:
-	// big enough to read at menu-bar size, out of the way of a glyph that is
-	// mostly middle.
+	// A third of the shorter side, at the right edge and HALF WAY DOWN -- where
+	// a headset's temple is.
+	//
+	// It sat in the bottom corner first, which put it below the frame with
+	// nothing behind it: a green disc floating beside a pair of glasses rather
+	// than a light ON them. Beside the temple it reads as what it is, the way
+	// the indicator on a real headset does.
+	//
+	// The toolkit leaves its own inset inside the box -- wanted here, it keeps
+	// the dot off the very edge -- so the disc that shows is about a QUARTER of
+	// the icon: big enough to read at menu-bar size, small enough to leave the
+	// glyph legible behind it.
 	short := h
 	if w < short {
 		short = w
@@ -287,7 +294,7 @@ func withDotPixels(pix []byte, w, h int) ([]byte, error) {
 		// glyph instead of beside it.
 		d = min(6, short)
 	}
-	toolkit.DrawIconDot(p, toolkit.Rect{X: w - d, Y: h - d, W: d, H: d}, DotInk)
+	toolkit.DrawIconDot(p, toolkit.Rect{X: w - d, Y: (h - d) / 2, W: d, H: d}, DotInk)
 
 	for i := 0; i+3 < w*h*4; i += 4 {
 		pix[i], pix[i+1], pix[i+2], pix[i+3] = buf[i+2], buf[i+1], buf[i], buf[i+3]
