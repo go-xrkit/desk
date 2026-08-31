@@ -11,7 +11,7 @@ require (
 	github.com/go-macos/iokit v0.1.0
 	github.com/go-macos/pointer v0.1.0
 	github.com/go-macos/screencapture v0.1.1
-	github.com/go-macos/virtualdisplay v0.2.1
+	github.com/go-macos/virtualdisplay v0.3.0
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-widgets/mvvm v0.8.0
 	github.com/go-widgets/painter v0.12.0
