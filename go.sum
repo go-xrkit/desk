@@ -46,6 +46,8 @@ github.com/go-macos/hotkey v0.6.0 h1:S9CBpaS58rPOZEoGBoRG8Qb9D3tqXk2MURsi/7aDbEM
 github.com/go-macos/hotkey v0.6.0/go.mod h1:uJExaEG7xtI7RndCv2QkaqH4UAYOx5jxZDjCY8lqWQ0=
 github.com/go-macos/iokit v0.1.0 h1:noPIXSMxCqC+sBT07i7arGkqYwzFBYSwocnbfFxGY5c=
 github.com/go-macos/iokit v0.1.0/go.mod h1:UjYu90FvAQ/cLIyt+GXTdlebs0ig9pPIqram+36oKYA=
+github.com/go-macos/multitouch v0.1.0 h1:AxoFrha3qztSodAU6dvydj0RToACqImuubVA1DodKXs=
+github.com/go-macos/multitouch v0.1.0/go.mod h1:8YMWxqDrc23Yg6qWedsk6GMLQhp7euFpO7cOpFq67cg=
 github.com/go-macos/objc v0.9.1 h1:GGBoj8aMijBCYNPjGAYS4neeA3lWa8/JEIF1K5GswDo=
 github.com/go-macos/objc v0.9.1/go.mod h1:00GJyieLzPcb65rPLVWNPPUCVm79nmmiEXUDsslRpOs=
 github.com/go-macos/pointer v0.1.0 h1:3EzOYpglD00NPPbfbvxATgPADhjx8FT+3kObqvAkkio=
