@@ -15,7 +15,7 @@ jobs:
     name: workflows parse
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # A workflow that fails to PARSE reports nothing at all: no jobs run, no
       # checks appear, and the pull request looks unexercised rather than
       # broken. This is the only lane that would notice.
@@ -28,7 +28,7 @@ jobs:
     name: gofmt + tidy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: nothing big is tracked
         shell: bash
         run: |
@@ -68,7 +68,7 @@ jobs:
     name: darwin (the platform playback runs on)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with: { go-version: stable }
       - run: CGO_ENABLED=0 go vet ./...
@@ -128,7 +128,7 @@ jobs:
           - { goos: darwin, goarch: amd64 }
           - { goos: android, goarch: arm64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with: { go-version: stable }
       - run: CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} go build ./...
@@ -138,7 +138,7 @@ jobs:
     name: linux (portable logic)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with: { go-version: stable }
       - run: CGO_ENABLED=0 go test -count=1 ./...
