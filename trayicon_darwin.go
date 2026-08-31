@@ -8,8 +8,10 @@ package desk
 
 import (
 	"fmt"
+	"unsafe"
 
 	"github.com/go-macos/appicon"
+	"github.com/go-macos/objc"
 	"github.com/go-widgets/toolkit"
 )
 
@@ -48,4 +50,41 @@ func platformGlassesIcon(px int) toolkit.IconFunc {
 		return nil
 	}
 	return toolkit.StencilIcon(pix.Pix, pix.W, pix.H)
+}
+
+// platformLabelInk is the colour macOS paints a TEMPLATE menu-bar icon with.
+//
+// It matters because an icon carrying a coloured dot is not a template any
+// more, so the platform stops recolouring it and draws the pixels as they are
+// -- pure black, which is what a system symbol is made of. Measured on a dark
+// menu bar: every neighbour is white at 84.7% and ours was black, which is
+// exactly as wrong as it sounds. Asked about: "pourquoi l'icon tray est elle
+// plus sombre quand on a le point vert que les autres icons dans la barre?".
+//
+// So the recolouring the platform would have done is done here instead, with
+// the colour the platform would have used. labelColor follows the appearance,
+// so this is read when an icon is built rather than remembered.
+func platformLabelInk() (toolkit.RGBA, bool) {
+	if err := objc.Load(objc.AppKit); err != nil {
+		return toolkit.RGBA{}, false
+	}
+	c := objc.ClassID("NSColor").Send(objc.Sel("labelColor"))
+	if c == 0 {
+		return toolkit.RGBA{}, false
+	}
+	space := objc.ClassID("NSColorSpace").Send(objc.Sel("sRGBColorSpace"))
+	conv := c.Send(objc.Sel("colorUsingColorSpace:"), space)
+	if conv == 0 {
+		return toolkit.RGBA{}, false
+	}
+	var r, g, b, a float64
+	conv.Send(objc.Sel("getRed:green:blue:alpha:"),
+		uintptr(unsafe.Pointer(&r)), uintptr(unsafe.Pointer(&g)),
+		uintptr(unsafe.Pointer(&b)), uintptr(unsafe.Pointer(&a)))
+	return toolkit.RGBA{
+		R: byte(r*255 + 0.5),
+		G: byte(g*255 + 0.5),
+		B: byte(b*255 + 0.5),
+		A: byte(a*255 + 0.5),
+	}, true
 }

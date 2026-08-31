@@ -140,43 +140,100 @@ const TrayTooltip = "XR desk"
 // the coverage gate can never see closed.
 var systemIcon = platformTrayIcon
 
-// TrayIcon renders the menu-bar icon, as PNG bytes.
+// TrayIcon renders the menu-bar icon, as PNG bytes, with the light lit for the
+// state given: green while a desk is up, red while there is none.
 //
 // The SYSTEM's own symbol where there is one, and the toolkit's glasses
 // otherwise. It is not a matter of taste: measured at 44 pixels, the toolkit's
 // outline inks 7% of the box and a system symbol about 62%, and the difference
 // is whether a person finds it among twenty other icons.
 //
-// The fallback is the toolkit's, not a hand-painted one: the same glyph is on
-// the settings window, and an icon painted here would be an icon to maintain
-// here.
-func TrayIcon(px int, dot bool) ([]byte, error) {
+// THE GLYPH IS RECOLOURED HERE because the platform has stopped doing it. An
+// image carrying a colour is not a template, so macOS draws its pixels as they
+// are -- and a system symbol is pure black, which on a dark menu bar sits
+// among neighbours the platform has painted white at 85%. So the recolouring
+// the platform would have done is done with the colour the platform would have
+// used, read from the system when the icon is built rather than remembered:
+// labelColor follows the appearance, and an icon built once would be wrong
+// after somebody switches to dark.
+func TrayIcon(px int, live bool) ([]byte, error) {
 	if px <= 0 {
 		return nil, fmt.Errorf("desk: an icon of %d pixels", px)
 	}
-	if b, err := systemIcon(px); err == nil {
-		if !dot {
-			return b, nil
-		}
-		return withDot(b)
+	ink := DotInk
+	if !live {
+		ink = WaitingInk
 	}
-	buf := make([]byte, px*px*4)
-	p := painter.NewPixelPainterBGRA(buf, px, px)
-	toolkit.DrawIconGlasses(p, toolkit.Rect{W: px, H: px}, toolkit.RGB(0, 0, 0))
+	glyph := toolkit.RGB(0, 0, 0) // what a template is drawn as on a light bar
+	if c, ok := labelInk(); ok {
+		// The COLOUR, at full opacity, not the colour at its own alpha.
+		// labelColor is 85% transparent because the platform composites it
+		// onto the bar; painting it that way into a transparent picture
+		// composites it onto BLACK instead, and 85% white over black is grey.
+		// The shape's alpha comes from the stencil, so what is wanted here is
+		// the hue and nothing else. The icon ends a shade brighter than its
+		// neighbours rather than a shade darker, which is the right way round
+		// to be wrong.
+		glyph = toolkit.RGB(c.R, c.G, c.B)
+	}
+
+	if b, err := systemIcon(px); err == nil {
+		stencil, w, h, err := decodePixels(b)
+		if err != nil {
+			return nil, err
+		}
+		return litIcon(stencil, w, h, glyph, ink, true)
+	}
+	return litIcon(nil, px, px, glyph, ink, false)
+}
+
+// litIcon draws the glyph and its light into one picture.
+//
+// stencil, when given, is a picture whose ALPHA is the shape -- what a system
+// symbol is -- and it is drawn through the toolkit so the colour comes from
+// here. Without one the toolkit's own glasses are drawn instead, and then the
+// picture is square because that glyph is drawn to the box it is given rather
+// than to a symbol's proportions.
+//
+// Nothing here paints a pixel by hand: the glyph is toolkit.StencilIcon and the
+// light is toolkit.DrawIconDot. The barrier test in this package enforces that.
+func litIcon(stencil []byte, w, h int, glyph, light toolkit.RGBA, fromStencil bool) ([]byte, error) {
+	if w <= 0 || h <= 0 {
+		return nil, fmt.Errorf("desk: an icon of %dx%d", w, h)
+	}
+	buf := make([]byte, w*h*4)
+	p := painter.NewPixelPainterBGRA(buf, w, h)
+	box := toolkit.Rect{W: w, H: h}
+	if fromStencil {
+		toolkit.StencilIcon(stencil, w, h)(p, box, glyph)
+	} else {
+		toolkit.DrawIconGlasses(p, box, glyph)
+	}
+	drawTheLight(p, w, h, light)
 
 	// BGRA to NRGBA: the painter writes what a canvas wants and a PNG wants the
 	// other order.
-	img := image.NewNRGBA(image.Rect(0, 0, px, px))
+	pix := make([]byte, w*h*4)
 	for i := 0; i+3 < len(buf); i += 4 {
-		img.Pix[i] = buf[i+2]
-		img.Pix[i+1] = buf[i+1]
-		img.Pix[i+2] = buf[i]
-		img.Pix[i+3] = buf[i+3]
+		pix[i], pix[i+1], pix[i+2], pix[i+3] = buf[i+2], buf[i+1], buf[i], buf[i+3]
 	}
-	if dot {
-		return withDotPixels(img.Pix, px, px)
+	return pngOf(pix, w, h)
+}
+
+// decodePixels turns a PNG into straight RGBA bytes.
+func decodePixels(b []byte) ([]byte, int, int, error) {
+	img, err := png.Decode(bytes.NewReader(b))
+	if err != nil {
+		return nil, 0, 0, fmt.Errorf("desk: the icon is not a picture: %w", err)
 	}
-	return pngOf(img.Pix, px, px)
+	r := img.Bounds()
+	out := image.NewNRGBA(image.Rect(0, 0, r.Dx(), r.Dy()))
+	for y := 0; y < r.Dy(); y++ {
+		for x := 0; x < r.Dx(); x++ {
+			out.Set(x, y, img.At(r.Min.X+x, r.Min.Y+y))
+		}
+	}
+	return out.Pix, r.Dx(), r.Dy(), nil
 }
 
 // pngOf encodes straight RGBA pixels as a PNG.
@@ -207,11 +264,22 @@ const (
 	TrayRunning
 )
 
-// DotInk is the colour of the dot that says the glasses are on.
+// DotInk is the colour of the light when a desk is up.
 //
 // A green, and the same green the gallery uses for the screen it has chosen:
 // one program, one word for "this one is live".
 var DotInk = SelectionInk
+
+// WaitingInk is the colour of the light when there is no desk.
+//
+// RED, because the menu bar should answer the question without being opened,
+// and "no light at all" is not an answer -- an icon with nothing on it reads as
+// an icon, not as a state. Asked for: "on pourrait avoir un point rouge quand
+// les lunettes ne sont pas en action".
+//
+// Muted rather than a signal red: it is a resting state, not a fault, and a
+// menu bar full of alarm colours teaches a person to stop looking.
+var WaitingInk = toolkit.RGB(0xE0, 0x6C, 0x6C)
 
 // State is what the icon follows.
 //
@@ -234,76 +302,38 @@ func (t *Tray) follow() func() {
 	return tray.BindIcon(t.t, t.state, icons, time.Second)
 }
 
-// withDot puts the running dot on an icon that is already PNG.
-func withDot(iconPNG []byte) ([]byte, error) {
-	img, err := png.Decode(bytes.NewReader(iconPNG))
-	if err != nil {
-		return nil, fmt.Errorf("desk: the icon is not a picture: %w", err)
-	}
-	b := img.Bounds()
-	out := image.NewNRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
-	for y := 0; y < b.Dy(); y++ {
-		for x := 0; x < b.Dx(); x++ {
-			out.Set(x, y, img.At(b.Min.X+x, b.Min.Y+y))
-		}
-	}
-	return withDotPixels(out.Pix, b.Dx(), b.Dy())
-}
+// glassesIcon is the system's glasses symbol as a drawable icon, as a seam.
+//
+// Nil where the system has none, and above the platform boundary for the same
+// reason systemIcon is: a test on either platform can take both paths.
+var glassesIcon = platformGlassesIcon
 
-// withDotPixels draws the running dot over straight RGBA pixels.
+// drawTheLight puts the state light where a headset's temple is.
 //
-// THE DOT IS THE STATE, and it is a colour on purpose: a menu bar can say
-// "this is live" without anybody opening anything, and a shape change would
-// have to be looked at twice. It costs the icon its template treatment -- an
-// image carrying colour is not recoloured by the platform, which is what makes
-// the green survive -- and that is the trade being made knowingly.
+// A third of the shorter side, at the right edge and half way down. It sat in
+// the bottom corner first, which put it BELOW the frame with nothing behind it
+// -- a coloured disc beside a pair of glasses rather than a light on them.
 //
-// The disc itself comes from the toolkit -- toolkit.DrawIconDot -- like every
-// other mark this package puts on screen. Nothing here rasterises a shape by
-// hand, and the barrier test in this package enforces that.
-func withDotPixels(pix []byte, w, h int) ([]byte, error) {
-	if w <= 0 || h <= 0 || len(pix) < w*h*4 {
-		return nil, fmt.Errorf("desk: %d bytes for a %dx%d picture", len(pix), w, h)
-	}
-	// BGRA for the painter, which is the order it writes.
-	buf := make([]byte, w*h*4)
-	for i := 0; i+3 < w*h*4; i += 4 {
-		buf[i], buf[i+1], buf[i+2], buf[i+3] = pix[i+2], pix[i+1], pix[i], pix[i+3]
-	}
-	p := painter.NewPixelPainterBGRA(buf, w, h)
-	// A third of the shorter side, at the right edge and HALF WAY DOWN -- where
-	// a headset's temple is.
-	//
-	// It sat in the bottom corner first, which put it below the frame with
-	// nothing behind it: a green disc floating beside a pair of glasses rather
-	// than a light ON them. Beside the temple it reads as what it is, the way
-	// the indicator on a real headset does.
-	//
-	// The toolkit leaves its own inset inside the box -- wanted here, it keeps
-	// the dot off the very edge -- so the disc that shows is about a QUARTER of
-	// the icon: big enough to read at menu-bar size, small enough to leave the
-	// glyph legible behind it.
+// The toolkit leaves its own inset inside the box, which is wanted: it keeps
+// the light off the very rim. So what shows is about a quarter of the icon --
+// big enough to read at menu-bar size, small enough to leave the glyph legible.
+func drawTheLight(p painter.Painter, w, h int, ink toolkit.RGBA) {
 	short := h
 	if w < short {
 		short = w
 	}
 	d := short / 3
 	if d < 6 {
-		// Six is the smallest dot worth drawing, and never wider than the icon
-		// itself: a box hanging off the left edge would put the dot over the
+		// Six is the smallest light worth drawing, and never wider than the
+		// icon itself: a box hanging off the left edge would put it over the
 		// glyph instead of beside it.
 		d = min(6, short)
 	}
-	toolkit.DrawIconDot(p, toolkit.Rect{X: w - d, Y: (h - d) / 2, W: d, H: d}, DotInk)
-
-	for i := 0; i+3 < w*h*4; i += 4 {
-		pix[i], pix[i+1], pix[i+2], pix[i+3] = buf[i+2], buf[i+1], buf[i], buf[i+3]
-	}
-	return pngOf(pix, w, h)
+	toolkit.DrawIconDot(p, toolkit.Rect{X: w - d, Y: (h - d) / 2, W: d, H: d}, ink)
 }
 
-// glassesIcon is the system's glasses symbol as a drawable icon, as a seam.
-//
-// Nil where the system has none, and above the platform boundary for the same
-// reason systemIcon is: a test on either platform can take both paths.
-var glassesIcon = platformGlassesIcon
+// labelInk is the colour the platform paints a template menu-bar icon with, as
+// a seam. Above the platform boundary so a test on either platform can take
+// both paths: an icon built where the system will not say is a branch the
+// coverage gate could otherwise never see closed.
+var labelInk = platformLabelInk

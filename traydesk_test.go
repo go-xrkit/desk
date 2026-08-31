@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-widgets/painter"
+	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/tray"
 )
 
@@ -332,14 +334,46 @@ func TestTheDotSaysTheGlassesAreOn(t *testing.T) {
 		t.Errorf("%d green pixels away from the temple; the dot is not where it should be", elsewhere)
 	}
 
-	// And the platform must not paint the green away. A menu bar recolours a
-	// TEMPLATE image to match the bar, which is exactly what the icon without
-	// the dot wants and exactly what would erase the dot.
-	if !tray.IsTemplate(plain) {
-		t.Error("the plain icon is not a template; it will not follow a dark menu bar")
+	// NEITHER icon is a template now, and that is the whole design: both carry
+	// a coloured light, so the platform stops recolouring both -- which is why
+	// the recolouring is done here instead.
+	if tray.IsTemplate(lit) || tray.IsTemplate(plain) {
+		t.Error("an icon carrying a light reads as a template; the platform would paint the light away")
 	}
-	if tray.IsTemplate(lit) {
-		t.Error("the lit icon reads as a template; the platform would recolour the dot away")
+
+	// AND THE GLYPH WEARS THE SYSTEM'S COLOUR. This is the defect that
+	// prompted it: "pourquoi l'icon tray est elle plus sombre quand on a le
+	// point vert que les autres icons dans la barre?" -- because a
+	// non-template is drawn as it is, and a system symbol is pure black, while
+	// every neighbour had been painted in labelColor. Measured on the machine
+	// that asked: white at 84.7%%, on a dark bar.
+	want, ok := labelInk()
+	if !ok {
+		t.Skip("this machine will not say what colour it paints a template")
+	}
+	glyph, black := 0, 0
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			r, g, b, a := img.At(img.Bounds().Min.X+x, img.Bounds().Min.Y+y).RGBA()
+			// Substantially opaque only. The rim of a glyph is anti-aliased,
+			// and a barely-there edge pixel composited over transparent black
+			// is dark whatever colour it was asked to be -- counting those
+			// called a correctly tinted icon black in two thirds of its pixels.
+			if a>>8 < 0x80 || greenish(r, g, b) {
+				continue
+			}
+			glyph++
+			if r>>8 < 0x20 && g>>8 < 0x20 && b>>8 < 0x20 && want.R > 0x20 {
+				black++
+			}
+		}
+	}
+	if glyph == 0 {
+		t.Fatal("the icon has no glyph, only a light")
+	}
+	if black > glyph/10 {
+		t.Errorf("%d of %d glyph pixels are still black while the system paints templates %v; "+
+			"the icon will look darker than its neighbours", black, glyph, want)
 	}
 }
 
@@ -379,20 +413,25 @@ func TestTheIconFollowsTheState(t *testing.T) {
 	}, "the icon to go dark again")
 }
 
-func TestADotOnWhatIsNotAPicture(t *testing.T) {
-	if _, err := withDot([]byte("not a PNG")); err == nil {
-		t.Error("a dot was drawn on something that is not a picture")
+func TestAnIconBuiltFromWhatIsNotAPicture(t *testing.T) {
+	// A system symbol that comes back as something other than a picture is an
+	// error rather than an icon of noise.
+	was := systemIcon
+	t.Cleanup(func() { systemIcon = was })
+	systemIcon = func(int) ([]byte, error) { return []byte("not a PNG"), nil }
+	if _, err := TrayIcon(TrayIconPx, true); err == nil {
+		t.Error("an icon was built out of something that is not a picture")
 	}
-	if _, err := withDotPixels(make([]byte, 4), 8, 8); err == nil {
-		t.Error("a dot was drawn on 4 bytes of an 8x8 picture")
-	}
-	if _, err := withDotPixels(nil, 0, 0); err == nil {
-		t.Error("a dot was drawn on a picture of no size")
-	}
-	// An icon too small to hold the smallest dot still yields a picture rather
-	// than a box hanging off its own left edge.
-	if _, err := withDotPixels(make([]byte, 4*4*4), 4, 4); err != nil {
+}
+
+func TestAnIconWithNoRoomForALight(t *testing.T) {
+	// Four pixels square: too small for the smallest light, and it must still
+	// yield a picture rather than a box hanging off its own left edge.
+	if _, err := litIcon(nil, 4, 4, toolkit.RGB(0, 0, 0), DotInk, false); err != nil {
 		t.Errorf("a 4x4 icon: %v", err)
+	}
+	if _, err := litIcon(nil, 0, 0, toolkit.RGB(0, 0, 0), DotInk, false); err == nil {
+		t.Error("an icon of no size was accepted")
 	}
 }
 
@@ -439,24 +478,19 @@ func TestTheToolkitGlassesWhenTheSystemHasNoSymbol(t *testing.T) {
 	}
 }
 
-func TestTheDotFitsAnIconThatIsNotSquare(t *testing.T) {
-	// A system symbol is never square, and the dot is sized off the SHORTER
+func TestTheLightFitsAnIconThatIsNotSquare(t *testing.T) {
+	// A system symbol is never square, and the light is sized off the SHORTER
 	// side so it stays a dot instead of a bar down one edge. Tall and wide are
 	// both tried: only one of them exercises the side that is picked.
 	for _, box := range [][2]int{{12, 40}, {40, 12}} {
 		w, h := box[0], box[1]
-		b, err := withDotPixels(make([]byte, w*h*4), w, h)
-		if err != nil {
-			t.Fatalf("%dx%d: %v", w, h, err)
-		}
-		img, err := png.Decode(bytes.NewReader(b))
-		if err != nil {
-			t.Fatalf("%dx%d: not a PNG: %v", w, h, err)
-		}
+		buf := make([]byte, w*h*4)
+		drawTheLight(painter.NewPixelPainterBGRA(buf, w, h), w, h, DotInk)
+
 		minX, minY, maxX, maxY := w, h, -1, -1
-		for y := 0; y < h; y++ {
-			for x := 0; x < w; x++ {
-				if _, _, _, a := img.At(x, y).RGBA(); a > 0 {
+		for y := range h {
+			for x := range w {
+				if buf[(y*w+x)*4+3] > 0 {
 					minX, minY = min(minX, x), min(minY, y)
 					maxX, maxY = max(maxX, x), max(maxY, y)
 				}
@@ -467,24 +501,21 @@ func TestTheDotFitsAnIconThatIsNotSquare(t *testing.T) {
 		}
 		short := min(w, h)
 		if got := max(maxX-minX+1, maxY-minY+1); got > short {
-			t.Errorf("%dx%d: the dot is %d across, wider than the %d it has to fit in",
+			t.Errorf("%dx%d: the light is %d across, wider than the %d it has to fit in",
 				w, h, got, short)
 		}
 		// At the right edge and half way down: where a temple is. Not flush
-		// against the rim -- the toolkit leaves its own inset inside the box,
-		// which is what keeps the dot off it.
+		// against the rim -- the toolkit leaves its own inset inside the box.
 		if minX < w/2 {
-			t.Errorf("%dx%d: the dot starts at x=%d, not on the right", w, h, minX)
+			t.Errorf("%dx%d: the light starts at x=%d, not on the right", w, h, minX)
 		}
 		if w-1-maxX > short/3 {
-			t.Errorf("%dx%d: the dot ends at x=%d, further from the edge than its own box",
+			t.Errorf("%dx%d: the light ends at x=%d, further from the edge than its own box",
 				w, h, maxX)
 		}
-		// And CENTRED vertically, within a pixel or two of the middle: a light
-		// that has slid to the top or the bottom is not on a temple.
 		mid := (minY + maxY) / 2
 		if off := mid - h/2; off > 2 || off < -2 {
-			t.Errorf("%dx%d: the dot is centred at y=%d, %d from the middle", w, h, mid, off)
+			t.Errorf("%dx%d: the light is centred at y=%d, %d from the middle", w, h, mid, off)
 		}
 	}
 }
