@@ -30,7 +30,8 @@ func Peripherals() []glasses.USB {
 	for _, d := range devs {
 		i := d.Info()
 		d.Close()
-		u := glasses.USB{Vendor: i.VendorID, Product: i.ProductID, Name: i.Product}
+		u := glasses.USB{Vendor: i.VendorID, Product: i.ProductID, Name: i.Product,
+			Hops: hopsFromLocation(i.LocationID)}
 		// Only a product match is taken. A vendor match alone names a brand and
 		// not a model, and a brand cannot give a field of view; taking it here
 		// would put a guess where the catalogue deliberately refuses one.
@@ -66,4 +67,23 @@ func Billboards() []glasses.USB {
 		}
 	}
 	return out
+}
+
+// hopsFromLocation counts how far a device is from the machine's own port, out
+// of a macOS LocationID.
+//
+// The id packs the topology into nibbles: the top byte is the controller, and
+// each nibble below it is a port on the way down, zero once the path ends. So
+// 0x00100000 is one hop -- straight into a root port -- and 0x02132200 is four.
+// Measured on the machine this was written for: the glasses at 00100000 and the
+// whole dock at 021xxxxx and 022xxxxx, on a different controller entirely.
+func hopsFromLocation(id uint32) int {
+	hops := 0
+	for shift := 20; shift >= 0; shift -= 4 {
+		if (id>>uint(shift))&0xF == 0 {
+			break
+		}
+		hops++
+	}
+	return hops
 }

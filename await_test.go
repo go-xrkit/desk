@@ -483,3 +483,47 @@ func TestAwaitNoticesAHeadsetArrivingOnTheBusAlone(t *testing.T) {
 		t.Errorf("the headset arrived on the bus and nothing was said:\n%s", all)
 	}
 }
+
+// TestAwaitAdviseByHowFarAwayTheHeadsetIs is the correction a person made by
+// answering the advice: "the glasses ARE plugged directly into the mac with its
+// own cable". Telling them a hub is in the way sends them to check the one
+// thing that is already right.
+func TestAwaitAdviseByHowFarAwayTheHeadsetIs(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		hops    int
+		want    string
+		notWant string
+	}{
+		{"straight in", 1, "STRAIGHT into the machine", "hops away"},
+		{"behind two hubs", 3, "3 hops away, behind 2 hub(s)", "STRAIGHT into the machine"},
+		{"nobody said", 0, "a hub, or a cable that only charges", "STRAIGHT into the machine"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			wasBus, wasBill := onTheBus, billboardsOnTheBus
+			t.Cleanup(func() { onTheBus, billboardsOnTheBus = wasBus, wasBill })
+			billboardsOnTheBus = func() []glasses.USB { return nil }
+			onTheBus = func() []glasses.USB {
+				return []glasses.USB{{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S", Hops: c.hops}}
+			}
+
+			list, _ := lister(
+				[]glasses.Display{aMonitor},
+				[]glasses.Display{aMonitor, theGlasses},
+			)
+			var lines []string
+			if _, err := Await(context.Background(), AwaitOptions{
+				Want: "VITURE", List: list, Logf: record(&lines), Every: time.Millisecond,
+			}); err != nil {
+				t.Fatalf("Await: %v", err)
+			}
+			all := strings.Join(lines, "\n")
+			if !strings.Contains(all, c.want) {
+				t.Errorf("%d hops did not say %q:\n%s", c.hops, c.want, all)
+			}
+			if strings.Contains(all, c.notWant) {
+				t.Errorf("%d hops said %q, which is the other case:\n%s", c.hops, c.notWant, all)
+			}
+		})
+	}
+}

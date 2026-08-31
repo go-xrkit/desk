@@ -174,7 +174,23 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 				logf("  %q is on the USB bus but is not presenting a display", u.Name)
 				logf("    the cable carries data; the picture is a separate negotiation over the same plug")
 				logf("    the glasses have to be awake -- worn, or woken with their own button")
-				logf("    a hub, or a cable that only charges, stops the picture and not the data")
+				// WHICH advice, decided by how far away the thing is.
+				//
+				// "a hub is in the way" is the usual cause and the useless
+				// answer for the person whose glasses are already plugged
+				// straight in: it sends them to check the one thing that is
+				// right. The bus knows which case this is, so it says so.
+				switch {
+				case u.Hops == 1:
+					logf("    these are plugged STRAIGHT into the machine, so no hub is in the way")
+					logf("    what is left is the glasses being asleep, or a port or cable with no DisplayPort in it")
+				case u.Hops > 1:
+					logf("    these are %d hops away, behind %d hub(s): a hub that does not pass the "+
+						"DisplayPort lanes stops the picture and not the data", u.Hops, u.Hops-1)
+					logf("    plug them straight into the machine to take the hubs out of it")
+				default:
+					logf("    a hub, or a cable that only charges, stops the picture and not the data")
+				}
 			}
 			// AND THE BUS ITSELF SAYS SO. A Billboard is not a guess: it is the
 			// device announcing, in the only way the specification gives it,
