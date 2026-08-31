@@ -101,3 +101,46 @@ func TestAHeadsetThatDoesNotSayItsName(t *testing.T) {
 		t.Errorf("name is %q, want empty", us[0].Name)
 	}
 }
+
+// TestTheLinuxBusNamesTheBillboard uses the real numbers off this machine, in
+// the shape sysfs writes them.
+//
+// A Billboard is the device saying, in the only way the specification gives it,
+// that an alternate mode it supports was NOT entered. Measured here: an XREAL
+// 1S behind a chain of hubs put `2109:0103 class 17 "USB 2.0 BILLBOARD"` on the
+// bus while macOS had no display for the glasses at all.
+func TestTheLinuxBusNamesTheBillboard(t *testing.T) {
+	root := sysfs(t, map[string]map[string]string{
+		// An interface directory: no class of its own at this level.
+		"1-1:1.0": {"bInterfaceClass": "03\n"},
+		// A hub. Class 09, and not the one being looked for.
+		"1-1": {"bDeviceClass": "09\n", "idVendor": "2109\n", "idProduct": "2822\n", "product": "USB2.0 Hub\n"},
+		// The glasses: a composite device, which reports class 00.
+		"1-2": {"bDeviceClass": "00\n", "idVendor": "3318\n", "idProduct": "043e\n", "product": "XREAL 1S\n"},
+		// The Billboard the hub puts up when the video half fails.
+		"1-3": {"bDeviceClass": "11\n", "idVendor": "2109\n", "idProduct": "0103\n", "product": "USB 2.0 BILLBOARD\n"},
+	})
+	bs := billboardsFromSysfs(root)
+	if len(bs) != 1 {
+		t.Fatalf("found %d billboards, want the one: %v", len(bs), bs)
+	}
+	if b := bs[0]; b.Vendor != 0x2109 || b.Product != 0x0103 || b.Name != "USB 2.0 BILLBOARD" {
+		t.Errorf("found %04x:%04x %q", b.Vendor, b.Product, b.Name)
+	}
+
+	// A Billboard with no ids to name it is not reported: a line saying
+	// something is wrong without saying which port is worse than no line.
+	half := sysfs(t, map[string]map[string]string{
+		"2-1": {"bDeviceClass": "11\n", "product": "nameless\n"},
+		"2-2": {"bDeviceClass": "11\n", "idVendor": "2109\n", "product": "no product id\n"},
+	})
+	if bs := billboardsFromSysfs(half); len(bs) != 0 {
+		t.Errorf("reported %v; neither of those can say which port it is", bs)
+	}
+
+	// A tree that is not there at all answers nothing rather than failing: a
+	// machine with no sysfs is every machine that is not Linux.
+	if bs := billboardsFromSysfs(filepath.Join(t.TempDir(), "nothing here")); len(bs) != 0 {
+		t.Errorf("found %v in a directory that does not exist", bs)
+	}
+}
