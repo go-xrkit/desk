@@ -304,34 +304,40 @@ func TestTheDotSaysTheGlassesAreOn(t *testing.T) {
 		t.Fatalf("the lit icon is not a PNG: %v", err)
 	}
 	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	// Where the dot is, and where it is NOT: on the RIGHT, at the height of a
-	// headset's temple, and not over the middle of the glyph. Counting green
-	// anywhere would pass an icon dyed green.
+	// Where the light is, and where it is NOT: ACROSS THE LENS, in the middle
+	// band of the icon. Counting green anywhere would pass an icon dyed green.
 	//
-	// It sat in the bottom corner first, which put it below the frame with
-	// nothing behind it -- a green disc BESIDE a pair of glasses rather than a
-	// light on them. "que la led soit au niveau des branches des lunettes".
-	temple, elsewhere := 0, 0
+	// It was a dot beside the temple first and it could not be seen: five or
+	// six pixels of colour outside a bright glyph, next to twenty other icons.
+	// "on ne voit plus le point vert. et si on mettait une ligne verte sur le
+	// verre des lunettes?" -- which is the biggest mark this shape can carry
+	// without stopping being a pair of glasses.
+	lens, elsewhere := 0, 0
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
 			r, g, b, a := img.At(img.Bounds().Min.X+x, img.Bounds().Min.Y+y).RGBA()
 			if a == 0 || !greenish(r, g, b) {
 				continue
 			}
-			// The right third, and the middle half vertically: where a temple
-			// is. Anything above or below that is not a temple light.
-			if x >= w-w/3 && y >= h/4 && y <= h-h/4 {
-				temple++
+			// The middle band, horizontally and vertically: on the glass. Any
+			// green outside it is on the frame or off the glasses entirely.
+			if x >= w/6 && x <= w-w/6 && y >= h/4 && y <= h-h/4 {
+				lens++
 			} else {
 				elsewhere++
 			}
 		}
 	}
-	if temple == 0 {
-		t.Error("no green beside the temple; there is no dot")
+	if lens == 0 {
+		t.Error("no green on the lens; there is no light")
 	}
 	if elsewhere > 0 {
-		t.Errorf("%d green pixels away from the temple; the dot is not where it should be", elsewhere)
+		t.Errorf("%d green pixels off the lens; the light is not where it should be", elsewhere)
+	}
+	// And BIG. The whole complaint about the dot was that it could not be seen,
+	// so a light that shrank back to a speck would be the same defect again.
+	if lens < w*h/40 {
+		t.Errorf("the light is %d pixels of a %dx%d icon; that is a speck, not a light", lens, w, h)
 	}
 
 	// NEITHER icon is a template now, and that is the whole design: both carry
@@ -479,10 +485,10 @@ func TestTheToolkitGlassesWhenTheSystemHasNoSymbol(t *testing.T) {
 }
 
 func TestTheLightFitsAnIconThatIsNotSquare(t *testing.T) {
-	// A system symbol is never square, and the light is sized off the SHORTER
-	// side so it stays a dot instead of a bar down one edge. Tall and wide are
-	// both tried: only one of them exercises the side that is picked.
-	for _, box := range [][2]int{{12, 40}, {40, 12}} {
+	// A system symbol is never square. The light is a bar across the middle,
+	// half the width and a sixth of the height, so a tall icon and a wide one
+	// both get a line rather than a block or a hairline.
+	for _, box := range [][2]int{{12, 40}, {40, 12}, {44, 27}} {
 		w, h := box[0], box[1]
 		buf := make([]byte, w*h*4)
 		drawTheLight(painter.NewPixelPainterBGRA(buf, w, h), w, h, DotInk)
@@ -499,23 +505,23 @@ func TestTheLightFitsAnIconThatIsNotSquare(t *testing.T) {
 		if maxX < 0 {
 			t.Fatalf("%dx%d: nothing was drawn", w, h)
 		}
-		short := min(w, h)
-		if got := max(maxX-minX+1, maxY-minY+1); got > short {
-			t.Errorf("%dx%d: the light is %d across, wider than the %d it has to fit in",
-				w, h, got, short)
+		gotW, gotH := maxX-minX+1, maxY-minY+1
+		// WIDER THAN TALL, always: a light that came out square or upright is
+		// not a line across a lens.
+		if gotW <= gotH {
+			t.Errorf("%dx%d: the light is %dx%d; a bar is wider than it is tall", w, h, gotW, gotH)
 		}
-		// At the right edge and half way down: where a temple is. Not flush
-		// against the rim -- the toolkit leaves its own inset inside the box.
-		if minX < w/2 {
-			t.Errorf("%dx%d: the light starts at x=%d, not on the right", w, h, minX)
+		// Centred, within a pixel, both ways.
+		if off := (minX+maxX)/2 - w/2; off > 1 || off < -1 {
+			t.Errorf("%dx%d: the light is centred at x=%d, %d off", w, h, (minX+maxX)/2, off)
 		}
-		if w-1-maxX > short/3 {
-			t.Errorf("%dx%d: the light ends at x=%d, further from the edge than its own box",
-				w, h, maxX)
+		if off := (minY+maxY)/2 - h/2; off > 1 || off < -1 {
+			t.Errorf("%dx%d: the light is centred at y=%d, %d off", w, h, (minY+maxY)/2, off)
 		}
-		mid := (minY + maxY) / 2
-		if off := mid - h/2; off > 2 || off < -2 {
-			t.Errorf("%dx%d: the light is centred at y=%d, %d from the middle", w, h, mid, off)
+		// And it stays INSIDE: a bar wider than the icon would run off the glass
+		// and stop looking like a light behind it.
+		if minX < 1 || maxX > w-2 {
+			t.Errorf("%dx%d: the light spans %d..%d, out to the very edge", w, h, minX, maxX)
 		}
 	}
 }
