@@ -280,6 +280,24 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		}
 	}
 
+	// And the TRACKPAD. Three fingers sideways turn the ribbon, which is the
+	// one thing a person wearing the glasses can do without finding a key.
+	//
+	// A gesture, not the pointer: the pointer used to change screens and kept
+	// getting lost, which is why it no longer does. This moves nothing on
+	// screen and cannot wander onto a display nobody is looking at.
+	var gestures <-chan Action
+	if !opt.NoGlobal {
+		g := ClaimGestures()
+		defer g.Close()
+		gestures = g.C()
+		if err := g.Why(); err != nil {
+			logf("  no trackpad gestures: %v", err)
+		} else {
+			logf("  three fingers sideways turn the ribbon")
+		}
+	}
+
 	// And the BARE keys, claimed only while a gallery covers the view.
 	//
 	// A person looking at a grid should not have to hold three modifiers to walk
@@ -425,6 +443,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 					sync()
 				case a := <-bareC:
 					act(d, logf, "gallery key", a)
+					sync()
+				case a := <-gestures:
+					act(d, logf, "three fingers", a)
 					sync()
 				case a := <-opt.Actions:
 					act(d, logf, "menu bar", a)
