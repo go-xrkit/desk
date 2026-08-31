@@ -15,12 +15,13 @@ import (
 
 // paper is a note kept in memory, so these tests touch nobody's settings.
 type paper struct {
-	notes   []darkNote
-	there   bool
-	writes  int
-	drops   int
-	badRead error
-	badDrop error
+	notes    []darkNote
+	there    bool
+	writes   int
+	drops    int
+	badRead  error
+	badDrop  error
+	badWrite error
 }
 
 func (p *paper) install(t *testing.T) {
@@ -28,7 +29,7 @@ func (p *paper) install(t *testing.T) {
 	w, r, d := writeNote, readNote, dropNote
 	writeNote = func(n []darkNote) error {
 		p.notes, p.there, p.writes = n, true, p.writes+1
-		return nil
+		return p.badWrite
 	}
 	readNote = func() ([]darkNote, error) {
 		if p.badRead != nil {
@@ -389,5 +390,66 @@ func TestTheNoteIsSortedAndAPanelThatRefusesTheLightIsReported(t *testing.T) {
 
 	if _, err := PutBackWhatWasLeftDark(); !errors.Is(err, stuck) {
 		t.Errorf("PutBackWhatWasLeftDark = %v, want the panel's own refusal", err)
+	}
+}
+
+// TestANoteThatCouldNotBeHonouredIsKept is a defect a real machine showed.
+//
+// A run darkened this Mac's own panel, the lid was shut, and the next start
+// could not read that display's brightness at all -- so it failed to put it
+// back AND dropped the note saying it owed it. Open the lid tomorrow and the
+// screen is black with nothing left to say why.
+func TestANoteThatCouldNotBeHonouredIsKept(t *testing.T) {
+	var p paper
+	p.install(t)
+	p.there = true
+	p.notes = []darkNote{{Display: 404, Was: 0.5}, {Display: 1, Was: 0.79}}
+	panels := panelsAt(t, map[uint64]float64{1: 0})
+
+	if _, err := PutBackWhatWasLeftDark(); err == nil {
+		t.Error("a display that cannot be read said nothing")
+	}
+	// The one that could not be reached is still owed, and the one that was
+	// put back is not: a note that stayed whole would ask again for a display
+	// nobody darkened any more.
+	if len(p.notes) != 1 || p.notes[0].Display != 404 {
+		t.Errorf("the note now holds %v, want only the display that could not be read", p.notes)
+	}
+	if p.drops != 0 {
+		t.Error("the note was dropped although one display is still dark")
+	}
+	if panels[1] != 0.79 {
+		t.Errorf("display 1 is at %v, want it put back", panels[1])
+	}
+
+	// And when everything is honoured, the note goes: a file that outlived its
+	// reason would make every start claim it repaired something.
+	var q paper
+	q.install(t)
+	q.there = true
+	q.notes = []darkNote{{Display: 1, Was: 0.79}}
+	panelsAt(t, map[uint64]float64{1: 0})
+	if _, err := PutBackWhatWasLeftDark(); err != nil {
+		t.Fatalf("PutBackWhatWasLeftDark: %v", err)
+	}
+	if q.drops != 1 {
+		t.Errorf("the note was dropped %d time(s) after everything was put back, want once", q.drops)
+	}
+}
+
+// TestANoteThatCannotBeKeptIsSaidSo: keeping what is still owed is the point,
+// so failing to keep it has to be reported rather than swallowed. It is the
+// one path where the caller learns that a dark screen is now nobody's.
+func TestANoteThatCannotBeKeptIsSaidSo(t *testing.T) {
+	var p paper
+	p.install(t)
+	p.there = true
+	p.badWrite = errors.New("the disk is full")
+	p.notes = []darkNote{{Display: 404, Was: 0.5}}
+	panelsAt(t, map[uint64]float64{})
+
+	_, err := PutBackWhatWasLeftDark()
+	if err == nil || !strings.Contains(err.Error(), "the disk is full") {
+		t.Errorf("err = %v, want it to carry the failure to keep the note", err)
 	}
 }
