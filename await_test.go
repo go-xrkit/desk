@@ -296,3 +296,148 @@ func TestAwaitAsksOnceAndThenGetsOnWithIt(t *testing.T) {
 		t.Errorf("said %q, want it to say it is getting on with it", said)
 	}
 }
+
+// TestAwaitSaysWhenTheBusHasGlassesAndTheVideoHasNot is the case a person hit
+// with an XREAL 1S: the glasses enumerate on USB, macOS shows no display from
+// them, and "no display matches" reads as "they are not plugged in" to somebody
+// who has just plugged them in and can feel the cable.
+func TestAwaitSaysWhenTheBusHasGlassesAndTheVideoHasNot(t *testing.T) {
+	was := onTheBus
+	t.Cleanup(func() { onTheBus = was })
+	onTheBus = func() []glasses.USB {
+		return []glasses.USB{{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}}
+	}
+
+	list, _ := lister(
+		[]glasses.Display{aMonitor},
+		[]glasses.Display{aMonitor},
+		[]glasses.Display{aMonitor, theGlasses},
+	)
+	var lines []string
+	if _, err := Await(context.Background(), AwaitOptions{
+		Want: "VITURE", List: list, Logf: record(&lines), Every: time.Millisecond,
+	}); err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	all := strings.Join(lines, "\n")
+	if !strings.Contains(all, `"XREAL 1S" is on the USB bus`) {
+		t.Errorf("nothing said the glasses are on the bus:\n%s", all)
+	}
+	if !strings.Contains(all, "not presenting a display") {
+		t.Errorf("nothing said what is missing:\n%s", all)
+	}
+	// ONCE, not once per poll: the wait is a loop, and a line that repeats
+	// every two seconds is a line nobody reads.
+	if n := strings.Count(all, "is on the USB bus"); n != 1 {
+		t.Errorf("said it %d times, want once:\n%s", n, all)
+	}
+}
+
+// TestAwaitSaysNothingAboutTheBusWhenItIsEmpty is the negative control: the
+// same wait, with nothing plugged in, must not invent a headset.
+func TestAwaitSaysNothingAboutTheBusWhenItIsEmpty(t *testing.T) {
+	was := onTheBus
+	t.Cleanup(func() { onTheBus = was })
+	onTheBus = func() []glasses.USB { return nil }
+
+	list, _ := lister([]glasses.Display{aMonitor}, []glasses.Display{theGlasses})
+	var lines []string
+	if _, err := Await(context.Background(), AwaitOptions{
+		Want: "VITURE", List: list, Logf: record(&lines), Every: time.Millisecond,
+	}); err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	if all := strings.Join(lines, "\n"); strings.Contains(all, "USB bus") {
+		t.Errorf("the bus was empty and something was said about it:\n%s", all)
+	}
+}
+
+// TestAwaitSaysTheBillboardIsWhyThereIsNoPicture is the answer to a question
+// asked with the glasses in hand: "pourquoi les xreal n'apparaissent pas dans
+// la liste des ecran?".
+//
+// A USB Billboard is not a guess. It is the device announcing, in the only way
+// the specification gives it, that an alternate mode it supports was not
+// entered -- so the video half of the plug failed and the data half did not.
+// Measured on the machine that asked: 2109:0103 class 17 "USB 2.0 BILLBOARD"
+// on the bus, an XREAL 1S enumerated, and no display for the glasses at all.
+func TestAwaitSaysTheBillboardIsWhyThereIsNoPicture(t *testing.T) {
+	wasBus, wasBill := onTheBus, billboardsOnTheBus
+	t.Cleanup(func() { onTheBus, billboardsOnTheBus = wasBus, wasBill })
+	onTheBus = func() []glasses.USB {
+		return []glasses.USB{{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}}
+	}
+	billboardsOnTheBus = func() []glasses.USB {
+		return []glasses.USB{{Vendor: 0x2109, Product: 0x0103, Name: "USB 2.0 BILLBOARD"}}
+	}
+
+	list, _ := lister(
+		[]glasses.Display{aMonitor},
+		[]glasses.Display{aMonitor},
+		[]glasses.Display{aMonitor, theGlasses},
+	)
+	var lines []string
+	if _, err := Await(context.Background(), AwaitOptions{
+		Want: "VITURE", List: list, Logf: record(&lines), Every: time.Millisecond,
+	}); err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	all := strings.Join(lines, "\n")
+	if !strings.Contains(all, "USB Billboard") {
+		t.Errorf("nothing named the Billboard:\n%s", all)
+	}
+	// WHICH port, by its ids: a line saying something is wrong without saying
+	// which plug is a line that cannot be acted on.
+	if !strings.Contains(all, "2109:0103") {
+		t.Errorf("the Billboard was not identified:\n%s", all)
+	}
+	if !strings.Contains(all, "NOT entered") {
+		t.Errorf("nothing said what a Billboard means:\n%s", all)
+	}
+	if n := strings.Count(all, "USB Billboard"); n != 1 {
+		t.Errorf("said it %d times, want once:\n%s", n, all)
+	}
+}
+
+// TestAwaitNoticesAHeadsetArrivingOnTheBusAlone is the gap that made the
+// message useless in practice.
+//
+// Plugging a headset in that presents no picture changes NOTHING about the
+// display list, and the wait only ever reported when that list changed -- so
+// the one moment a person needs to be told something was the one moment it
+// said nothing. Measured: the glasses were plugged in, the log said "waiting
+// for it" and never mentioned the bus.
+func TestAwaitNoticesAHeadsetArrivingOnTheBusAlone(t *testing.T) {
+	wasBus, wasBill := onTheBus, billboardsOnTheBus
+	t.Cleanup(func() { onTheBus, billboardsOnTheBus = wasBus, wasBill })
+	billboardsOnTheBus = func() []glasses.USB { return nil }
+	// Empty at first, then a headset -- with the displays never changing.
+	var polls int
+	onTheBus = func() []glasses.USB {
+		polls++
+		if polls <= 1 {
+			return nil
+		}
+		return []glasses.USB{{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}}
+	}
+
+	// The same monitor throughout, for long enough that the bus is read again:
+	// it is read every busEvery polls, on purpose, because enumerating USB
+	// opens a handle on every device on the machine.
+	same := make([][]glasses.Display, 0, 3*busEvery)
+	for range 3 * busEvery {
+		same = append(same, []glasses.Display{aMonitor})
+	}
+	same = append(same, []glasses.Display{aMonitor, theGlasses})
+	list, _ := lister(same...)
+
+	var lines []string
+	if _, err := Await(context.Background(), AwaitOptions{
+		Want: "VITURE", List: list, Logf: record(&lines), Every: time.Millisecond,
+	}); err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	if all := strings.Join(lines, "\n"); !strings.Contains(all, "is on the USB bus") {
+		t.Errorf("the headset arrived on the bus and nothing was said:\n%s", all)
+	}
+}

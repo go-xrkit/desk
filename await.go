@@ -95,7 +95,19 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 	// is not the glasses says something and a second of nothing happening says
 	// nothing.
 	said := "\x00"
-	for waited := false; ; waited = true {
+	// What the BUS says, refreshed less often than the display list.
+	//
+	// Listing displays reads a cache; enumerating USB opens a handle on every
+	// device on the machine, and doing that once a second for as long as a
+	// person leaves the desk waiting is not a read, it is a poke. Every fifth
+	// poll is still well under the time it takes to look up after pushing a
+	// plug in, and it is counted in POLLS rather than seconds so a test with a
+	// fast poll sees the second reading without waiting for a clock.
+	var bus, bill []glasses.USB
+	for tick, waited := 0, false; ; tick, waited = tick+1, true {
+		if tick%busEvery == 0 {
+			bus, bill = onTheBus(), billboardsOnTheBus()
+		}
 		ds, err := opt.List()
 		if err != nil {
 			return glasses.Display{}, fmt.Errorf("desk: listing displays: %w", err)
@@ -140,9 +152,42 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 			}
 			return glasses.Display{}, ErrAwaitSettings
 		}
-		if now := describeDisplays(ds); now != said {
+		// The BUS is part of what changed, not only the displays: plugging a
+		// headset in that presents no picture changes nothing about the display
+		// list, and that is exactly the moment a person needs to be told
+		// something. It used to say nothing at all.
+		if now := describeDisplays(ds) + " | " + describeBus(bus, bill); now != said {
 			said = now
 			logf("%v", why)
+			// THE CABLE CARRIES DATA AND NO PICTURE.
+			//
+			// A headset can be on the USB bus -- enumerated, named, its
+			// product id recognised -- and present no display at all,
+			// because the video half of USB-C is a separate negotiation.
+			// Then "no display matches" is true and useless: it reads as
+			// "your glasses are not plugged in" to somebody who has just
+			// plugged them in and can feel the cable.
+			//
+			// Seen with an XREAL 1S on an M4 Max: 3318:043e on the bus,
+			// and the only display macOS had was the monitor.
+			for _, u := range bus {
+				logf("  %q is on the USB bus but is not presenting a display", u.Name)
+				logf("    the cable carries data; the picture is a separate negotiation over the same plug")
+				logf("    the glasses have to be awake -- worn, or woken with their own button")
+				logf("    a hub, or a cable that only charges, stops the picture and not the data")
+			}
+			// AND THE BUS ITSELF SAYS SO. A Billboard is not a guess: it is the
+			// device announcing, in the only way the specification gives it,
+			// that an alternate mode it supports was not entered. Measured
+			// here with an XREAL 1S behind a chain of hubs: 2109:0103 class 17
+			// "USB 2.0 BILLBOARD", and no display for the glasses at all.
+			for _, b := range bill {
+				logf("  %q (%04x:%04x) is a USB Billboard: something on this port supports a "+
+					"DisplayPort alternate mode that was NOT entered", b.Name, b.Vendor, b.Product)
+				logf("    the hardware is saying the video half failed; it is not being guessed from the silence")
+				logf("    it usually belongs to a HUB in the middle rather than to the glasses at the end")
+				logf("    plug the glasses straight into the machine, into a port that carries DisplayPort")
+			}
 			if !waited {
 				// Said once, on the way in. A person who reads one line reads
 				// this one.
@@ -183,6 +228,37 @@ func describeDisplays(ds []glasses.Display) string {
 	parts := make([]string, len(ds))
 	for i, d := range ds {
 		parts[i] = d.String()
+	}
+	return strings.Join(parts, ", ")
+}
+
+// onTheBus is what the USB bus reports, as a seam.
+//
+// Above the platform boundary so a test on any platform can put a headset on
+// the bus without one being plugged in, and so the waiting logic stays in the
+// portable file where it is measured.
+var onTheBus = Peripherals
+
+// busEvery is how many polls apart the USB bus is read. See Await.
+const busEvery = 5
+
+// billboardsOnTheBus is what the USB bus reports as Billboard devices, as a
+// seam, for the same reason onTheBus is one.
+var billboardsOnTheBus = Billboards
+
+// describeBus names what the bus carries, in one line, for comparing one moment
+// to the next. Headsets and Billboards both: a headset appearing changes
+// nothing about the display list, and neither does the Billboard that says why.
+func describeBus(headsets, billboards []glasses.USB) string {
+	if len(headsets) == 0 && len(billboards) == 0 {
+		return "nothing"
+	}
+	parts := make([]string, 0, len(headsets)+len(billboards))
+	for _, u := range headsets {
+		parts = append(parts, fmt.Sprintf("%04x:%04x %q", u.Vendor, u.Product, u.Name))
+	}
+	for _, b := range billboards {
+		parts = append(parts, fmt.Sprintf("billboard %04x:%04x %q", b.Vendor, b.Product, b.Name))
 	}
 	return strings.Join(parts, ", ")
 }

@@ -40,3 +40,30 @@ func Peripherals() []glasses.USB {
 	}
 	return out
 }
+
+// Billboards lists the USB Billboard devices on the bus.
+//
+// A headset that enumerates and shows no picture is the hardest case to
+// explain, because everything a person can check says the cable is fine. This
+// is the machine's own evidence that it is not: measured here, an XREAL 1S
+// behind a chain of hubs put `2109:0103 class 17 "USB 2.0 BILLBOARD"` on the
+// bus, and the Mac had no display for the glasses at all.
+//
+// It says WHICH port, through the product string and the ids, because the
+// Billboard belongs to whatever failed the negotiation -- usually the hub in
+// the middle rather than the glasses at the end.
+func Billboards() []glasses.USB {
+	devs, err := usb.Devices(usb.Filter{})
+	if err != nil {
+		return nil
+	}
+	var out []glasses.USB
+	for _, d := range devs {
+		i := d.Info()
+		d.Close()
+		if i.Class == usbClassBillboard {
+			out = append(out, glasses.USB{Vendor: i.VendorID, Product: i.ProductID, Name: i.Product})
+		}
+	}
+	return out
+}

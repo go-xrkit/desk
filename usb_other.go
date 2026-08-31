@@ -14,3 +14,7 @@ import "github.com/go-xrkit/xrkit/glasses"
 // Android behind a permission its host app must ask for; until those are done,
 // the display name is what those platforms have, which is what they had before.
 func Peripherals() []glasses.USB { return nil }
+
+// Billboards lists the USB Billboard devices on the bus: none, here, for the
+// same reason Peripherals lists no headset.
+func Billboards() []glasses.USB { return nil }

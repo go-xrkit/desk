@@ -71,3 +71,43 @@ func textFile(path string) (string, bool) {
 	}
 	return strings.TrimSpace(string(b)), true
 }
+
+// billboardsFromSysfs lists the USB Billboard devices in a Linux USB tree.
+//
+// bDeviceClass is what says so: 0x11 is the class a USB-C device presents when
+// an alternate mode it supports could not be entered. sysfs writes it as two
+// hexadecimal digits, which hexFile reads like any other id.
+func billboardsFromSysfs(root string) []glasses.USB {
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil
+	}
+	var out []glasses.USB
+	for _, e := range entries {
+		dir := filepath.Join(root, e.Name())
+		class, ok := hexFile(filepath.Join(dir, "bDeviceClass"))
+		if !ok || class != usbClassBillboard {
+			continue
+		}
+		vendor, ok := hexFile(filepath.Join(dir, "idVendor"))
+		if !ok {
+			continue
+		}
+		product, ok := hexFile(filepath.Join(dir, "idProduct"))
+		if !ok {
+			continue
+		}
+		name, _ := textFile(filepath.Join(dir, "product"))
+		out = append(out, glasses.USB{Vendor: vendor, Product: product, Name: name})
+	}
+	return out
+}
+
+// usbClassBillboard is the USB device class a USB-C device presents when an
+// ALTERNATE MODE it supports could not be entered.
+//
+// It is in the specification for exactly this: the device has no other way to
+// tell anybody that the DisplayPort lanes it can drive are not being driven, so
+// it enumerates as a Billboard whose only job is to carry that message. Every
+// platform reads the same number, which is why it lives in the portable file.
+const usbClassBillboard = 0x11
