@@ -224,8 +224,8 @@ func TestAwaitAsksWhenTheHeadsetThatIsHereIsNotTheChosenOne(t *testing.T) {
 	// named one model, the pair on the desk was another, and the desk waited
 	// two and a half minutes with the glasses plugged in -- so it must not
 	// wait. And taking the other one silently was reported straight back:
-	// "quand j'ai branche les lunettes j'aurais du avoir un panneau de choix
-	// des lunettes". So it asks.
+	// "when I plugged the glasses in I should have had a panel to choose
+	// which glasses". So it asks.
 	list, _ := lister([]glasses.Display{aMonitor, otherGlasses})
 	var lines []string
 
@@ -353,8 +353,8 @@ func TestAwaitSaysNothingAboutTheBusWhenItIsEmpty(t *testing.T) {
 }
 
 // TestAwaitSaysTheBillboardIsWhyThereIsNoPicture is the answer to a question
-// asked with the glasses in hand: "pourquoi les xreal n'apparaissent pas dans
-// la liste des ecran?".
+// asked with the glasses in hand: "why do the XREAL not appear in the list
+// of displays?".
 //
 // A USB Billboard is not a guess. It is the device announcing, in the only way
 // the specification gives it, that an alternate mode it supports was not
@@ -393,6 +393,48 @@ func TestAwaitSaysTheBillboardIsWhyThereIsNoPicture(t *testing.T) {
 	}
 	if !strings.Contains(all, "NOT entered") {
 		t.Errorf("nothing said what a Billboard means:\n%s", all)
+	}
+	// WHOSE Billboard it is. This one is a hub chip's -- 2109 is not 3318 --
+	// so it names a different port, and telling somebody to plug the glasses
+	// in directly when they already have is sending them to check the one
+	// thing that is right.
+	if !strings.Contains(all, "ANOTHER device on the bus") {
+		t.Errorf("the Billboard was not attributed to the hub that put it up:\n%s", all)
+	}
+	if strings.Contains(all, "HEADSET's own") {
+		t.Errorf("a hub chip's Billboard was blamed on the glasses:\n%s", all)
+	}
+}
+
+// TestAwaitSaysWhenTheBillboardIsTheHeadsetsOwn is the other half: the same
+// evidence, put up by the maker of the glasses themselves, means the glasses
+// negotiated data and not video -- and there is no hub to go and unplug.
+func TestAwaitSaysWhenTheBillboardIsTheHeadsetsOwn(t *testing.T) {
+	wasBus, wasBill := onTheBus, billboardsOnTheBus
+	t.Cleanup(func() { onTheBus, billboardsOnTheBus = wasBus, wasBill })
+	onTheBus = func() []glasses.USB {
+		return []glasses.USB{{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}}
+	}
+	billboardsOnTheBus = func() []glasses.USB {
+		return []glasses.USB{{Vendor: 0x3318, Product: 0x0100, Name: "XREAL BILLBOARD"}}
+	}
+
+	list, _ := lister(
+		[]glasses.Display{aMonitor},
+		[]glasses.Display{aMonitor, theGlasses},
+	)
+	var lines []string
+	if _, err := Await(context.Background(), AwaitOptions{
+		Want: "VITURE", List: list, Logf: record(&lines), Every: time.Millisecond,
+	}); err != nil {
+		t.Fatalf("Await: %v", err)
+	}
+	all := strings.Join(lines, "\n")
+	if !strings.Contains(all, "HEADSET's own") {
+		t.Errorf("the glasses' own Billboard was blamed on something else:\n%s", all)
+	}
+	if strings.Contains(all, "ANOTHER device") {
+		t.Errorf("the glasses' own Billboard was called another device's:\n%s", all)
 	}
 	if n := strings.Count(all, "USB Billboard"); n != 1 {
 		t.Errorf("said it %d times, want once:\n%s", n, all)

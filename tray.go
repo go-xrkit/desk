@@ -30,7 +30,7 @@ package desk
 //	symbol visionpro         182
 //	symbol display           206
 //
-// "l'icon de lunettes de la tray n'est pas tres lisible" is what the first of
+// "the glasses icon in the tray is not very legible" is what the first of
 // those looks like to somebody using it: a title is TEXT, so an emoji arrives
 // at the height of a lowercase letter, flat in the bar's own ink, among twenty
 // other items. A symbol is vector, aligned to the bar's cap height, and takes

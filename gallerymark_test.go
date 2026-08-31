@@ -526,7 +526,7 @@ func TestClickingThePlusWithNoWayToAddIt(t *testing.T) {
 
 // TestNothingInThisPackageDrawsAPixel.
 //
-// « tu as ajouté des widgets au toolkit ou tu dessine a la main? » — asked on
+// "did you add widgets to the toolkit, or are you drawing by hand?" -- asked on
 // 2026-08-27, and the honest answer was: hand-drawn, two painter.StrokeRect
 // calls, and nothing added to the toolkit. The answer is now a widget,
 // toolkit.SelectionBox, and this is the barrier that keeps it that way.

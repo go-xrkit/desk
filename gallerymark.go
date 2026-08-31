@@ -13,8 +13,8 @@ import (
 
 // SelectionInk is the colour of the border round the chosen screen.
 //
-// APPLE GREEN, asked for from the glasses: "au lieu d'avoir du orange ça serait
-// plus doux à l'œil d'avoir un vert pomme ou un bleu ciel". Orange was chosen
+// APPLE GREEN, asked for from the glasses: "instead of orange it would be
+// gentler on the eye to have an apple green or a sky blue". Orange was chosen
 // for being the one strong hue that is in almost no window chrome and in very
 // little wallpaper — findable at a glance — and it is also the hue a headset
 // pushes hardest at a person's eye across a whole session.
