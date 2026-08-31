@@ -21,3 +21,6 @@ func platformTrayIcon(int) ([]byte, error) {
 // platformGlassesIcon has no system symbol to offer, so the caller keeps the
 // toolkit's own drawn glasses.
 func platformGlassesIcon(int) toolkit.IconFunc { return nil }
+
+// platformLabelInk has no system colour to read here, so a caller uses its own.
+func platformLabelInk() (toolkit.RGBA, bool) { return toolkit.RGBA{}, false }
