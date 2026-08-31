@@ -19,7 +19,7 @@ require (
 	github.com/go-widgets/tray v0.7.2
 	github.com/go-widgets/window v0.57.0
 	github.com/go-xrkit/android v0.1.0
-	github.com/go-xrkit/xrkit v0.9.0
+	github.com/go-xrkit/xrkit v0.9.1
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/zclconf/go-cty v1.19.0
 )
