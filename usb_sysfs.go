@@ -40,7 +40,7 @@ func peripheralsFromSysfs(root string) []glasses.USB {
 			continue
 		}
 		name, _ := textFile(filepath.Join(dir, "product"))
-		u := glasses.USB{Vendor: vendor, Product: product, Name: name}
+		u := glasses.USB{Vendor: vendor, Product: product, Name: name, Hops: hopsFromSysfsName(e.Name())}
 		// A product match only, for the reason [Peripheral] gives: a vendor
 		// match names a brand, and a brand cannot give a field of view.
 		if _, how := glasses.IdentifyDevice("", &u); how == glasses.ByUSBProduct {
@@ -111,3 +111,24 @@ func billboardsFromSysfs(root string) []glasses.USB {
 // it enumerates as a Billboard whose only job is to carry that message. Every
 // platform reads the same number, which is why it lives in the portable file.
 const usbClassBillboard = 0x11
+
+// hopsFromSysfsName counts how far a device is from the machine's own port,
+// from the name Linux gives its directory.
+//
+// sysfs spells the topology: "1-2" is bus 1, port 2, plugged straight in, and
+// "1-2.3" is behind one hub. So the hop count is one more than the number of
+// dots. A name with no dash at all is a root hub, which is the machine's own
+// port rather than anything in it: zero, meaning nothing to say.
+//
+// Anything from a colon on is cut first: "1-1:1.0" is an INTERFACE of the
+// device at 1-1, and the dot in it numbers the interface rather than a hub.
+func hopsFromSysfsName(name string) int {
+	if colon := strings.IndexByte(name, ':'); colon >= 0 {
+		name = name[:colon]
+	}
+	dash := strings.IndexByte(name, '-')
+	if dash < 0 {
+		return 0
+	}
+	return 1 + strings.Count(name[dash+1:], ".")
+}

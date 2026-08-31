@@ -144,3 +144,33 @@ func TestTheLinuxBusNamesTheBillboard(t *testing.T) {
 		t.Errorf("found %v in a directory that does not exist", bs)
 	}
 }
+
+// TestTheLinuxBusCountsTheHops reads the topology out of the name Linux gives a
+// device's directory, which is where Linux writes it.
+func TestTheLinuxBusCountsTheHops(t *testing.T) {
+	for name, want := range map[string]int{
+		"1-2":       1, // straight into a port on the machine
+		"1-2.3":     2, // behind one hub
+		"1-2.3.4":   3,
+		"3-1.2.3.4": 4,
+		"usb1":      0, // a root hub is the machine's own port, not a device in it
+		"1-1:1.0":   1, // an interface of a device plugged straight in
+	} {
+		if got := hopsFromSysfsName(name); got != want {
+			t.Errorf("%q: %d hops, want %d", name, got, want)
+		}
+	}
+
+	// And it reaches the headset the reader gets back, since that is the whole
+	// point of counting it.
+	root := sysfs(t, map[string]map[string]string{
+		"1-2.3": {"idVendor": "3318\n", "idProduct": "043e\n", "product": "XREAL 1S\n"},
+	})
+	us := peripheralsFromSysfs(root)
+	if len(us) != 1 {
+		t.Fatalf("found %d headsets, want the one", len(us))
+	}
+	if us[0].Hops != 2 {
+		t.Errorf("the headset is %d hops away, want 2: it is behind one hub", us[0].Hops)
+	}
+}
