@@ -380,6 +380,8 @@ func TestActionString(t *testing.T) {
 		ActionCloser: "closer", ActionFurther: "further",
 		ActionFlatter: "flatter", ActionRounder: "rounder",
 		ActionSettings: "settings", ActionPoint: "bring the pointer here",
+		ActionStereo3D: "3D on or off", ActionStereo3DOn: "3D on",
+		ActionStereo3DOff: "3D off",
 	} {
 		if got := a.String(); got != want {
 			t.Errorf("Action(%d).String() = %q, want %q", a, got, want)
