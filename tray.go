@@ -79,6 +79,8 @@ func TrayRows() []TrayRow {
 		{Title: "The applications...", Key: "a", Action: ActionAppsOpen},
 		{Title: "One application per screen", Key: "x", Action: ActionSpread},
 		{},
+		{Title: "3D on", Action: ActionStereo3DOn},
+		{Title: "3D off", Action: ActionStereo3DOff},
 		{Title: "Show the gallery", Action: ActionGalleryOpen},
 		{Title: "Leave the gallery", Action: ActionGalleryClose},
 		{},

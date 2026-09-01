@@ -155,6 +155,21 @@ const (
 	// running" from outside and "put it away" from inside does the wrong thing
 	// every time the person has lost track of which they are in.
 	ActionAppsOpen
+	// ActionStereo3D turns the 3D conversion on or off; ActionStereo3DOn and
+	// ActionStereo3DOff say which, without asking what it is now.
+	//
+	// The same reasoning as the gallery: a system-wide shortcut is pressed
+	// blind. Through the glasses the viewer can see whether the picture has
+	// depth, so the toggle is honest there -- but a key that means "on" from a
+	// laptop and "off" from the headset is a key that does the wrong thing
+	// whenever they have lost track.
+	//
+	// It is not a navigation action, so it is answered before the ribbon, the
+	// gallery and the application list are consulted: how the picture is SHOWN
+	// has nothing to do with which screen is focused.
+	ActionStereo3D
+	ActionStereo3DOn
+	ActionStereo3DOff
 )
 
 // String renders an action for a log.
@@ -198,6 +213,12 @@ func (a Action) String() string {
 		return "the applications"
 	case ActionSpread:
 		return "spread the applications"
+	case ActionStereo3D:
+		return "3D on or off"
+	case ActionStereo3DOn:
+		return "3D on"
+	case ActionStereo3DOff:
+		return "3D off"
 	case ActionRemove:
 		return "remove this screen"
 	case ActionAppsOpen:
@@ -262,6 +283,17 @@ type Desk struct {
 	// asks for the next source there. It is called without the desk's lock held,
 	// so a handler may call SetFeed — which is the whole point of it.
 	OnCycle func(pos int)
+
+	// OnStereo3D, when set, is told whenever the 3D conversion is turned on or
+	// off. Like OnCycle it is called OUTSIDE the lock: whoever answers it opens
+	// a depth model and talks to a GPU, which must not happen while the ribbon
+	// is held.
+	OnStereo3D func(on bool)
+
+	// stereo3D is whether the conversion is on. It lives here rather than in the
+	// view because a shortcut, a menu and a configured default all set it, and
+	// one place that knows means they cannot disagree.
+	stereo3D bool
 
 	// OnPoint, when set, is called with the position whose screen the pointer
 	// should be brought to. It is called without the desk's lock held.
@@ -407,12 +439,34 @@ func (d *Desk) InGallery() bool {
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
+	var stereo3D func(bool)
+	var stereoWant bool
 	var add func() (Feed, error)
 	pos := -1
 	drop := -1
 	var place []Placement
 	var list func() ([]App, error)
 	d.mu.Lock()
+
+	// Whether the picture is shown flat or in 3D has nothing to do with which
+	// screen is focused, so it is answered before the ribbon, the gallery and
+	// the application list are consulted -- and therefore works in all of them.
+	switch a {
+	case ActionStereo3D, ActionStereo3DOn, ActionStereo3DOff:
+		want := a != ActionStereo3DOff
+		if a == ActionStereo3D {
+			want = !d.stereo3D
+		}
+		if want != d.stereo3D {
+			d.stereo3D = want
+			stereo3D, stereoWant = d.OnStereo3D, want
+		}
+		d.mu.Unlock()
+		if stereo3D != nil {
+			stereo3D(stereoWant)
+		}
+		return
+	}
 
 	// The APPLICATION gallery comes first, and it is not a ribbon mode: the band
 	// keeps its focus underneath, because "put this one on the screen I am

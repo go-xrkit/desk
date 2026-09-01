@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync"
 	"unsafe"
+
+	"github.com/go-xrkit/depth3d"
 )
 
 // eye is one eye's rectangle in the output.
@@ -36,6 +38,14 @@ type view struct {
 	out   []uint32
 	bytes []byte
 	w, h  int
+
+	// conv, when set, invents the parallax the source does not have: the two
+	// eyes stop being the same picture. It is nil until a viewer asks.
+	conv depth3d.Converter
+	// flat is one eye's picture, scaled and colour-corrected, which is what the
+	// converter reads. The eyes it writes are the two halves of the output
+	// itself, so nothing is copied on the way out.
+	flat []uint32
 
 	// Snapshot, when set, is called with the output picture once it has been
 	// drawn. It is how this proves what it put on the glasses without asking a
@@ -79,7 +89,14 @@ func newView(plan Plan, fbW, fbH int) (*view, error) {
 	}
 	v.eyes = []eye{{x: 0, w: eyeW}}
 	if plan.Stereoscopic {
-		v.eyes = append(v.eyes, eye{x: eyeW, w: fbW - eyeW})
+		// The SAME width as the first eye, not "the rest of the frame". An odd
+		// framebuffer would otherwise give the second eye one column more than
+		// the column table has, and draw would read past the end of it -- a
+		// panic in the render loop, on a display nobody expected to see.
+		//
+		// The odd column is left as background: a one-pixel line down the edge
+		// of a picture nobody is looking at, against a crash.
+		v.eyes = append(v.eyes, eye{x: eyeW, w: eyeW})
 	}
 
 	v.cols = make([]int32, eyeW)
@@ -100,6 +117,27 @@ func newView(plan Plan, fbW, fbH int) (*view, error) {
 // background is what an output pixel gets when the panorama does not reach it.
 const background = 0xff000000
 
+// SetConverter turns the 3D conversion on, or off with nil.
+//
+// Opening a converter loads a depth model and talks to a GPU, so it happens on
+// the caller's side and arrives here already made.
+func (v *view) SetConverter(c depth3d.Converter) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	v.conv = c
+}
+
+// convertible reports whether the two eyes are the two halves of one frame,
+// which is the shape the converter writes into.
+//
+// With one eye there is nothing to convert TO. With two of unequal width --
+// an odd framebuffer -- the halves are not addressable by a single stride, and
+// inventing one would put the right eye a pixel out on every row.
+func (v *view) convertible() bool {
+	return len(v.eyes) == 2 && v.eyes[0].w == v.eyes[1].w &&
+		v.eyes[0].x == 0 && v.eyes[1].x == v.eyes[0].w && v.eyes[0].w*2 == v.w
+}
+
 // draw copies the picture in front of each eye.
 //
 // The picture is BGRA, because that is what every capture on every platform
@@ -108,6 +146,10 @@ const background = 0xff000000
 func (v *view) draw(c *Canvas) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
+	if v.conv != nil && v.convertible() && v.convert(c) {
+		v.snapshot()
+		return
+	}
 	src := asWords(c.Pix)
 	for _, e := range v.eyes {
 		for y, sy := range v.rows {
@@ -123,11 +165,49 @@ func (v *view) draw(c *Canvas) {
 			}
 		}
 	}
+	v.snapshot()
+}
+
+// snapshot hands the composed frame over once, if anyone asked.
+func (v *view) snapshot() {
 	if v.Snapshot != nil {
 		snap := v.Snapshot
 		v.Snapshot = nil // once is evidence; every frame is a film
 		snap(asBytes(v.out), v.w, v.h)
 	}
+}
+
+// convert draws the two eyes as a stereo pair invented from one flat picture.
+//
+// It reports whether it did. A converter that refuses a frame -- a size it
+// cannot serve, a model that stopped answering -- must leave the flat path to
+// draw something rather than leave the glasses black: a viewer who sees the
+// picture lose its depth knows what happened, and one who sees nothing does
+// not.
+func (v *view) convert(c *Canvas) bool {
+	eyeW, eyeH := v.eyes[0].w, len(v.rows)
+	if eyeW < 1 || eyeH < 1 {
+		return false
+	}
+	if len(v.flat) != eyeW*eyeH {
+		v.flat = make([]uint32, eyeW*eyeH)
+	}
+	src := asWords(c.Pix)
+	for y, sy := range v.rows {
+		row := int(sy) * c.W
+		out := y * eyeW
+		for x := 0; x < eyeW; x++ {
+			sx := int(v.cols[x])
+			p := uint32(background)
+			if i := row + sx; sx < c.W && i < len(src) {
+				p = swapRB(src[i])
+			}
+			v.flat[out+x] = p
+		}
+	}
+	// The eyes are the two halves of the output itself, addressed by its own
+	// stride, so the conversion writes where the picture is shown from.
+	return v.conv.Convert(v.out, v.out[eyeW:], v.w, v.flat, eyeW, eyeW, eyeH) == nil
 }
 
 // frame is the toolkit Surface's callback: the pixels to show, right now.
