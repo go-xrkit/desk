@@ -15,6 +15,7 @@ import (
 	"github.com/go-macos/hotkey"
 	"github.com/go-widgets/toolkit"
 	"github.com/go-widgets/window"
+	"github.com/go-xrkit/depth3d"
 	"github.com/go-xrkit/xrkit/glasses"
 )
 
@@ -47,6 +48,17 @@ type RunOptions struct {
 	//
 	// Nil is no such source, which is the default.
 	Actions <-chan Action
+
+	// DepthModel names a Core ML depth model — an .mlpackage or a compiled
+	// .mlmodelc — for the 3D conversion. Empty falls back to depth guessed
+	// from the picture itself, which needs nothing and is visibly worse.
+	//
+	// It is opened only when a viewer asks for 3D, and closed when they stop:
+	// the model costs a GPU context and a second of loading, and a desk that
+	// never turns it on should pay neither.
+	DepthModel string
+	// Stereo3D starts with the conversion already on.
+	Stereo3D bool
 
 	// Badge is how long the screen's number stays up after the band moves, in
 	// seconds. Zero turns it off.
@@ -180,6 +192,56 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		return err
 	}
 	logf("the panorama reaches %.1f%% of the view", 100*v.Coverage)
+
+	// The conversion, on a switch.
+	//
+	// The desk owns whether it is on; the view owns how to draw it; and this is
+	// the only place that knows how to turn one into the other. Opening a
+	// converter loads a depth model and talks to a GPU, so it happens HERE and
+	// not under the ribbon's lock -- which is why Desk calls OnStereo3D outside
+	// it.
+	var conv depth3d.Converter
+	setStereo3D := func(on bool) {
+		if !on {
+			v.SetConverter(nil)
+			if conv != nil {
+				conv.Close()
+				conv = nil
+			}
+			logf("3D        off")
+			return
+		}
+		if !v.convertible() {
+			logf("3D        asked for, but this display shows one eye; there is nothing to convert to")
+			return
+		}
+		if conv == nil {
+			c, err := depth3d.New(depth3d.Options{
+				Model: opt.DepthModel,
+				Log:   func(s string) { logf("  %s", s) },
+			})
+			if err != nil {
+				logf("3D        unavailable: %v", err)
+				return
+			}
+			conv = c
+		}
+		v.SetConverter(conv)
+		logf("3D        on: %s", conv.Describe())
+	}
+	defer func() {
+		if conv != nil {
+			conv.Close()
+		}
+	}()
+	d.OnStereo3D = setStereo3D
+	if opt.Stereo3D {
+		// Through the desk rather than straight to the view, so that the switch
+		// starts in the position the picture is actually in. A default applied
+		// only to the renderer would leave the first press turning 3D ON while
+		// it was already on.
+		d.Do(ActionStereo3DOn)
+	}
 	v.Snapshot = opt.Snapshot
 	d.Badge(opt.Badge, toolkit.DefaultDark())
 	if opt.Badge > 0 {

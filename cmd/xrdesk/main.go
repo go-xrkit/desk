@@ -76,6 +76,10 @@ func run() int {
 	settingsWin := flag.Bool("settings", false,
 		"open the settings window instead of the desk")
 	snap := flag.Bool("snapshot", false, "write the first frame shown, so it can be looked at afterwards")
+	stereo3D := flag.Bool("3d", false,
+		"start with the 3D conversion on; it can be turned on and off from the menu at any time")
+	depthModel := flag.String("depth-model", "",
+		"a Core ML depth model (.mlpackage or .mlmodelc) for -3d; without one, depth is guessed from the picture and is visibly worse")
 	dim := flag.Bool("dim", true,
 		"turn a Mac panel off while the ribbon is showing a copy of it; -dim=false leaves every screen lit")
 	flag.Parse()
@@ -675,6 +679,8 @@ func run() int {
 			Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
 			NoGlobal:    *noGlobal,
 			Interactive: *interactive,
+			Stereo3D:    *stereo3D,
+			DepthModel:  *depthModel,
 			Badge:       settings.BadgeSeconds(),
 			Windowed:    !settings.Immersive(),
 			Shortcuts:   settings.ShortcutsOr(desk.DefaultShortcuts()),

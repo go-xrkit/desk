@@ -41,6 +41,30 @@ source pixel per panel pixel, which needs the panel's resolution and nothing
 else, so a headset nobody has heard of runs at the right size and an unknown
 field of view prints as unknown rather than as `0.00°`.
 
+## 3D on anything the glasses are showing
+
+`-3d`, or "3D on" in the menu, turns whatever is on the ribbon into a stereo
+pair — a browser, a terminal, a film in a window. It is a toggle, not a mode:
+the picture is flat until it is asked for, and flat again the moment it is
+turned off.
+
+With `-depth-model` naming a Core ML depth model, the depth comes from a real
+network on the Neural Engine and both views from compute kernels on the GPU
+([go-xrkit/depth3d](https://github.com/go-xrkit/depth3d)) — about four tenths
+of a millisecond of processor time a frame, which is what leaves the rest of
+the machine to the desk. Without one, depth is guessed from the picture
+itself: it needs nothing, and is visibly worse. The log says which.
+
+It is refused, with a reason, on a display showing one eye — there is nothing
+to convert to. And a frame the converter refuses falls back to the flat
+picture rather than to black: a viewer who sees the depth go away knows what
+happened, and one who sees nothing thinks the desk has crashed.
+
+**The depth is invented.** A captured screen has none of its own, so what this
+puts in front of each eye is a guess — a good one on a photograph or a film,
+and a confident one about a page of text. That is why it is a switch and not a
+default.
+
 ## Why the keyboard
 
 The Beast, the Luma Ultra and the XREAL One series all do their 3DoF anchoring
