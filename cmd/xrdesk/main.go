@@ -575,6 +575,26 @@ func run() int {
 				return f, nil
 			}
 
+			// A desk grown or shrunk by hand comes back the same size.
+			//
+			// This is the whole of the persistence: the package does not know
+			// where settings live, and RememberScreens EDITS the file rather
+			// than rendering it from a struct — so the comments of somebody who
+			// wrote their own desk.hcl survive an action that was about adding a
+			// screen, not about saving settings.
+			d.OnScreens = func(n int) {
+				path, err := desk.ConfigPath()
+				if err != nil {
+					fmt.Printf("cannot remember %d screens: %v\n", n, err)
+					return
+				}
+				if err := desk.RememberScreens(path, n); err != nil {
+					fmt.Printf("%v\n", err)
+					return
+				}
+				fmt.Printf("%d screens, remembered in %s\n", n, path)
+			}
+
 			// One key, and the pointer is on the screen being looked at. Without it the
 			// applications on these displays cannot be reached: the picture is a
 			// capture, so dragging the mouse towards it is dragging it blind.
