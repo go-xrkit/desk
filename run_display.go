@@ -40,7 +40,7 @@ type RunOptions struct {
 	// [DefaultLadder].
 	Hotkeys *hotkey.Options
 	// OnGranted receives the combination each action ended up with, once they
-	// have been claimed, in the form a menu prints.
+	// have been claimed.
 	//
 	// It exists because a claim is not a grant. The menu-bar item is made before
 	// any session and outlives every one of them, so it cannot know what the
@@ -49,7 +49,7 @@ type RunOptions struct {
 	// the answer is sent out when it is known rather than predicted beforehand.
 	//
 	// Nil is nobody asking, which is the default.
-	OnGranted func(map[Action]string)
+	OnGranted func(map[Action]hotkey.Combo)
 
 	// Actions are actions from somewhere other than the keyboard: a menu-bar
 	// item, a script, a remote. They are treated exactly like a global shortcut

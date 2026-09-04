@@ -439,8 +439,9 @@ func TestGrantedIsWhatWasClaimedAndNotWhatWasAsked(t *testing.T) {
 	defer h.Close()
 
 	keys := h.Granted()
-	if keys[ActionFit] != "⌃⌥⇧⌘0" {
-		t.Errorf("fit was granted %q, want the combination it actually got", keys[ActionFit])
+	if keys[ActionFit] != got {
+		t.Errorf("fit was granted %v, want the combination it actually got, %v",
+			keys[ActionFit], got)
 	}
 	if _, ok := keys[ActionPoint]; ok {
 		t.Errorf("an action nothing was granted for is in the map: %q", keys[ActionPoint])
@@ -453,8 +454,8 @@ func TestGrantedIsWhatWasClaimedAndNotWhatWasAsked(t *testing.T) {
 	})
 	h2 := ClaimGlobal([]Shortcut{{asked, ActionFit}}, nil)
 	defer h2.Close()
-	if k := h2.Granted()[ActionFit]; k != "⌃⌥⌘=" {
-		t.Errorf("fit prints as %q on a menu, want ⌃⌥⌘=", k)
+	if k := h2.Granted()[ActionFit]; k != asked {
+		t.Errorf("fit was granted %v, want the combination asked for, %v", k, asked)
 	}
 
 	// Nothing claimed at all is no map rather than an empty one, so a caller

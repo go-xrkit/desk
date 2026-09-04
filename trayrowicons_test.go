@@ -11,6 +11,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/go-macos/hotkey"
+	"github.com/go-widgets/tray"
 )
 
 // TestEveryMenuRowCarriesASymbol.
@@ -239,22 +242,31 @@ func TestTheMenuSaysWhichKeyDoesTheSameThing(t *testing.T) {
 		return menu != nil && len(menu.Items) > 0
 	}, "the menu to arrive")
 
-	// Before anything is claimed the rows are bare: the item is made before any
-	// session and must not print a combination it has not been given.
+	// Before anything is claimed the rows carry NO key equivalent: the item is
+	// made before any session and must not name a combination it has not been
+	// given.
 	_, _, menu := h.Snapshot()
 	for i, it := range menu.Items {
+		if it.Key != "" || it.Mods != 0 {
+			t.Errorf("row %d names %q+%b before a single key was claimed",
+				i, it.Key, it.Mods)
+		}
+		// And never in the LABEL either: appending it there is what this
+		// replaced, and it left the combination adrift in the middle of the row
+		// instead of in the column a menu is read down.
 		if strings.Contains(it.Label, "⌘") {
-			t.Errorf("row %d printed %q before a single key was claimed", i, it.Label)
+			t.Errorf("row %d printed %q in its label", i, it.Label)
 		}
 	}
 
-	item.ShowShortcuts(map[Action]string{
-		ActionSettings: "⌃⌥⌘S",
-		ActionQuit:     "⌃⌥⌘⎋",
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	item.ShowShortcuts(map[Action]hotkey.Combo{
+		ActionSettings: {Key: hotkey.KeyS, Mods: mods},
+		ActionQuit:     {Key: hotkey.KeyEscape, Mods: mods},
 	})
 	waitFor(t, func() bool {
 		_, _, m := h.Snapshot()
-		return m != nil && len(m.Items) > 0 && strings.Contains(m.Items[0].Label, "⌃⌥⌘S")
+		return m != nil && len(m.Items) > 0 && m.Items[0].Key == "s"
 	}, "the combinations to arrive")
 
 	_, _, menu = h.Snapshot()
@@ -263,20 +275,33 @@ func TestTheMenuSaysWhichKeyDoesTheSameThing(t *testing.T) {
 		t.Fatalf("the menu has %d rows, want %d", len(menu.Items), len(rows))
 	}
 	for i, r := range rows {
-		got := menu.Items[i].Label
+		it := menu.Items[i]
+		// ⛔ THE LABEL IS ALWAYS JUST THE LABEL. The combination is drawn beside
+		// it by the platform, right-aligned in a column with every other row's.
+		if r.Action != ActionNone && it.Label != r.Title {
+			t.Errorf("row %d is labelled %q, want %q", i, it.Label, r.Title)
+		}
 		switch r.Action {
 		case ActionSettings:
-			if !strings.HasPrefix(got, r.Title) || !strings.HasSuffix(got, "⌃⌥⌘S") {
-				t.Errorf("row %d is %q, want %q and its combination", i, got, r.Title)
+			if it.Key != "s" {
+				t.Errorf("row %d names the key %q, want %q", i, it.Key, "s")
+			}
+			if want := tray.ModControl | tray.ModOption | tray.ModCommand; it.Mods != want {
+				t.Errorf("row %d names the modifiers %b, want %b", i, it.Mods, want)
+			}
+		case ActionQuit:
+			if it.Key != tray.KeyEscape {
+				t.Errorf("row %d names %q for Escape; a menu draws a glyph there",
+					i, it.Key)
 			}
 		case ActionNone:
-			if !menu.Items[i].Separator {
-				t.Errorf("row %d stopped being a separator: %q", i, got)
+			if !it.Separator {
+				t.Errorf("row %d stopped being a separator: %q", i, it.Label)
 			}
 		default:
-			if r.Action != ActionQuit && got != r.Title {
-				t.Errorf("row %d is %q; nothing was granted for it, so it should "+
-					"still be %q", i, got, r.Title)
+			if it.Key != "" || it.Mods != 0 {
+				t.Errorf("row %d names %q+%b; nothing was granted for it",
+					i, it.Key, it.Mods)
 			}
 		}
 	}
@@ -297,5 +322,59 @@ func TestTheMenuSaysWhichKeyDoesTheSameThing(t *testing.T) {
 // with a nil item rather than refusing to run.
 func TestShowShortcutsOnNoItemDoesNothing(t *testing.T) {
 	var none *Tray
-	none.ShowShortcuts(map[Action]string{ActionQuit: "⌃⌥⌘⎋"})
+	none.ShowShortcuts(map[Action]hotkey.Combo{ActionQuit: {Key: hotkey.KeyEscape, Mods: hotkey.Command}})
+}
+
+// TestTheKeyEquivalentAMenuRowDraws.
+//
+// ⛔ Lower case for a letter, and a GLYPH for a key that has no character. Both
+// are AppKit conventions with a visible failure: an upper-case key equivalent
+// means "with Shift" and draws a ⇧ nobody asked for, and a key whose character
+// is a control byte -- the left arrow is U+001C, the file separator the classic
+// Mac put on the arrows -- draws nothing at all.
+func TestTheKeyEquivalentAMenuRowDraws(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	all := tray.ModControl | tray.ModOption | tray.ModCommand
+
+	for _, c := range []struct {
+		name string
+		in   hotkey.Combo
+		key  string
+		mods tray.Mods
+	}{
+		{"a letter is lower case", hotkey.Combo{Key: hotkey.KeyS, Mods: mods}, "s", all},
+		{"an arrow is a glyph", hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods}, tray.KeyLeft, all},
+		{"escape is a glyph", hotkey.Combo{Key: hotkey.KeyEscape, Mods: mods}, tray.KeyEscape, all},
+		{"delete is a glyph", hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods}, tray.KeyDelete, all},
+		{"shift is carried", hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Shift}, "s", all | tray.ModShift},
+		// ⛔ The zero value is not a combination. Key code 0 is ANSI's A, which
+		// a French keyboard prints as Q -- so a row nothing was granted for
+		// would bind a BARE letter.
+		{"nothing is nothing", hotkey.Combo{}, "", 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			key, mods := trayKey(c.in)
+			if key != c.key {
+				t.Errorf("key = %q, want %q", key, c.key)
+			}
+			if mods != c.mods {
+				t.Errorf("mods = %b, want %b", mods, c.mods)
+			}
+			for _, r := range key {
+				if r < 0x20 && r != '\r' && r != '\t' && r != '\b' && r != 0x1b {
+					t.Errorf("the key equivalent is %#U, which draws nothing", r)
+				}
+			}
+		})
+	}
+}
+
+// TestAKeyWithNoNameAndNoCharacterNamesNothing, rather than a modifier mask
+// over an empty string: a row saying ⌃⌥⌘ and then nothing is worse than a row
+// saying nothing at all.
+func TestAKeyWithNoNameAndNoCharacterNamesNothing(t *testing.T) {
+	key, mods := trayKey(hotkey.Combo{Key: hotkey.Key(0xFE), Mods: hotkey.Command})
+	if key != "" || mods != 0 {
+		t.Errorf("an unnamed key gave %q+%b", key, mods)
+	}
 }

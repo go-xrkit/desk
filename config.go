@@ -285,8 +285,20 @@ func (c Config) Ladder() []hotkey.Modifier {
 }
 
 // HotkeyOptions is what [ClaimGlobal] should be given for this configuration.
+//
+// ⛔ OnThisKeyboard, ALWAYS. A key name in a settings file is the LEGEND a
+// person reads off the key in front of them, and a hotkey.Key is a virtual key
+// code -- a POSITION, named after the ANSI legend for that position. On a
+// French Mac the position called Equal prints "-", and "=" is over on the
+// position called Slash. So `shortcut "fit" { keys = "ctrl+alt+cmd+Equal" }`
+// claimed the key printed "-": the shortcut was granted, it fired, and pressing
+// the key printed "=" reached nothing at all. Every check said it was granted,
+// because it was. "le raccourci du fit ne fonctionne pas."
+//
+// A desk shortcut is always the legend and never the position: there is no
+// shape-under-the-hand here, only keys a person is told about in a menu.
 func (c Config) HotkeyOptions() *hotkey.Options {
-	return &hotkey.Options{Ladder: c.Ladder()}
+	return &hotkey.Options{Ladder: c.Ladder(), OnThisKeyboard: true}
 }
 
 // Screens is how many screens to put on the ribbon, or 0 for as many as fit.
