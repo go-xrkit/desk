@@ -43,6 +43,7 @@ func TestAPhotographIsTakenAndTheCameraIsClosed(t *testing.T) {
 		Width: p.W, Height: p.H, Stride: p.Stride, Format: avfoundation.BGRA, Pix: p.Pix,
 	}}
 	swapCamera(t, cam, nil)
+	swap(t, &photoWarmUp, time.Millisecond)
 
 	said := []string{}
 	path, err := TakePhoto("", func(f string, a ...any) { said = append(said, f) })
@@ -161,4 +162,58 @@ func swap[T any](t *testing.T, p *T, v T) {
 	was := *p
 	t.Cleanup(func() { *p = was })
 	*p = v
+}
+
+// TestTheExposureIsLetToSettle.
+//
+// A sensor powers up with its exposure at nothing and ramps, so the first
+// frames are darker than what the camera can see -- and nothing about a frame
+// can say whether it has settled, so only time can. The first frame must
+// therefore START a wait rather than end it, which is what this says: a camera
+// delivering from the first instant is still not photographed until the warm-up
+// has passed.
+//
+// ⚠ The warm-up is a precaution and not a measured fix; see PhotoWarmUp for
+// what was actually seen and what the control said about it.
+func TestTheExposureIsLetToSettle(t *testing.T) {
+	t.Setenv(PhotoDirEnv, t.TempDir())
+	p := bgra(2, 2, 1, 2, 3, 255)
+	cam := &fakeCamera{frame: &avfoundation.Frame{
+		Width: p.W, Height: p.H, Stride: p.Stride, Pix: p.Pix,
+	}}
+	swapCamera(t, cam, nil)
+	const warm = 120 * time.Millisecond
+	swap(t, &photoWarmUp, warm)
+
+	start := time.Now()
+	if _, err := TakePhoto("", nil); err != nil {
+		t.Fatal(err)
+	}
+	if took := time.Since(start); took < warm {
+		t.Errorf("the photograph was taken after %v, before the %v warm-up: "+
+			"the first frame ended the wait instead of starting it", took, warm)
+	}
+}
+
+// TestAWarmUpLongerThanTheWaitStillGivesUp, rather than sitting with the light
+// on for ever: the deadline governs both.
+func TestAWarmUpLongerThanTheWaitStillGivesUp(t *testing.T) {
+	p := bgra(2, 2, 1, 2, 3, 255)
+	cam := &fakeCamera{frame: &avfoundation.Frame{
+		Width: p.W, Height: p.H, Stride: p.Stride, Pix: p.Pix,
+	}}
+	swapCamera(t, cam, nil)
+	swap(t, &photoWarmUp, time.Hour)
+	swap(t, &photoWait, 50*time.Millisecond)
+
+	start := time.Now()
+	if _, err := TakePhoto("", nil); err == nil {
+		t.Fatal("a warm-up longer than the wait produced a photograph")
+	}
+	if took := time.Since(start); took > time.Second {
+		t.Errorf("it waited %v with the light on", took)
+	}
+	if cam.closes == 0 {
+		t.Error("the camera was left open")
+	}
 }

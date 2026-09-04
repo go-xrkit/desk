@@ -21,6 +21,24 @@ import (
 // camera, short enough that somebody who pressed the key knows it has failed.
 const PhotoWait = 5 * time.Second
 
+// PhotoWarmUp is how long the camera runs before the picture is taken.
+//
+// A sensor powers up with its exposure at nothing and ramps, so the first
+// frames a camera delivers are darker than what it can see. Half a second is
+// what a camera application usually discards, and it is what this waits.
+//
+// ⚠ NOT MEASURED HERE, and it is worth being exact about why. A photograph
+// taken from the first frame did come back 1920x1080 with a mean luminance of
+// ZERO -- and so did the raw capture probe run against the same camera a minute
+// later, which is the CONTROL that says the room was dark and not that the
+// first frame was. The effect this guards against is real in general and was
+// not the cause of what was seen, so this is a precaution and not a fix.
+//
+// It is a WAIT rather than a test of the pixels, deliberately: a photograph of
+// something genuinely dark is a photograph, and refusing it would be worse than
+// taking it.
+const PhotoWarmUp = 500 * time.Millisecond
+
 // TakePhoto opens a camera, waits for a picture, writes it and reports where.
 //
 // ⛔ IT OPENS AND CLOSES AROUND ONE PHOTOGRAPH. A camera held open is a camera
@@ -45,12 +63,22 @@ func TakePhoto(camera string, logf func(string, ...any)) (string, error) {
 	defer c.Close()
 
 	deadline := time.Now().Add(photoWait)
+	var settled time.Time
 	for {
 		if f, ok := c.Latest(); ok {
-			logf("a %dx%d picture from %q", f.Width, f.Height, c.Camera().Name)
-			return WritePhoto(Picture{
-				Pix: f.Pix, W: f.Width, H: f.Height, Stride: f.Stride,
-			}, time.Now())
+			// The first frame STARTS a clock rather than ending the wait: see
+			// PhotoWarmUp. Nothing about a frame can say whether the sensor
+			// has settled, so only time can.
+			if settled.IsZero() {
+				settled = time.Now().Add(photoWarmUp)
+				logf("the camera is awake; letting its exposure settle for %v", photoWarmUp)
+			}
+			if time.Now().After(settled) {
+				logf("a %dx%d picture from %q", f.Width, f.Height, c.Camera().Name)
+				return WritePhoto(Picture{
+					Pix: f.Pix, W: f.Width, H: f.Height, Stride: f.Stride,
+				}, time.Now())
+			}
 		}
 		if time.Now().After(deadline) {
 			// ⛔ SAY THE TWO THINGS THAT CAUSE THIS. A camera that opens and
@@ -102,5 +130,6 @@ var (
 	openCamera = func(o avfoundation.CaptureOptions) (liveCamera, error) {
 		return avfoundation.OpenCamera(o)
 	}
-	photoWait = PhotoWait
+	photoWait   = PhotoWait
+	photoWarmUp = PhotoWarmUp
 )
