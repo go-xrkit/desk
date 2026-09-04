@@ -313,6 +313,20 @@ type Desk struct {
 	// not do, for the same reason it does not create one.
 	OnRemove func(pos int, f Feed)
 
+	// OnScreens, when set, is called after the number of screens on the band
+	// has changed by a viewer's doing -- the gallery's "+" tile, or taking one
+	// away -- with the count there is now.
+	//
+	// It is the seam for REMEMBERING that: this package does not know where
+	// settings live, and a caller that does can write the number down so the
+	// desk comes back the same size. See [RememberScreens], which edits the
+	// file rather than rewriting it.
+	//
+	// It does not fire from [Desk.Grow] or [Desk.Shrink] called directly, the
+	// same way [Desk.OnRemove] does not: a program that called those already
+	// knows what it did. This is for the paths a PERSON drives.
+	OnScreens func(count int)
+
 	// OnApps, when set, answers what is running whenever the application
 	// gallery is opened. It is asked EVERY time rather than once, because the
 	// list is what a person opened the gallery to see: an application that
@@ -978,6 +992,22 @@ func (d *Desk) grow(add func() (Feed, error)) {
 		d.mu.Lock()
 		d.err = err
 		d.mu.Unlock()
+		return
+	}
+	d.tellScreens()
+}
+
+// tellScreens hands the new count to whoever wants to remember it.
+//
+// The hook is read under the lock and CALLED OUTSIDE it, the way drop calls
+// OnRemove: whoever takes it may write a file, which takes as long as a disk
+// does, and holding the frame loop out for that would show as a stutter.
+func (d *Desk) tellScreens() {
+	d.mu.Lock()
+	on, n := d.OnScreens, d.plan.Count()
+	d.mu.Unlock()
+	if on != nil {
+		on(n)
 	}
 }
 
@@ -1156,6 +1186,10 @@ func (d *Desk) drop(pos int) {
 	if on != nil {
 		on(pos, f)
 	}
+	// After OnRemove, not before: the platform work gives the display back, and
+	// a count written down while a screen is still half gone would be a number
+	// nothing yet matches.
+	d.tellScreens()
 }
 
 // Look turns the band to a screen without a key being pressed.

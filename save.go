@@ -98,15 +98,26 @@ func (c Config) SaveTo(path string) error {
 	if err := c.check(); err != nil {
 		return err
 	}
+	return writeAtomically(path, c.Bytes())
+}
+
+// writeAtomically writes bytes where a settings file goes: into a named
+// temporary beside it, then renamed over it.
+//
+// One named temporary file rather than CreateTemp + Write + Close: three error
+// branches nothing portable can reach are three branches nothing portable can
+// test, and a settings file is not worth pretending about.
+//
+// It is shared with [RememberScreens], which produces its bytes by EDITING the
+// file rather than rendering a whole Config. Two copies of a rename dance is
+// one copy too many: the one that gets fixed and the one that does not.
+func writeAtomically(path string, b []byte) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("%w: %w", ErrConfig, err)
 	}
-	// One named temporary file rather than CreateTemp + Write + Close: three
-	// error branches nothing portable can reach are three branches nothing
-	// portable can test, and a settings file is not worth pretending about.
 	tmp := filepath.Join(dir, ".desk.hcl.new")
-	if err := os.WriteFile(tmp, c.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return fmt.Errorf("%w: %w", ErrConfig, err)
 	}
 	if err := os.Rename(tmp, path); err != nil {
