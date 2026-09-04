@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/go-widgets/toolkit"
@@ -166,6 +167,57 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	return page, read
 }
 
+// foldScreens turns the run of "screen N" lines into ONE.
+//
+// ⛔ This is not tidying. The settings window is not resizable and has no
+// scroll view -- it opens at the size its page measures -- so every row is
+// height the window must find on the display. Nine screen shortcuts made it
+// 1470 pixels tall against 1409 usable on the screen it opened on, which put
+// the Save and Close buttons past the bottom edge with no way to reach them.
+// Measured, from the run that broke: "the settings window is 560x1470 pixels
+// at scale 1.00", and FitScale will not shrink below 1 because type smaller
+// than that buys nothing a person can read.
+//
+// It is also the better presentation. Nine identical rows are one IDEA -- go
+// to a screen -- and listing them nine times says nothing the range does not.
+//
+// Only a CONTIGUOUS run is folded, and only when every line in it was granted
+// the combination it asked for. A refusal, or a substitution, is exactly the
+// case somebody needs to see spelled out.
+func foldScreens(lines []string) []string {
+	out := make([]string, 0, len(lines))
+	for i := 0; i < len(lines); i++ {
+		n := 0
+		for i+n < len(lines) && isPlainScreenLine(lines[i+n]) {
+			n++
+		}
+		if n < 3 {
+			out = append(out, lines[i])
+			continue
+		}
+		first := strings.TrimSpace(strings.SplitN(lines[i], ":", 2)[1])
+		last := strings.TrimSpace(strings.SplitN(lines[i+n-1], ":", 2)[1])
+		out = append(out, fmt.Sprintf("go to a screen: %s…%s", first, last))
+		i += n - 1
+	}
+	return out
+}
+
+// isPlainScreenLine reports whether a line is "screen N" granted exactly what
+// it asked for -- no bracketed aside, which is how a substitution is reported.
+func isPlainScreenLine(line string) bool {
+	title, keys, ok := strings.Cut(line, ":")
+	if !ok || strings.Contains(keys, "(") {
+		return false
+	}
+	title = strings.TrimSpace(title)
+	rest, found := strings.CutPrefix(title, "screen ")
+	if !found || len(rest) != 1 || rest[0] < '1' || rest[0] > '9' {
+		return false
+	}
+	return true
+}
+
 // shortcutRows is one row per shortcut the machine granted, its combination in
 // the trailing slot.
 func shortcutRows(cfg *Config) []*toolkit.SettingRow {
@@ -177,7 +229,7 @@ func shortcutRows(cfg *Config) []*toolkit.SettingRow {
 // window server, so the shaping of the answer is separated from the asking.
 func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 	var out []*toolkit.SettingRow
-	for _, line := range strings.Split(strings.TrimSpace(report), "\n") {
+	for _, line := range foldScreens(strings.Split(strings.TrimSpace(report), "\n")) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
