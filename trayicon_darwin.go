@@ -25,10 +25,23 @@ import (
 // other without measuring.
 //
 // A system that has no such symbol falls back rather than showing nothing.
-func platformTrayIcon(px int) ([]byte, error) {
-	pix, err := appicon.Symbol(TraySymbol, px)
+func platformTrayIcon(px int) ([]byte, error) { return platformSymbolPNG(TraySymbol, px) }
+
+// platformSymbolPNG draws any of the system's symbols, by name.
+//
+// The menu-bar item is one caller and a menu ROW is the other: go-widgets/tray
+// draws a row's icon as a template, so the same black-on-transparency picture
+// that the bar wants is what a row wants, at a different size.
+//
+// It is the platform's symbol rather than a shipped icon pack deliberately.
+// A menu row sits among the rows of every other application's menu, so the
+// weight, the optical size and the ink all have to be the system's or the row
+// reads as foreign -- which is the report the menu-bar icon was already fixed
+// for once, in the other direction.
+func platformSymbolPNG(name string, px int) ([]byte, error) {
+	pix, err := appicon.Symbol(name, px)
 	if err != nil {
-		return nil, fmt.Errorf("desk: no %q symbol: %w", TraySymbol, err)
+		return nil, fmt.Errorf("desk: no %q symbol: %w", name, err)
 	}
 	// appicon hands back straight RGBA, which is the order a PNG wants.
 	return pngOf(pix.Pix, pix.W, pix.H)
