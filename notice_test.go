@@ -10,6 +10,19 @@ import (
 	"testing"
 )
 
+// noticeSays reads the notice the way everything else does: UNDER THE DESK'S
+// OWN LOCK.
+//
+// The handler that puts it up, the frame loop that ticks it and the list coming
+// back all hold d.mu, so a test that peeked without it was the only thing
+// racing -- and the race detector said so on the darwin lane while every local
+// run passed.
+func noticeSays(d *Desk) (text string, up bool, life int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.notice.toast.Text, d.notice.up(), d.notice.toast.Life().Get()
+}
+
 // deskAt is a small desk with its band at this distance, ready to be pressed at.
 func deskAt(t *testing.T, distance float64) *Desk {
 	t.Helper()
@@ -118,11 +131,12 @@ func TestFitSaysSoWhenThereIsNothingToDo(t *testing.T) {
 	d := deskAt(t, MinDistance)
 	d.Badge(1, nil)
 	d.Do(ActionFit)
-	if !d.notice.up() {
+	text, up, _ := noticeSays(d)
+	if !up {
 		t.Fatal("fit at the near end said nothing at all")
 	}
-	if got := d.notice.toast.Text; !strings.Contains(got, "already") {
-		t.Errorf("fit said %q; it should say there was nothing to do", got)
+	if !strings.Contains(text, "already") {
+		t.Errorf("fit said %q; it should say there was nothing to do", text)
 	}
 
 	// And from further out it says what it did, because a band that jumps is
@@ -130,8 +144,8 @@ func TestFitSaysSoWhenThereIsNothingToDo(t *testing.T) {
 	d = deskAt(t, MaxDistance)
 	d.Badge(1, nil)
 	d.Do(ActionFit)
-	if got := d.notice.toast.Text; strings.Contains(got, "already") {
-		t.Errorf("fit from %g said %q", MaxDistance, got)
+	if text, _, _ := noticeSays(d); strings.Contains(text, "already") {
+		t.Errorf("fit from %g said %q", MaxDistance, text)
 	}
 	if d.plan.Distance() != MinDistance {
 		t.Errorf("the band is at %g, want %g", d.plan.Distance(), MinDistance)
@@ -160,14 +174,15 @@ func TestTheAppListPutsAPlaceholderUpWhileItIsRead(t *testing.T) {
 	<-asked
 
 	// While the list is being read.
-	if !d.notice.up() {
+	_, up, life := noticeSays(d)
+	if !up {
 		t.Fatal("nothing was on the picture while the list was being read")
 	}
-	if d.notice.toast.Life().Get() != 0 {
+	if life != 0 {
 		t.Error("the placeholder is counting down; it must wait for the list")
 	}
 	close(release)
-	waitFor(t, func() bool { return !d.notice.up() }, "the placeholder to come down")
+	waitFor(t, func() bool { _, up, _ := noticeSays(d); return !up }, "the placeholder to come down")
 }
 
 // TestAListThatCannotBeReadReplacesThePlaceholder, rather than leaving it up
@@ -177,13 +192,14 @@ func TestAListThatCannotBeReadReplacesThePlaceholder(t *testing.T) {
 	d.Badge(1, nil)
 	d.OnApps = func() ([]App, error) { return nil, errors.New("no accessibility grant") }
 	d.Do(ActionAppsOpen)
-	if !d.notice.up() {
+	text, up, life := noticeSays(d)
+	if !up {
 		t.Fatal("a list that could not be read left nothing on the picture")
 	}
-	if got := d.notice.toast.Text; !strings.Contains(got, "no accessibility grant") {
-		t.Errorf("the notice says %q; it should say why", got)
+	if !strings.Contains(text, "no accessibility grant") {
+		t.Errorf("the notice says %q; it should say why", text)
 	}
-	if d.notice.toast.Life().Get() == 0 {
+	if life == 0 {
 		t.Error("the refusal has no life: it would stay on the picture for ever")
 	}
 }
