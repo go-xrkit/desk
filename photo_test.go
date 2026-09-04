@@ -243,3 +243,27 @@ func TestAPhotographThatFailsSaysWhy(t *testing.T) {
 		t.Errorf("the notice says %q; the camera's own reason was lost", text)
 	}
 }
+
+// TestWritePhotoRefusesTheSameWayPhotoPathDoes.
+//
+// ⛔ A refusal that only the path function makes is a refusal a caller can walk
+// past: WritePhoto is the door everything goes through, so the work-tree check
+// has to hold THERE, and nothing may be encoded or written on the way to
+// finding out.
+func TestWritePhotoRefusesTheSameWayPhotoPathDoes(t *testing.T) {
+	tree := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tree, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(PhotoDirEnv, filepath.Join(tree, "photos"))
+
+	wrote := false
+	swap(t, &writeFile, func(string, []byte, os.FileMode) error { wrote = true; return nil })
+
+	if _, err := WritePhoto(bgra(2, 2, 1, 2, 3, 255), time.Now()); err == nil {
+		t.Fatal("WritePhoto accepted a directory inside a work tree")
+	}
+	if wrote {
+		t.Error("it wrote the file before finding out it must not")
+	}
+}
