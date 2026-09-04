@@ -67,6 +67,8 @@ func run() int {
 			"(0 = the setting, or %g; a negative asks for one flat plane)",
 			desk.MaxSplayDeg, desk.DefaultSplayDeg))
 	forDur := flag.Duration("for", 0, "stop after this long; 0 runs until you quit")
+	photoCamera := flag.String("photo-camera", "",
+		"which camera a photograph comes from, by its unique id (empty = the first listed)")
 	quiet := flag.Bool("quiet", false, "say less")
 	noGlobal := flag.Bool("no-global", false,
 		"do not claim the system-wide shortcuts (\u2325\u2318\u2190/\u2192 and \u2325\u2318Space)")
@@ -604,6 +606,16 @@ func run() int {
 					return
 				}
 				fmt.Printf("the pointer is on screen %d\n", pos+1)
+			}
+
+			// A photograph, through one of the glasses' cameras.
+			//
+			// ⛔ THE CAMERA IS OPENED FOR THE PHOTOGRAPH AND CLOSED AFTER IT.
+			// A camera held open is a camera left ON, light and all, and a
+			// desk that kept one for a session would be a headset watching the
+			// room all afternoon so that one key press could be quick.
+			d.OnPhoto = func() (string, error) {
+				return desk.TakePhoto(*photoCamera, logf)
 			}
 
 			// What is running, asked every time the gallery opens: a list read

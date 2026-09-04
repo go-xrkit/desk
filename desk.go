@@ -209,6 +209,19 @@ const (
 	ActionScreen7
 	ActionScreen8
 	ActionScreen9
+
+	// ActionPhoto takes a photograph through one of the glasses' cameras.
+	//
+	// ⛔ IT IS A DELIBERATE ACT AND IT SAYS SO. A camera on a headset points at
+	// whatever the person wearing it is looking at, so this is never
+	// automatic, never on a timer, and never a side effect of anything else --
+	// and the desk puts the path it wrote on the picture, because a photograph
+	// a program took and did not name is a photograph nobody can find.
+	//
+	// The light on the glasses is on for as long as the camera is open, which
+	// is the hardware's doing and not something this could suppress if it
+	// wanted to.
+	ActionPhoto
 )
 
 // screenOf reports which screen an action goes to, counting from zero, and
@@ -289,6 +302,8 @@ func (a Action) String() string {
 		return "further"
 	case ActionFit:
 		return "fit"
+	case ActionPhoto:
+		return "take a photograph"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -442,6 +457,14 @@ type Desk struct {
 	// notice is the sentence a shortcut leaves behind -- see [notice].
 	notice *notice
 
+	// OnPhoto takes a photograph and reports where it was written.
+	//
+	// It is a SEAM because a camera is the platform's: this package decides
+	// when a photograph is taken and what is said about it, and the application
+	// decides which camera and how. Nil is a desk with no camera, and asking for
+	// a photograph then says so rather than doing nothing.
+	OnPhoto func() (string, error)
+
 	// marks number the gallery's cells and light the chosen one.
 	marks *marks
 
@@ -541,6 +564,7 @@ func (d *Desk) InGallery() bool {
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
+	var photo func() (string, error)
 	var stereo3D func(bool)
 	var stereoWant bool
 	var add func() (Feed, error)
@@ -734,6 +758,22 @@ func (d *Desk) Do(a Action) {
 	case ActionPoint:
 		// Same seam, same reason: moving a pointer talks to the window server.
 		point, pos = d.OnPoint, d.nav.Focus()
+	case ActionPhoto:
+		// Outside the lock, like every other handler that talks to hardware:
+		// opening a camera takes long enough that holding the desk shut for it
+		// would stall the frame loop, and the light coming on is not something
+		// to do while nothing can be drawn.
+		// ⛔ A DESK WITH NO CAMERA SAYS SO, HERE. The placeholder below has no
+		// life -- it waits for the picture and comes down when it arrives --
+		// so putting it up with nobody to take it would leave "taking a
+		// photograph..." on the view for the rest of the session. That is
+		// worse than silence: it is a program that says it is working.
+		if d.OnPhoto == nil {
+			d.notice.say("no photograph: this desk has no camera")
+			break
+		}
+		photo = d.OnPhoto
+		d.notice.waiting("taking a photograph...")
 	case ActionQuit:
 		d.quit = true
 	case ActionSettings:
@@ -772,6 +812,31 @@ func (d *Desk) Do(a Action) {
 	if list != nil {
 		d.refresh(list, a)
 	}
+	if photo != nil {
+		d.takePhoto(photo)
+	}
+}
+
+// takePhoto asks for the picture and says where it went.
+//
+// ⛔ OUTSIDE THE LOCK, and the notice is how a person knows anything happened.
+// Opening a camera takes a second or so -- the light comes on, a session
+// starts, the first frame arrives -- and until then the view is unchanged,
+// which is the same silence "fit" was reported for.
+//
+// The PATH is said out loud. A photograph a program took and did not name is a
+// photograph nobody can find, and the whole reason it is written somewhere
+// durable rather than a temporary directory is that somebody comes back to it.
+func (d *Desk) takePhoto(take func() (string, error)) {
+	path, err := take()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err != nil {
+		d.notice.say("no photograph: " + err.Error())
+		d.err = err
+		return
+	}
+	d.notice.say("photograph saved: " + path)
 }
 
 // refresh asks what is running and then either shows the gallery or spreads.
