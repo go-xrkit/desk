@@ -97,6 +97,21 @@ const (
 	// because closer than that means seeing part of a screen.
 	ActionCloser
 	ActionFurther
+	// ActionFit puts the band back where ONE screen fills the view exactly:
+	// the largest a screen can be shown in these glasses, at one source pixel
+	// per output pixel.
+	//
+	// It is [MinDistance], not a computed best. The near end of the range is
+	// already defined as "one screen filling the view exactly, because closer
+	// than that means seeing part of a screen" -- so the best fit is not
+	// something to search for, it is the end of the scale, and this is the key
+	// that returns to it without pressing closer six times.
+	//
+	// It is not "all the screens at once". That is what the gallery is for, and
+	// [MaxDistance] exists to refuse it: at four screens across the view a
+	// 1920-pixel screen is 480 pixels of a 1920-pixel view, which is a texture
+	// rather than words.
+	ActionFit
 	// ActionFlatter and ActionRounder change the angle between one screen and
 	// the next, by [SplayStep].
 	//
@@ -272,6 +287,8 @@ func (a Action) String() string {
 		return "closer"
 	case ActionFurther:
 		return "further"
+	case ActionFit:
+		return "fit"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -715,6 +732,10 @@ func (d *Desk) Do(a Action) {
 		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() - DistanceStep))
 	case ActionFurther:
 		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() + DistanceStep))
+	case ActionFit:
+		// Straight to the near end. WithDistance clamps, so this is the same
+		// value however far the band had wandered.
+		d.err = d.reshape(d.plan.WithDistance(MinDistance))
 	case ActionFlatter:
 		d.err = d.reshape(d.plan.WithSplay(d.plan.SplayDeg() - SplayStep))
 	case ActionRounder:

@@ -163,6 +163,15 @@ func DefaultShortcuts() []Shortcut {
 		{hotkey.Combo{Key: hotkey.KeyN7, Mods: mods | hotkey.Control}, ActionScreen7},
 		{hotkey.Combo{Key: hotkey.KeyN8, Mods: mods | hotkey.Control}, ActionScreen8},
 		{hotkey.Combo{Key: hotkey.KeyN9, Mods: mods | hotkey.Control}, ActionScreen9},
+		// And back to ONE screen, as large as these glasses can show it.
+		//
+		// On zero, where it sits after the nine: the digits say "this screen",
+		// and the one that is not a screen number says "the screen, whole". It
+		// is not on Equal because Equal is closer-by-a-step in this layout --
+		// a settings file that moves the distance keys onto the arrows frees
+		// it, and `shortcut "fit" { keys = "ctrl+alt+cmd+=" }` is then the
+		// obvious place for it.
+		{hotkey.Combo{Key: hotkey.KeyN0, Mods: mods | hotkey.Control}, ActionFit},
 	}
 }
 

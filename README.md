@@ -114,6 +114,7 @@ on the screens.
 | | |
 |---|---|
 | **`⌃⌥⌘1`…`⌃⌥⌘9`** | **straight to that screen**, from wherever you are |
+| **`⌃⌥⌘0`** | **fit**: one screen, the largest these glasses can show it |
 | `⌃⌥⌘←` `⌃⌥⌘→` | turn the band |
 | `⌃⌥⌘↑` | show the SCREENS |
 | **`⌃⌥⌘↓`** | **show what is RUNNING on them** |
@@ -126,6 +127,28 @@ on the screens.
 | `⌃⌥⌘[` `⌃⌥⌘]` | flatten the screens, turn them |
 | `⌃⌥⌘S` | the settings |
 | `⌃⌥⌘⎋` | quit |
+
+Every one of these can be MOVED from `desk.hcl`, except quit — a key taken
+from the whole machine is a key taken from whatever you were using, so the
+default layout is a choice rather than a law. Quit stays put because it is the
+way out of a desk that covers a display, and somebody wearing glasses cannot
+see the menu bar.
+
+```hcl
+shortcut "gallery-open" { keys = "ctrl+alt+cmd+G" }
+shortcut "further"     { keys = "ctrl+alt+cmd+Up" }
+shortcut "fit"         { keys = "ctrl+alt+cmd+Equal" }
+```
+
+⚠ `Equal`, not `=`: the separator between the parts is `-`, so `Minus` is
+written as a word and `Equal` follows for the pair to read alike. A name this
+file does not know is refused at start-up with the list of the ones it does,
+rather than leaving you pressing a key that does nothing.
+
+⚠ And a LETTER can be swallowed. `⌃⌥⌘A` was granted without complaint and never
+delivered on the machine this was written for: an application's own menu key is
+invisible to everything, and nothing can detect it. An arrow is a key nothing
+else claims quietly, which is why the galleries are on them by default.
 
 Nine digits and not ten, because nine is the most screens a desk carries: there
 is a key for every one and none spare. All nine are claimed whatever the desk

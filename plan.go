@@ -363,6 +363,14 @@ func (p Plan) Distance() float64 {
 	return p.distance
 }
 
+// MinDistance is the near end: one screen filling the view exactly, at one
+// source pixel per output pixel.
+//
+// It is the largest a screen can be shown in a given pair of glasses, which is
+// what [ActionFit] returns to. Closer than this means seeing part of a screen,
+// so the scale stops here rather than continuing into a crop.
+const MinDistance = 1.0
+
 // MaxDistance is the far end: four screens across the view.
 //
 // A float, because it is compared with and assigned to a distance and an
