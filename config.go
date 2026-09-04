@@ -351,6 +351,17 @@ var configActions = map[string]Action{
 	"gallery-close": ActionGalleryClose,
 	"choose":        ActionChoose,
 	"cycle":         ActionCycle,
+	// One name per screen, so a settings file can move them. Nine, because
+	// MaxScreens is nine.
+	"screen-1": ActionScreen1,
+	"screen-2": ActionScreen2,
+	"screen-3": ActionScreen3,
+	"screen-4": ActionScreen4,
+	"screen-5": ActionScreen5,
+	"screen-6": ActionScreen6,
+	"screen-7": ActionScreen7,
+	"screen-8": ActionScreen8,
+	"screen-9": ActionScreen9,
 }
 
 func actionByName(name string) (Action, bool) {

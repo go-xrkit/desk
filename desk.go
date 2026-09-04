@@ -170,10 +170,79 @@ const (
 	ActionStereo3D
 	ActionStereo3DOn
 	ActionStereo3DOff
+
+	// ActionScreen1 through ActionScreen9 go straight to that screen, the short
+	// way round, instead of turning one at a time or opening the gallery to
+	// pick.
+	//
+	// Nine, and not ten, because [MaxScreens] is nine: there is a digit key for
+	// every screen a desk can carry and none spare. That is not a coincidence
+	// worth hiding -- if the ceiling ever moves, this list is the second place
+	// it has to move too, and a tenth screen with no key is a screen only the
+	// gallery can reach.
+	//
+	// They are written out rather than derived from a base plus an offset. The
+	// arithmetic would be shorter and would break the day somebody appends an
+	// action in the middle of the run, silently, by turning "screen 4" into
+	// something else.
+	ActionScreen1
+	ActionScreen2
+	ActionScreen3
+	ActionScreen4
+	ActionScreen5
+	ActionScreen6
+	ActionScreen7
+	ActionScreen8
+	ActionScreen9
 )
+
+// screenOf reports which screen an action goes to, counting from zero, and
+// whether it is one of those actions at all.
+func screenOf(a Action) (int, bool) {
+	if a < ActionScreen1 || a > ActionScreen9 {
+		return 0, false
+	}
+	return int(a - ActionScreen1), true
+}
+
+// goTo focuses one screen, from wherever the viewer happens to be.
+//
+// It LEAVES whichever gallery is open rather than meaning something different
+// inside it. That is the same rule the open/close pairs follow: a key pressed
+// blind must mean one thing, and "take me to screen three" is what somebody
+// pressing it wants whether or not they still remember what is in front of
+// them.
+//
+// A screen that is not there is a refusal that SAYS HOW MANY there are. The
+// number is on the desk, not in the key: nine combinations are registered
+// whatever the desk carries, because the count changes while the session runs
+// and re-registering system-wide keys on every grow would be a lot of
+// machinery for a message.
+//
+// The caller holds the lock.
+func (d *Desk) goTo(n int) error {
+	if n >= d.plan.Count() {
+		return fmt.Errorf("%w: there is no screen %d; this desk has %d",
+			ErrPosition, n+1, d.plan.Count())
+	}
+	d.inApps = false
+	if d.nav.Mode() == ribbon.ModeGallery {
+		// Select cannot fail here: it refuses an index outside the grid, the
+		// grid holds a cell per screen plus the adder, and n has just been
+		// checked against the screen count. Written as a discard with the
+		// reason rather than as a branch that can never be taken and therefore
+		// never be tested -- the same way Shrink handles reshape.
+		_ = d.grid.Select(n)
+		return d.nav.Choose()
+	}
+	return d.nav.GoTo(n)
+}
 
 // String renders an action for a log.
 func (a Action) String() string {
+	if n, ok := screenOf(a); ok {
+		return fmt.Sprintf("screen %d", n+1)
+	}
 	switch a {
 	case ActionNext:
 		return "next"
@@ -479,6 +548,17 @@ func (d *Desk) Do(a Action) {
 		if stereo3D != nil {
 			stereo3D(stereoWant)
 		}
+		return
+	}
+
+	// Straight to one screen, answered here for the same reason: a system-wide
+	// key is pressed BLIND, so ⌃⌥⌘3 has to mean the same thing with a gallery
+	// open, with the application list up, and on the band. Answering it inside
+	// each mode's switch would be one key meaning three things depending on
+	// where the viewer had lost track of being.
+	if n, ok := screenOf(a); ok {
+		d.err = d.goTo(n)
+		d.mu.Unlock()
 		return
 	}
 
