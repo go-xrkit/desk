@@ -105,6 +105,11 @@ func TrayRows() []TrayRow {
 		{Title: "Leave the gallery", Action: ActionGalleryClose,
 			Symbol: "arrow.down.right.and.arrow.up.left"},
 		{},
+		// The camera. One row, because there is one thing to do with it that a
+		// person asks for deliberately -- and a camera on a headset points at
+		// whatever they are looking at, so nothing here is ever automatic.
+		{Title: "Take a photograph", Action: ActionPhoto, Symbol: "camera"},
+		{},
 		{Title: "Quit the desk", Key: "q", Action: ActionQuit, Symbol: "power"},
 	}
 }
