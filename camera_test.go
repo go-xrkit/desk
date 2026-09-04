@@ -100,7 +100,7 @@ func TestWhatEachRefusalTellsAPersonToDo(t *testing.T) {
 		from error
 		want string
 	}{
-		{avfoundation.ErrNoUsageDescription, "internal/macapp"},
+		{avfoundation.ErrNoUsageDescription, "cmd/macapp"},
 		{avfoundation.ErrCameraDenied, "Privacy & Security"},
 		{avfoundation.ErrNoCamera, "no camera"},
 		{errors.New("something else entirely"), "something else entirely"},

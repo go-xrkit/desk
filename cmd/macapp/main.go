@@ -10,8 +10,8 @@
 // a terminal has no Info.plist at all, so xrdesk built with `go build` can list
 // cameras and can never open one.
 //
-//	go run ./internal/macapp            # writes ./dist/XR desk.app
-//	go run ./internal/macapp -dir /tmp
+//	go run ./cmd/macapp            # writes ./dist/XR desk.app
+//	go run ./cmd/macapp -dir /tmp
 package main
 
 import (

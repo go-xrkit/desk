@@ -104,7 +104,7 @@ func photoErr(err error) error {
 	case errors.Is(err, avfoundation.ErrNoUsageDescription):
 		return fmt.Errorf("desk: this copy of xrdesk cannot open a camera -- "+
 			"macOS only allows it from an application bundle. Build one with "+
-			"`go run ./internal/macapp` and run that: %w", err)
+			"`go run ./cmd/macapp` and run that: %w", err)
 	case errors.Is(err, avfoundation.ErrCameraDenied):
 		return fmt.Errorf("desk: the camera was refused; it is turned on again in "+
 			"System Settings > Privacy & Security > Camera: %w", err)
