@@ -439,6 +439,8 @@ type Desk struct {
 	// badge says which screen the viewer has arrived at, for a moment. Nil when
 	// it has been turned off.
 	badge *badge
+	// notice is the sentence a shortcut leaves behind -- see [notice].
+	notice *notice
 
 	// marks number the gallery's cells and light the chosen one.
 	marks *marks
@@ -709,12 +711,20 @@ func (d *Desk) Do(a Action) {
 		// Ask what is running, outside the lock, and only then put the gallery
 		// up: a list read once at start-up would offer a screen to something
 		// that quit an hour ago.
+		//
+		// WITH SOMETHING ON THE PICTURE WHILE IT IS ASKED. Enumerating windows
+		// goes through the accessibility API and takes seconds on a machine with
+		// a lot open, and until it comes back the view is unchanged -- which is
+		// a key that appears to have done nothing. The placeholder has no life:
+		// refresh takes it down when the list arrives.
 		list = d.OnApps
+		d.notice.waiting("looking for what is running...")
 	case ActionSpread:
 		// From the band, with whatever the last look at the gallery found. It
 		// asks for a fresh list too — one key that spreads a stale list would
 		// move the wrong windows.
 		list = d.OnApps
+		d.notice.waiting("looking for what is running...")
 	case ActionFullscreen:
 		d.nav.ToggleFullscreen()
 	case ActionCycle:
@@ -735,7 +745,18 @@ func (d *Desk) Do(a Action) {
 	case ActionFit:
 		// Straight to the near end. WithDistance clamps, so this is the same
 		// value however far the band had wandered.
+		//
+		// AND IT SAYS SO WHEN THERE IS NOTHING TO DO. Fit is pressed blind, and
+		// the band starts at the near end -- so on a session where nobody has
+		// pressed "further" the key fires, changes nothing, and is
+		// indistinguishable from a key that was never granted. That is what it
+		// was reported as.
+		if d.plan.Distance() <= MinDistance {
+			d.notice.say("already as large as these glasses show a screen")
+			break
+		}
 		d.err = d.reshape(d.plan.WithDistance(MinDistance))
+		d.notice.say("one screen, as large as these glasses show it")
 	case ActionFlatter:
 		d.err = d.reshape(d.plan.WithSplay(d.plan.SplayDeg() - SplayStep))
 	case ActionRounder:
@@ -764,10 +785,15 @@ func (d *Desk) refresh(list func() ([]App, error), a Action) {
 	if err != nil {
 		// The Accessibility grant is the usual reason, and it is worth seeing:
 		// a gallery that opened empty would look like "nothing is running".
+		//
+		// The placeholder is REPLACED rather than merely taken down: a wait that
+		// ends in silence is the same picture as a wait that is still going on.
+		d.notice.say("nothing could be listed: " + err.Error())
 		d.err = err
 		d.mu.Unlock()
 		return
 	}
+	d.notice.clear()
 	d.apps.set(apps)
 	var place []Placement
 	switch a {
@@ -789,6 +815,7 @@ func (d *Desk) Badge(seconds float64, theme *toolkit.Theme) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.badge = newBadge(seconds, theme)
+	d.notice = newNotice(0, theme)
 	d.marks = newMarks(theme)
 	d.apps = newAppsView(theme)
 }
@@ -798,6 +825,7 @@ func (d *Desk) Advance(dt float64) {
 	defer d.mu.Unlock()
 	d.nav.Advance(dt)
 	d.badge.tick()
+	d.notice.tick()
 }
 
 // Render draws the current frame into the panorama and returns it.
@@ -876,6 +904,10 @@ func (d *Desk) mark(inGallery bool) {
 	// The application gallery covers everything, including the screen gallery
 	// underneath it: it is the picture the person is looking at, and two grids
 	// at once would be two selections at once.
+	// The notice is ON everything, including the galleries: it is the answer to
+	// "did that key do anything", and a gallery that opened while it was up is
+	// the moment it is most needed.
+	defer d.notice.draw(d.canvas)
 	if d.inApps {
 		d.apps.draw(d.canvas)
 		return

@@ -51,30 +51,15 @@ func OpenTray(logf func(string, ...any), actions chan<- Action) (*Tray, error) {
 		return nil, fmt.Errorf("desk: no menu-bar icon: %w", err)
 	}
 	rows := TrayRows()
-	menu := tray.NewMenu()
-	for _, r := range rows {
-		if r.Action == ActionNone {
-			menu.Add(tray.Separator())
-			continue
-		}
-		a, name := r.Action, r.Title
-		menu.Add(tray.IconItem(r.Title, rowIcon(r.Symbol), func() {
-			select {
-			case actions <- a:
-			default:
-				logf("%q was chosen while the desk was not listening; dropped", name)
-			}
-		}))
-	}
 	t := tray.New(icon)
 	state := mvvm.NewObservable(TrayWaiting)
 	if b := trayBackend(); b != nil {
 		t = t.WithBackend(b)
 	}
 	t.SetTooltip(TrayTooltip)
-	t.SetMenu(menu)
+	item := &Tray{t: t, logf: logf, state: state, actions: actions}
+	t.SetMenu(item.buildMenu(nil))
 	logf("the menu bar item is built, with %d rows", len(rows))
-	item := &Tray{t: t, logf: logf, state: state}
 	item.stop = item.follow()
 	return item, nil
 }
@@ -112,6 +97,9 @@ func rowIcon(symbol string) []byte {
 		return b
 	}
 	b, err := systemSymbol(symbol, TrayRowPx)
+	if err == nil {
+		b, err = squared(b, TrayRowPx)
+	}
 	if err != nil {
 		b = nil
 	}
@@ -134,11 +122,67 @@ var trayBackend = func() tray.Backend { return nil }
 
 // Tray is the desk's menu-bar item, and the two ways it can live.
 type Tray struct {
-	t     *tray.Tray
-	logf  func(string, ...any)
-	state *mvvm.Observable[TrayState]
-	stop  func()
+	t       *tray.Tray
+	logf    func(string, ...any)
+	state   *mvvm.Observable[TrayState]
+	stop    func()
+	actions chan<- Action
 }
+
+// ShowShortcuts puts the combination that was GRANTED on each row it belongs
+// to, and rebuilds the menu.
+//
+// Granted rather than asked for, which is why this is a method called later
+// instead of an argument to [OpenTray]. The item is made once for the whole
+// process and outlives every session, while the shortcuts are claimed when a
+// session starts -- and a claim is not a grant: the ladder substitutes when a
+// combination is taken, so a menu built from what was ASKED for would print a
+// combination that does nothing. A row whose action was never granted keeps its
+// bare label rather than a lie.
+//
+// The rows a person can reach with the keyboard say so here rather than in the
+// settings window, which is where they used to be listed: a menu row and the
+// key that does the same thing belong on the same line, and moving them takes
+// most of a page out of a window that had grown too tall for a laptop screen.
+func (t *Tray) ShowShortcuts(keys map[Action]string) {
+	if t == nil {
+		return
+	}
+	t.t.SetMenu(t.buildMenu(keys))
+}
+
+// buildMenu is the rows, with whatever combinations are known.
+func (t *Tray) buildMenu(keys map[Action]string) *tray.Menu {
+	menu := tray.NewMenu()
+	for _, r := range TrayRows() {
+		if r.Action == ActionNone {
+			menu.Add(tray.Separator())
+			continue
+		}
+		a, name := r.Action, r.Title
+		label := r.Title
+		if k := keys[a]; k != "" {
+			label = r.Title + trayKeyGap + k
+		}
+		menu.Add(tray.IconItem(label, rowIcon(r.Symbol), func() {
+			select {
+			case t.actions <- a:
+			default:
+				t.logf("%q was chosen while the desk was not listening; dropped", name)
+			}
+		}))
+	}
+	return menu
+}
+
+// trayKeyGap separates a row's name from its combination.
+//
+// Spaces rather than a real key equivalent, and that is the honest choice: an
+// NSMenuItem key equivalent is BOUND as well as drawn, and these combinations
+// are already bound system-wide by Carbon. Binding them a second time, so that
+// they are drawn right-aligned, would change what the program does to the
+// machine for the sake of where the text sits.
+const trayKeyGap = "   "
 
 // Hold runs the item AND the platform's main loop, and returns when Release is
 // called.
@@ -388,3 +432,39 @@ func drawTheLight(p painter.Painter, w, h int, ink toolkit.RGBA) {
 // both paths: an icon built where the system will not say is a branch the
 // coverage gate could otherwise never see closed.
 var labelInk = platformLabelInk
+
+// squared centres a picture in a transparent square of the given side.
+//
+// ⛔ WITHOUT THIS THE ROWS ARE NOT THE SAME SIZE, and it is not a matter of
+// taste: go-widgets/tray normalises a row icon's HEIGHT to 16 points and lets
+// the width follow the aspect ratio -- right for a caller shipping a wordmark,
+// wrong for a set of glyphs. A symbol comes back at the size of its own ink, so
+// "eyeglasses" is 32x14 and "power" is 30x32; drawn at a common height the
+// first is 37 points wide and the second is 15, and a menu of them reads as a
+// mistake. "les icons utilisées ne semble avoir une taille uniforme."
+//
+// A square is also what the system itself lays symbols out in: appicon renders
+// each one so its LONGER side is the size asked for, which is the symbol's
+// bounding box. Centring that box in a square of the same side normalises every
+// glyph to it and changes not one pixel of ink.
+//
+// A picture already that square is returned untouched, so nothing is decoded
+// and re-encoded for nothing.
+func squared(b []byte, side int) ([]byte, error) {
+	pix, w, h, err := decodePixels(b)
+	if err != nil {
+		return nil, err
+	}
+	if w == side && h == side {
+		return b, nil
+	}
+	if w > side || h > side {
+		return nil, fmt.Errorf("desk: a %dx%d picture does not fit a square of %d", w, h, side)
+	}
+	out := make([]byte, side*side*4)
+	x0, y0 := (side-w)/2, (side-h)/2
+	for y := range h {
+		copy(out[((y0+y)*side+x0)*4:], pix[y*w*4:(y+1)*w*4])
+	}
+	return pngOf(out, side, side)
+}

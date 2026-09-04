@@ -78,9 +78,13 @@ func arranged(t *testing.T, cfg *Config, attached []glasses.USB) ([]toolkit.Rect
 func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 	cfg := &Config{}
 	rects, height := arranged(t, cfg, []glasses.USB{oneS, luma})
-	if len(rects) < 4 {
-		t.Fatalf("the window has %d rows; it should have the glasses, the screen "+
-			"count, the menu bar and a row per shortcut", len(rects))
+	// Two is the floor and not a target: this checks that rows go DOWN the
+	// window without overlapping, which needs two of them, and the card that
+	// used to carry twenty-nine now carries one line unless something was
+	// refused.
+	if len(rects) < 2 {
+		t.Fatalf("the window has %d rows; there is nothing to check a column against",
+			len(rects))
 	}
 	for i, r := range rects {
 		if r.W <= 0 || r.H <= 0 {
@@ -609,22 +613,38 @@ func TestFitScale(t *testing.T) {
 	}
 }
 
-// TestShortcutRows: one row per shortcut, the combination in the trailing slot,
-// and a refusal wrapped across the two text lines a row has.
+// TestShortcutRows: ONLY what the machine would not grant.
+//
+// ⛔ The routine grants are not rows any more -- twenty-nine of them made a
+// page taller than a laptop screen, and they are in the menu-bar menu now,
+// beside the row each one does the same thing as. What is left is what a menu
+// cannot say: a combination that was substituted, and one that was refused.
 //
 // The two shapes matter because they are what the machine actually says. A
-// GRANT is "gallery: Control-Option-Command-Space" -- a name and a combination,
-// which is a row with a value. A REFUSAL is a sentence three times as long with
-// no combination in it at all, and a row draws its title on one line, so it has
-// to be broken up or it runs off the card.
+// SUBSTITUTION is a name, the combination it got, and what it asked for in
+// brackets -- a row with a value and a subtitle. A REFUSAL is a sentence three
+// times as long with no combination in it at all, and a row draws its title on
+// one line, so it has to be broken up or it runs off the card.
 func TestShortcutRows(t *testing.T) {
-	rows := shortcutRowsFrom("previous: Option-Command-Left\n" +
-		"gallery: Control-Option-Command-Space\n")
-	if len(rows) != 2 {
-		t.Fatalf("two grants gave %d rows", len(rows))
+	// Two plain grants: nothing to act on, so one line saying so and no more.
+	if got := shortcutRowsFrom("previous: Option-Command-Left\n" +
+		"gallery: Control-Option-Command-Space\n"); len(got) != 1 {
+		t.Fatalf("two granted shortcuts gave %d rows, want the one line that "+
+			"says nothing went wrong", len(got))
 	}
-	if rows[0].Title != "previous" {
-		t.Errorf("the first row is titled %q", rows[0].Title)
+
+	rows := shortcutRowsFrom(
+		"previous: Option-Command-Left\n" +
+			"gallery: Control-Option-Command-Space " +
+			"(asked for Option-Command-Space, it was taken)\n")
+	if len(rows) != 1 {
+		t.Fatalf("one substitution among grants gave %d rows", len(rows))
+	}
+	if rows[0].Title != "gallery" {
+		t.Errorf("the row is titled %q", rows[0].Title)
+	}
+	if !strings.Contains(rows[0].Subtitle, "it was taken") {
+		t.Errorf("what was asked for was dropped: %q", rows[0].Subtitle)
 	}
 	if rows[0].Control == nil {
 		t.Fatal("a granted shortcut has no combination in its trailing slot")
@@ -645,11 +665,12 @@ func TestShortcutRows(t *testing.T) {
 		t.Fatalf("one refusal gave %d rows", len(rows))
 	}
 
-	// A grant whose combination is still too wide for half a card goes under the
-	// name, where there is a whole line for it, rather than over the name.
-	wide := shortcutRowsFrom("gallery: " + strings.Repeat("Control-Option-Command-", 6))
+	// A substitution whose combination is still too wide for half a card goes
+	// under the name, where there is a whole line for it, rather than over it.
+	wide := shortcutRowsFrom("gallery: " + strings.Repeat("Control-Option-Command-", 6) +
+		" (asked for Option-Command-Space, it was taken)")
 	if len(wide) != 1 {
-		t.Fatalf("one long grant gave %d rows", len(wide))
+		t.Fatalf("one long substitution gave %d rows", len(wide))
 	}
 	if wide[0].Control != nil {
 		t.Error("a combination too wide for the slot was put in it anyway")
@@ -658,18 +679,18 @@ func TestShortcutRows(t *testing.T) {
 		t.Errorf("the combination was dropped rather than moved: %q", wide[0].Subtitle)
 	}
 
-	// A refusal that has nothing to wrap is a single line, not two.
-	if got := shortcutRowsFrom("nothing was granted"); len(got) != 1 || got[0].Subtitle != "" {
-		t.Errorf("a short refusal gave %d rows with subtitle %q",
-			len(got), got[0].Subtitle)
-	}
-
-	// A blank line contributes nothing rather than an empty row.
-	if got := shortcutRowsFrom("a: b\n\n\nc: d\n"); len(got) != 2 {
-		t.Errorf("blank lines gave %d rows", len(got))
-	}
-	if got := shortcutRowsFrom("   \n"); len(got) != 0 {
-		t.Errorf("nothing but whitespace gave %d rows", len(got))
+	// Nothing at all to report is still one line: an empty card is a heading
+	// over nothing, which reads as something that failed to load.
+	for _, quiet := range []string{"", "   \n", "a: b\n\n\nc: d\n"} {
+		got := shortcutRowsFrom(quiet)
+		if len(got) != 1 {
+			t.Errorf("%q gave %d rows, want the one that says nothing went wrong",
+				quiet, len(got))
+			continue
+		}
+		if got[0].Control != nil {
+			t.Errorf("%q gave a row with a combination in it", quiet)
+		}
 	}
 }
 

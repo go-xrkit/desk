@@ -39,6 +39,17 @@ type RunOptions struct {
 	// Hotkeys is how to claim them — chiefly the fallback ladder. Nil asks for
 	// [DefaultLadder].
 	Hotkeys *hotkey.Options
+	// OnGranted receives the combination each action ended up with, once they
+	// have been claimed, in the form a menu prints.
+	//
+	// It exists because a claim is not a grant. The menu-bar item is made before
+	// any session and outlives every one of them, so it cannot know what the
+	// window server will hand over -- and the ladder substitutes when a
+	// combination is taken, which is exactly the case a person cannot guess. So
+	// the answer is sent out when it is known rather than predicted beforehand.
+	//
+	// Nil is nobody asking, which is the default.
+	OnGranted func(map[Action]string)
 
 	// Actions are actions from somewhere other than the keyboard: a menu-bar
 	// item, a script, a remote. They are treated exactly like a global shortcut
@@ -335,6 +346,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		hk := ClaimGlobal(opt.Shortcuts, opt.Hotkeys)
 		defer hk.Close()
 		global = hk.C()
+		if opt.OnGranted != nil {
+			opt.OnGranted(hk.Granted())
+		}
 		for _, line := range strings.Split(strings.TrimRight(hk.Describe(), "\n"), "\n") {
 			if line != "" {
 				logf("%s", line)

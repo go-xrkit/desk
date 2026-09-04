@@ -337,3 +337,27 @@ func ClaimGallery() *Hotkeys {
 		Ladder:  []hotkey.Modifier{}, // deliberately empty: no neighbour is acceptable
 	})
 }
+
+// Granted is the combination each action ended up with, as a menu prints it.
+//
+// What was CLAIMED, not what was asked for. The ladder substitutes when a
+// combination is taken, so the two differ exactly when it matters most -- a
+// menu that printed the wanted one would send a person to press a key that does
+// nothing, and the substitution is the one case where nobody can guess.
+//
+// An action nothing was granted for is absent rather than empty, so a caller
+// can tell "no combination" from "a combination that renders as nothing".
+//
+// Combo.Glyphs rather than Combo.String: a menu draws the parts with nothing
+// between them, and there "⌃⌥⌘Equal" is a key somebody looks for and does not
+// find.
+func (h *Hotkeys) Granted() map[Action]string {
+	if h == nil || len(h.held) == 0 {
+		return nil
+	}
+	out := make(map[Action]string, len(h.held))
+	for i, k := range h.held {
+		out[h.does[i]] = k.Combo().Glyphs()
+	}
+	return out
+}
