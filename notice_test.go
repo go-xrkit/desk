@@ -217,3 +217,25 @@ func TestANilNoticeIsSilentAndNotACrash(t *testing.T) {
 		t.Error("a notice that does not exist is showing")
 	}
 }
+
+// TestANoticeOnATinyPictureIsStillDrawn.
+//
+// The floors, both of them. A view small enough that a twentieth of it is
+// nothing at all still gets type at scale one and an inset of one pixel: a
+// notice that came out zero-high would be the silence it exists to prevent.
+func TestANoticeOnATinyPictureIsStillDrawn(t *testing.T) {
+	if got := noticeScale(10); got != 1 {
+		t.Errorf("a 10-row view asked for scale %d", got)
+	}
+	if got := noticeInset(0); got != 1 {
+		t.Errorf("a view of no height asked for an inset of %d", got)
+	}
+	c := NewCanvas(60, 20)
+	before := append([]byte(nil), c.Pix...)
+	n := newNotice(1, nil)
+	n.say("fit")
+	n.draw(c)
+	if len(changedRows(c, before)) == 0 {
+		t.Error("nothing was drawn on a small view")
+	}
+}

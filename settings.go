@@ -185,10 +185,9 @@ func shortcutRows(cfg *Config) []*toolkit.SettingRow {
 // window server, so the shaping of the answer is separated from the asking.
 func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 	var out []*toolkit.SettingRow
+	// No blank-line skip: troubleOnly keeps only the lines carrying one of two
+	// markers, and a blank line carries neither.
 	for _, line := range troubleOnly(strings.Split(strings.TrimSpace(report), "\n")) {
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
 		title, keys, ok := strings.Cut(line, ":")
 		if !ok {
 			// A refusal rather than a grant: it has no combination to put in the

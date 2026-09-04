@@ -5,6 +5,8 @@
 package desk
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/go-widgets/toolkit"
@@ -118,4 +120,42 @@ func hasScrollView(w toolkit.Widget) bool {
 		}
 	}
 	return false
+}
+
+// TestAPageTallerThanTheRoomScrolls.
+//
+// ⛔ The other half of the invariant, and the half a window is needed for: the
+// window is clamped to the screen, so the PAGE is what gives. A page measured
+// taller than the room left above the button bar is wrapped in a scroll view --
+// and one that fits is not, because a permanent gutter takes a strip of width
+// from every row to hold a scrollbar that can never appear, which is what got
+// the scroll view removed the first time.
+func TestAPageTallerThanTheRoomScrolls(t *testing.T) {
+	cfg := &Config{}
+	attached := []glasses.USB{oneS, luma}
+
+	// Room enough for a couple of rows and no more.
+	said := ""
+	root, _ := settingsRoot(cfg, attached, 40, func(f string, a ...any) {
+		said = fmt.Sprintf(f, a...)
+	}, func() {})
+	if !hasScrollView(root) {
+		t.Error("a page with 40 pixels of room did not scroll")
+	}
+	if !strings.Contains(said, "it scrolls") {
+		t.Errorf("nothing was logged about scrolling: %q", said)
+	}
+
+	// Room enough for anything: no gutter.
+	root, _ = settingsRoot(cfg, attached, 100_000, nil, func() {})
+	if hasScrollView(root) {
+		t.Error("a page with room to spare was given a scrollbar gutter")
+	}
+
+	// And no room GIVEN at all -- every caller who is not opening a window --
+	// is "no limit" rather than "no room".
+	root, _ = settingsRoot(cfg, attached, 0, nil, func() {})
+	if hasScrollView(root) {
+		t.Error("a caller that named no screen was given a scrollbar gutter")
+	}
 }
