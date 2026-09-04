@@ -16,8 +16,8 @@ github.com/coder/websocket v1.8.15 h1:6B2JPeOGlpff2Uz6vOEH1Vzpi0iUz20A+lPVhPHtNU
 github.com/coder/websocket v1.8.15/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/ebitengine/purego v0.10.2 h1:W809HbnvzAxgdm+aOvlSekrM16wGCdT/e76+9tS7gzE=
-github.com/ebitengine/purego v0.10.2/go.mod h1:iIjxzd6CiRiOG0UyXP+V1+jWqUXVjPKLAI0mRfJZTmQ=
+github.com/ebitengine/purego v0.11.0 h1:jhp/D+Nyv7UUW8HAcmcjt2N2rYrYi9m3SL21k0Ua/NI=
+github.com/ebitengine/purego v0.11.0/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/go-crdt/collab v0.36.1 h1:2NTn1iKFoUHnNSeD2hAyy+8bCnpeUI57W7yQ1CY5bko=
 github.com/go-crdt/collab v0.36.1/go.mod h1:CNtopa+kzRg3jfb2bES9+rEIavVrb52IbDcfVV05+6E=
 github.com/go-crdt/crdt v0.37.0 h1:offp5UlAqIt2lQwvWamguRBWp6yZs4uUhVISfqw2+l0=
@@ -46,8 +46,8 @@ github.com/go-macos/brightness v0.1.1 h1:IrXhHJtwCEwQl2q54LW35C9+Caodwe+2h/yOqOq
 github.com/go-macos/brightness v0.1.1/go.mod h1:YSgahQXXD66Hjv9X0/A3lWR20iaemzWm3DiK7OHpuvc=
 github.com/go-macos/coreml v0.1.0 h1:vzIqix5/2V9fXT6psX56wJnFR0olrXllZ5L2bgw6dIA=
 github.com/go-macos/coreml v0.1.0/go.mod h1:fzohkuw/D3qvM+1BkjRmfYLrFYCw5zjpzIR0wNcX6SA=
-github.com/go-macos/hotkey v0.6.0 h1:S9CBpaS58rPOZEoGBoRG8Qb9D3tqXk2MURsi/7aDbEM=
-github.com/go-macos/hotkey v0.6.0/go.mod h1:uJExaEG7xtI7RndCv2QkaqH4UAYOx5jxZDjCY8lqWQ0=
+github.com/go-macos/hotkey v0.7.0 h1:lV+BwDzeSYNNPXFqTiF2o4rTnpJ6VoCw6yJO9c1OteU=
+github.com/go-macos/hotkey v0.7.0/go.mod h1:Ey0viyE12mOfpo0Zf1NmaYmXfrBXgYHmmOZYTdlT744=
 github.com/go-macos/iokit v0.1.0 h1:noPIXSMxCqC+sBT07i7arGkqYwzFBYSwocnbfFxGY5c=
 github.com/go-macos/iokit v0.1.0/go.mod h1:UjYu90FvAQ/cLIyt+GXTdlebs0ig9pPIqram+36oKYA=
 github.com/go-macos/metal v0.1.0 h1:3giY1/2m5Z6Px2qfKP3zSA4wMk5oE9OtPajae2Erc9s=

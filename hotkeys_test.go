@@ -414,3 +414,53 @@ func TestNoCombinationIsClaimedTwice(t *testing.T) {
 		does[s.Does] = s.Want
 	}
 }
+
+// TestGrantedIsWhatWasClaimedAndNotWhatWasAsked.
+//
+// ⛔ The whole reason this exists. The ladder substitutes when a combination is
+// taken, and a menu that printed the WANTED one would send a person to press a
+// key that does nothing -- which is the one case they cannot work out for
+// themselves.
+func TestGrantedIsWhatWasClaimedAndNotWhatWasAsked(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	asked := hotkey.Combo{Key: hotkey.KeyEqual, Mods: mods}
+	got := hotkey.Combo{Key: hotkey.KeyN0, Mods: mods | hotkey.Shift}
+	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		if want.Key == hotkey.KeyM {
+			return nil, errors.New("taken")
+		}
+		return &fakeClaim{got: got, want: want, ch: make(chan hotkey.Event)}, nil
+	})
+
+	h := ClaimGlobal([]Shortcut{
+		{asked, ActionFit},
+		{hotkey.Combo{Key: hotkey.KeyM, Mods: hotkey.Command}, ActionPoint},
+	}, nil)
+	defer h.Close()
+
+	keys := h.Granted()
+	if keys[ActionFit] != "⌃⌥⇧⌘0" {
+		t.Errorf("fit was granted %q, want the combination it actually got", keys[ActionFit])
+	}
+	if _, ok := keys[ActionPoint]; ok {
+		t.Errorf("an action nothing was granted for is in the map: %q", keys[ActionPoint])
+	}
+
+	// And the menu form, not the written one: "⌃⌥⌘Equal" is a key somebody
+	// looks for and does not find.
+	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		return &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}, nil
+	})
+	h2 := ClaimGlobal([]Shortcut{{asked, ActionFit}}, nil)
+	defer h2.Close()
+	if k := h2.Granted()[ActionFit]; k != "⌃⌥⌘=" {
+		t.Errorf("fit prints as %q on a menu, want ⌃⌥⌘=", k)
+	}
+
+	// Nothing claimed at all is no map rather than an empty one, so a caller
+	// can tell "not asked yet" from "asked and refused".
+	var none *Hotkeys
+	if none.Granted() != nil {
+		t.Error("a set that claimed nothing gave a map back")
+	}
+}

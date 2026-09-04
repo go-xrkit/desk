@@ -707,6 +707,10 @@ func run() int {
 			Hotkeys:     settings.HotkeyOptions(),
 			// The menu bar is an input like any other: same actions, same loop.
 			Actions: actions,
+			// And it says which key does the same thing, once the machine has
+			// said which keys we may have. The item is made before this session
+			// and outlives it, so it is told rather than asked.
+			OnGranted: menuBar.ShowShortcuts,
 			// And the band follows the pointer onto any of these, whether it is a
 			// screen this program made or this Mac's own panel mirrored onto one.
 			Screens: ribbonIDs(mirror, macID, screens.IDs),

@@ -5,7 +5,6 @@
 package desk
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/go-widgets/toolkit"
@@ -136,12 +135,20 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 		},
 	)
 
-	// What the machine will actually grant, one row per action, the combination
-	// in the trailing slot. Shown and not logged: of the three ways a shortcut
-	// can already be taken, only two are detectable, so what was asked for and
-	// what was granted are different questions.
+	// ONLY WHAT WENT WRONG.
+	//
+	// Every combination used to be listed here, one row per action, and there
+	// are twenty-nine of them: a page too tall for a laptop screen, saying the
+	// same thing the menu-bar menu now says beside each row it belongs to. A
+	// person looking for "which key opens the gallery" is better served by the
+	// menu, where the key sits next to the thing it does.
+	//
+	// What a menu CANNOT say is what it did not get. A combination another
+	// application holds is substituted or refused, and of the three ways one can
+	// be taken only two are detectable at all -- so the exceptions are the whole
+	// reason this card exists, and now they are all it contains.
 	keysCard := toolkit.NewSettingsGroup(
-		"Shortcuts this machine granted, not what was asked for",
+		"Shortcuts this machine would not grant",
 		shortcutRows(cfg)...)
 
 	l := toolkit.NewBoxLayout()
@@ -167,57 +174,6 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	return page, read
 }
 
-// foldScreens turns the run of "screen N" lines into ONE.
-//
-// ⛔ This is not tidying. The settings window is not resizable and has no
-// scroll view -- it opens at the size its page measures -- so every row is
-// height the window must find on the display. Nine screen shortcuts made it
-// 1470 pixels tall against 1409 usable on the screen it opened on, which put
-// the Save and Close buttons past the bottom edge with no way to reach them.
-// Measured, from the run that broke: "the settings window is 560x1470 pixels
-// at scale 1.00", and FitScale will not shrink below 1 because type smaller
-// than that buys nothing a person can read.
-//
-// It is also the better presentation. Nine identical rows are one IDEA -- go
-// to a screen -- and listing them nine times says nothing the range does not.
-//
-// Only a CONTIGUOUS run is folded, and only when every line in it was granted
-// the combination it asked for. A refusal, or a substitution, is exactly the
-// case somebody needs to see spelled out.
-func foldScreens(lines []string) []string {
-	out := make([]string, 0, len(lines))
-	for i := 0; i < len(lines); i++ {
-		n := 0
-		for i+n < len(lines) && isPlainScreenLine(lines[i+n]) {
-			n++
-		}
-		if n < 3 {
-			out = append(out, lines[i])
-			continue
-		}
-		first := strings.TrimSpace(strings.SplitN(lines[i], ":", 2)[1])
-		last := strings.TrimSpace(strings.SplitN(lines[i+n-1], ":", 2)[1])
-		out = append(out, fmt.Sprintf("go to a screen: %s…%s", first, last))
-		i += n - 1
-	}
-	return out
-}
-
-// isPlainScreenLine reports whether a line is "screen N" granted exactly what
-// it asked for -- no bracketed aside, which is how a substitution is reported.
-func isPlainScreenLine(line string) bool {
-	title, keys, ok := strings.Cut(line, ":")
-	if !ok || strings.Contains(keys, "(") {
-		return false
-	}
-	title = strings.TrimSpace(title)
-	rest, found := strings.CutPrefix(title, "screen ")
-	if !found || len(rest) != 1 || rest[0] < '1' || rest[0] > '9' {
-		return false
-	}
-	return true
-}
-
 // shortcutRows is one row per shortcut the machine granted, its combination in
 // the trailing slot.
 func shortcutRows(cfg *Config) []*toolkit.SettingRow {
@@ -229,7 +185,7 @@ func shortcutRows(cfg *Config) []*toolkit.SettingRow {
 // window server, so the shaping of the answer is separated from the asking.
 func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 	var out []*toolkit.SettingRow
-	for _, line := range foldScreens(strings.Split(strings.TrimSpace(report), "\n")) {
+	for _, line := range troubleOnly(strings.Split(strings.TrimSpace(report), "\n")) {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
@@ -269,6 +225,14 @@ func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 			row.Subtitle = strings.TrimSpace(keys + " " + aside)
 		}
 		out = append(out, row)
+	}
+	if len(out) == 0 {
+		// A card with no rows in it is a heading over nothing, which reads as
+		// something that failed to load. Nothing going wrong is worth one line.
+		out = append(out, &toolkit.SettingRow{
+			Title:    "Every combination was granted",
+			Subtitle: "they are in the menu-bar menu, beside what each one does",
+		})
 	}
 	return out
 }
@@ -566,4 +530,31 @@ func splitToFit(s string, room int) (string, string) {
 		return s, ""
 	}
 	return s[:best], strings.TrimSpace(s[best+1:])
+}
+
+// troubleOnly keeps the lines of a shortcut report that a person has to act on.
+//
+// ⛔ THE ROUTINE GRANTS ARE NOT HERE ANY MORE, and it is not tidying. There
+// are twenty-nine of them; listed one per row they made a page taller than a
+// laptop screen, and they now sit in the menu-bar menu beside the row each one
+// does the same thing as -- which is where somebody asking "what opens the
+// gallery" was going to look anyway.
+//
+// What a menu cannot say is what it did not GET. A combination another
+// application already holds is substituted or refused, and of the three ways
+// one can be taken only two are detectable at all. Those two lines are the
+// reason this card exists, so they are all that is left in it.
+//
+// Two shapes, both from Hotkeys.describe: a substitution carries "(asked for
+// ..., it was taken)" after the combination it got, and a refusal is a whole
+// sentence beginning "no global shortcut for".
+func troubleOnly(lines []string) []string {
+	var out []string
+	for _, line := range lines {
+		l := strings.TrimSpace(line)
+		if strings.Contains(l, "asked for ") || strings.HasPrefix(l, "no global shortcut for") {
+			out = append(out, line)
+		}
+	}
+	return out
 }
