@@ -378,3 +378,42 @@ func TestAKeyWithNoNameAndNoCharacterNamesNothing(t *testing.T) {
 		t.Errorf("an unnamed key gave %q+%b", key, mods)
 	}
 }
+
+// TestTheSameKeyEquivalentOnEveryPlatform.
+//
+// ⛔ hotkey has a layout service on macOS and none anywhere else, so Char is
+// the keyboard's answer on one platform and "" on the others. A row whose key
+// equivalent came out "s" on a Mac and "" on a Linux runner would be a test
+// that passes in one place and fails in the other while nothing is wrong -- and
+// that is exactly how this was found.
+func TestTheSameKeyEquivalentOnEveryPlatform(t *testing.T) {
+	was := charOf
+	t.Cleanup(func() { charOf = was })
+
+	// With a keyboard that answers, and with one that does not.
+	for _, keyboard := range []struct {
+		name string
+		char func(hotkey.Key) string
+	}{
+		{"a system that can say what a key prints", func(k hotkey.Key) string { return k.Glyph() }},
+		{"a system that cannot", func(hotkey.Key) string { return "" }},
+	} {
+		t.Run(keyboard.name, func(t *testing.T) {
+			charOf = keyboard.char
+			if got := equivalentFor(hotkey.KeyS); got != "s" {
+				t.Errorf("S = %q, want %q", got, "s")
+			}
+			if got := equivalentFor(hotkey.KeyN1); got != "1" {
+				t.Errorf("1 = %q, want %q", got, "1")
+			}
+			if got := equivalentFor(hotkey.KeyLeftArrow); got != tray.KeyLeft {
+				t.Errorf("the left arrow = %q, want the glyph key", got)
+			}
+			// A key whose name is a WORD is no key equivalent: half of "F1"
+			// would be worse than none of it.
+			if got := equivalentFor(hotkey.KeyF1); got != "" {
+				t.Errorf("F1 = %q, want nothing", got)
+			}
+		})
+	}
+}

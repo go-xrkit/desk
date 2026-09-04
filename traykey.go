@@ -69,7 +69,22 @@ func equivalentFor(k hotkey.Key) string {
 	if s, ok := trayGlyphKeys[k]; ok {
 		return s
 	}
-	return strings.ToLower(k.Char())
+	// What the keyboard prints, and the ANSI name when there is no keyboard to
+	// ask -- which is every platform but macOS, where hotkey has no layout
+	// service. The row is drawn there by a backend that ignores the key anyway,
+	// but a value that is empty on one platform and "s" on another is a test
+	// that passes in one place and not the other, and the difference would say
+	// nothing about the row.
+	ch := charOf(k)
+	if ch == "" {
+		ch = k.Glyph()
+	}
+	if len([]rune(ch)) != 1 {
+		// A word -- "Space", "F1" -- or nothing. A menu draws neither as a key
+		// equivalent, and half a name would be worse than no name.
+		return ""
+	}
+	return strings.ToLower(ch)
 }
 
 // trayGlyphKeys are the keys a menu draws as a picture.
@@ -88,3 +103,8 @@ var trayGlyphKeys = map[hotkey.Key]string{
 	hotkey.KeyTab:        tray.KeyTab,
 	hotkey.KeySpace:      tray.KeySpace,
 }
+
+// charOf is what a key prints, as a seam: hotkey has a layout service on macOS
+// and none anywhere else, so the branch that matters can only be taken on one
+// platform unless a test can install a keyboard.
+var charOf = hotkey.Key.Char
