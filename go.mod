@@ -18,7 +18,7 @@ require (
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.12.0
 	github.com/go-widgets/toolkit v0.300.0
-	github.com/go-widgets/tray v0.7.4
+	github.com/go-widgets/tray v0.8.0
 	github.com/go-widgets/window v0.57.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/depth3d v0.1.0

@@ -62,6 +62,20 @@ type TrayRow struct {
 	Title  string
 	Key    string
 	Action Action
+	// Symbol is the system symbol drawn to the left of the label, by the name
+	// the platform knows it under -- an SF Symbol on macOS. Empty leaves the
+	// row text-only, which is what a separator is and what every row was.
+	//
+	// A NAME RATHER THAN A PICTURE, for the same reason the menu-bar item
+	// carries one: a symbol is the platform's own, so it arrives at the weight
+	// and in the ink of every other menu in the bar, follows a light or dark
+	// appearance without being asked, and costs no bytes in the binary. An icon
+	// pack would be four hundred pixels of somebody else's drawing beside
+	// nineteen of Apple's -- which is exactly the report the menu-bar icon was
+	// already fixed for once.
+	//
+	// A platform with no such symbol draws the row as it always did.
+	Symbol string
 }
 
 // TrayRows is the menu, in order.
@@ -72,19 +86,26 @@ type TrayRow struct {
 // a person cannot do from inside the glasses.
 func TrayRows() []TrayRow {
 	return []TrayRow{
-		{Title: "Settings...", Key: ",", Action: ActionSettings},
+		{Title: "Settings...", Key: ",", Action: ActionSettings, Symbol: "gearshape"},
 		{},
-		{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint},
+		{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint,
+			Symbol: "cursorarrow.rays"},
 		{},
-		{Title: "The applications...", Key: "a", Action: ActionAppsOpen},
-		{Title: "One application per screen", Key: "x", Action: ActionSpread},
+		{Title: "The applications...", Key: "a", Action: ActionAppsOpen,
+			Symbol: "square.grid.2x2"},
+		{Title: "One application per screen", Key: "x", Action: ActionSpread,
+			Symbol: "rectangle.3.group"},
 		{},
-		{Title: "3D on", Action: ActionStereo3DOn},
-		{Title: "3D off", Action: ActionStereo3DOff},
-		{Title: "Show the gallery", Action: ActionGalleryOpen},
-		{Title: "Leave the gallery", Action: ActionGalleryClose},
+		// view.3d and view.2d are a PAIR in the system's own vocabulary, which is
+		// why they are these two rather than a cube and a square: a person who
+		// has seen either anywhere else on the machine has seen both.
+		{Title: "3D on", Action: ActionStereo3DOn, Symbol: "view.3d"},
+		{Title: "3D off", Action: ActionStereo3DOff, Symbol: "view.2d"},
+		{Title: "Show the gallery", Action: ActionGalleryOpen, Symbol: "square.grid.3x3"},
+		{Title: "Leave the gallery", Action: ActionGalleryClose,
+			Symbol: "arrow.down.right.and.arrow.up.left"},
 		{},
-		{Title: "Quit the desk", Key: "q", Action: ActionQuit},
+		{Title: "Quit the desk", Key: "q", Action: ActionQuit, Symbol: "power"},
 	}
 }
 

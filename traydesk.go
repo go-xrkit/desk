@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"sync"
 	"time"
 
 	"github.com/go-widgets/mvvm"
@@ -57,7 +58,7 @@ func OpenTray(logf func(string, ...any), actions chan<- Action) (*Tray, error) {
 			continue
 		}
 		a, name := r.Action, r.Title
-		menu.Add(tray.Item(r.Title, func() {
+		menu.Add(tray.IconItem(r.Title, rowIcon(r.Symbol), func() {
 			select {
 			case actions <- a:
 			default:
@@ -77,6 +78,50 @@ func OpenTray(logf func(string, ...any), actions chan<- Action) (*Tray, error) {
 	item.stop = item.follow()
 	return item, nil
 }
+
+// TrayRowPx is a menu ROW's glyph, in pixels.
+//
+// go-widgets/tray draws a row's icon at 16 points, so 32 pixels is that at 2x
+// and a Retina display gets one image pixel per device pixel with nothing
+// resampled. It is NOT TrayIconPx: a menu-bar icon sits in a 22-point bar and a
+// row's icon sits beside the row's text, and a symbol rasterised for one and
+// drawn at the other has strokes of the wrong weight.
+const TrayRowPx = 32
+
+// rowIcons holds the row glyphs, made once each.
+//
+// A menu is built once per session today, but the state binding rebuilds the
+// item's picture every second and this is one symbol lookup away from being
+// asked for on that path. A picture that cannot have changed is not worth
+// asking the window server for twice.
+var rowIcons sync.Map // symbol name -> []byte, nil for one that would not draw
+
+// rowIcon is the glyph a row carries, or nil.
+//
+// NIL RATHER THAN AN ERROR, deliberately: a symbol this system does not have
+// must cost a row its picture, not its menu. The row still says "Quit the desk"
+// and still quits. TestEveryMenuRowCarriesASymbol is what keeps that silence
+// from covering a typo -- the degradation is a safety net, not the way this
+// normally runs.
+func rowIcon(symbol string) []byte {
+	if symbol == "" {
+		return nil
+	}
+	if b, ok := rowIcons.Load(symbol); ok {
+		b, _ := b.([]byte)
+		return b
+	}
+	b, err := systemSymbol(symbol, TrayRowPx)
+	if err != nil {
+		b = nil
+	}
+	rowIcons.Store(symbol, b)
+	return b
+}
+
+// systemSymbol is the platform's symbol by name, as a seam -- the same reason
+// systemIcon is one: a test on either platform can take both paths.
+var systemSymbol = platformSymbolPNG
 
 // trayIcon is the seam for the picture, so a test can take it away: an item
 // with no icon must not be made at all.
