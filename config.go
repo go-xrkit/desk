@@ -340,9 +340,18 @@ func actionNames() string {
 	return strings.Join(out, " ")
 }
 
-// configActions are the actions a shortcut may be bound to. Not every Action is
-// here: quit and fullscreen are keys in the window, and claiming them
-// system-wide would take them from the application the viewer is using.
+// configActions are the actions a shortcut may be bound to.
+//
+// The rule is: anything the desk CLAIMS SYSTEM-WIDE can be moved. A key taken
+// from the whole machine is a key taken from whatever the person was using, so
+// whoever it inconveniences must be able to put it somewhere else — and the
+// default layout is a choice, not a law.
+//
+// Two are deliberately not here. Fullscreen is a key in the window rather than
+// a global one. Quit stays where it is because it is the way OUT: the desk
+// covers a display entirely, and a combination rebound to something
+// unreachable would be a room with the handle moved. The menu bar still has
+// it, but a person wearing glasses cannot see the menu bar.
 var configActions = map[string]Action{
 	"previous":      ActionPrev,
 	"next":          ActionNext,
@@ -351,6 +360,18 @@ var configActions = map[string]Action{
 	"gallery-close": ActionGalleryClose,
 	"choose":        ActionChoose,
 	"cycle":         ActionCycle,
+	// What the desk shows, and how far away.
+	"apps":      ActionApps,
+	"apps-open": ActionAppsOpen,
+	"further":   ActionFurther,
+	"closer":    ActionCloser,
+	"fit":       ActionFit,
+	"flatter":   ActionFlatter,
+	"rounder":   ActionRounder,
+	"point":     ActionPoint,
+	"spread":    ActionSpread,
+	"remove":    ActionRemove,
+	"settings":  ActionSettings,
 	// One name per screen, so a settings file can move them. Nine, because
 	// MaxScreens is nine.
 	"screen-1": ActionScreen1,
