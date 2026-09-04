@@ -113,6 +113,7 @@ on the screens.
 
 | | |
 |---|---|
+| **`⌃⌥⌘1`…`⌃⌥⌘9`** | **straight to that screen**, from wherever you are |
 | `⌃⌥⌘←` `⌃⌥⌘→` | turn the band |
 | `⌃⌥⌘↑` | show the SCREENS |
 | **`⌃⌥⌘↓`** | **show what is RUNNING on them** |
@@ -125,6 +126,11 @@ on the screens.
 | `⌃⌥⌘[` `⌃⌥⌘]` | flatten the screens, turn them |
 | `⌃⌥⌘S` | the settings |
 | `⌃⌥⌘⎋` | quit |
+
+Nine digits and not ten, because nine is the most screens a desk carries: there
+is a key for every one and none spare. All nine are claimed whatever the desk
+holds today — the count changes while the session runs, and a key for a screen
+that is not there says how many there are rather than doing nothing.
 
 macOS only, for now: this goes through Carbon's `RegisterEventHotKey`, which
 asks for **no permission at all** — no accessibility prompt, no input

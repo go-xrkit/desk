@@ -143,6 +143,26 @@ func DefaultShortcuts() []Shortcut {
 		{hotkey.Combo{Key: hotkey.KeyC, Mods: mods | hotkey.Control}, ActionCycle},
 		// And taking one away, on the key that deletes.
 		{hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods | hotkey.Control}, ActionRemove},
+		// Straight to a screen, without turning past the ones between or
+		// opening the gallery to point at it.
+		//
+		// Nine, because [MaxScreens] is nine: a digit for every screen a desk
+		// can carry and none spare. All nine are claimed whatever the desk
+		// carries TODAY -- the count changes while the session runs, and
+		// re-registering system-wide keys on every grow would be a great deal
+		// of machinery to save a message that already says how many there are.
+		//
+		// Registered by CODE like the rest, so they are the same nine positions
+		// on a French keyboard whatever is printed on them.
+		{hotkey.Combo{Key: hotkey.KeyN1, Mods: mods | hotkey.Control}, ActionScreen1},
+		{hotkey.Combo{Key: hotkey.KeyN2, Mods: mods | hotkey.Control}, ActionScreen2},
+		{hotkey.Combo{Key: hotkey.KeyN3, Mods: mods | hotkey.Control}, ActionScreen3},
+		{hotkey.Combo{Key: hotkey.KeyN4, Mods: mods | hotkey.Control}, ActionScreen4},
+		{hotkey.Combo{Key: hotkey.KeyN5, Mods: mods | hotkey.Control}, ActionScreen5},
+		{hotkey.Combo{Key: hotkey.KeyN6, Mods: mods | hotkey.Control}, ActionScreen6},
+		{hotkey.Combo{Key: hotkey.KeyN7, Mods: mods | hotkey.Control}, ActionScreen7},
+		{hotkey.Combo{Key: hotkey.KeyN8, Mods: mods | hotkey.Control}, ActionScreen8},
+		{hotkey.Combo{Key: hotkey.KeyN9, Mods: mods | hotkey.Control}, ActionScreen9},
 	}
 }
 
