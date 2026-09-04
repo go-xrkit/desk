@@ -213,7 +213,12 @@ func ClaimGlobal(shortcuts []Shortcut, opts *hotkey.Options) *Hotkeys {
 	if opts == nil {
 		// The ladder matters more than any other default here: without one, the
 		// gallery key is simply refused on every stock macOS.
-		opts = &hotkey.Options{Ladder: DefaultLadder}
+		//
+		// And OnThisKeyboard, for the reason Config.HotkeyOptions gives: every
+		// shortcut here is a key a person is TOLD about, so the name is the
+		// legend and never the position. A caller passing its own options and
+		// forgetting this gets the defect back, which is why both doors set it.
+		opts = &hotkey.Options{Ladder: DefaultLadder, OnThisKeyboard: true}
 	}
 	h := &Hotkeys{ch: make(chan Action, len(shortcuts))}
 	for _, s := range shortcuts {
@@ -348,16 +353,16 @@ func ClaimGallery() *Hotkeys {
 // An action nothing was granted for is absent rather than empty, so a caller
 // can tell "no combination" from "a combination that renders as nothing".
 //
-// Combo.Glyphs rather than Combo.String: a menu draws the parts with nothing
-// between them, and there "⌃⌥⌘Equal" is a key somebody looks for and does not
-// find.
-func (h *Hotkeys) Granted() map[Action]string {
+// The COMBINATION and not a rendering of it: a menu row draws its own, and on
+// macOS it draws it right-aligned in a column with every other row's, in the
+// system's own glyphs. Handing over a string would have decided that for it.
+func (h *Hotkeys) Granted() map[Action]hotkey.Combo {
 	if h == nil || len(h.held) == 0 {
 		return nil
 	}
-	out := make(map[Action]string, len(h.held))
+	out := make(map[Action]hotkey.Combo, len(h.held))
 	for i, k := range h.held {
-		out[h.does[i]] = k.Combo().Glyphs()
+		out[h.does[i]] = k.Combo()
 	}
 	return out
 }

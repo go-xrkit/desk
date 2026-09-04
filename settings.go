@@ -5,7 +5,9 @@
 package desk
 
 import (
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/go-widgets/toolkit"
 	"github.com/go-xrkit/xrkit/glasses"
@@ -351,12 +353,49 @@ func headsetNames(attached []glasses.USB) []string {
 // except to take it, and holding one while a settings window is open would take
 // it from whatever the person is about to go back to.
 func whatWeGet(cfg *Config) string {
-	h := ClaimGlobal(cfg.ShortcutsOr(DefaultShortcuts()), cfg.HotkeyOptions())
+	want := cfg.ShortcutsOr(DefaultShortcuts())
+
+	// ⛔ ASKED ONCE PER SET, AND REMEMBERED. Opening this window measures the
+	// page and then builds it, so the machine was claimed TWICE for one window
+	// -- twenty-nine system-wide combinations each time -- and the two answers
+	// need not agree. They did not: a combination another application took
+	// between the two calls is a row in one and not the other, so the window was
+	// sized for a page it then did not draw. It showed up as a test that failed
+	// about one run in three, with nothing wrong in it.
+	//
+	// Keyed on the SET, so changing a shortcut and reopening asks again. Held
+	// under a mutex because the settings window and a session can both be
+	// running while the desk is stopping.
+	key := shortcutKey(want)
+	reportMu.Lock()
+	defer reportMu.Unlock()
+	if key == lastReportKey {
+		return lastReport
+	}
+
+	h := ClaimGlobal(want, cfg.HotkeyOptions())
 	defer h.Close()
 	// Spelled out, not in glyphs: the toolkit's font has no ⌥ ⌘ ⇧ ⌃ ← →, and a
 	// line saying which combination was granted rendered as "previous:" and
 	// nothing else.
-	return h.DescribeNames()
+	lastReportKey, lastReport = key, h.DescribeNames()
+	return lastReport
+}
+
+var (
+	reportMu      sync.Mutex
+	lastReportKey string
+	lastReport    string
+)
+
+// shortcutKey names a set of shortcuts, so two asks for the same set can be
+// told from two asks for different ones.
+func shortcutKey(ss []Shortcut) string {
+	var b strings.Builder
+	for _, s := range ss {
+		fmt.Fprintf(&b, "%s=%s;", s.Want, s.Does)
+	}
+	return b.String()
 }
 
 // SettingsFontPx is the settings window's type size in LOGICAL pixels, before

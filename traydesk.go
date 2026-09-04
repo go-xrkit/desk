@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-macos/hotkey"
 	"github.com/go-widgets/mvvm"
 
 	"github.com/go-widgets/painter"
@@ -144,7 +145,7 @@ type Tray struct {
 // settings window, which is where they used to be listed: a menu row and the
 // key that does the same thing belong on the same line, and moving them takes
 // most of a page out of a window that had grown too tall for a laptop screen.
-func (t *Tray) ShowShortcuts(keys map[Action]string) {
+func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 	if t == nil {
 		return
 	}
@@ -152,7 +153,7 @@ func (t *Tray) ShowShortcuts(keys map[Action]string) {
 }
 
 // buildMenu is the rows, with whatever combinations are known.
-func (t *Tray) buildMenu(keys map[Action]string) *tray.Menu {
+func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 	menu := tray.NewMenu()
 	for _, r := range TrayRows() {
 		if r.Action == ActionNone {
@@ -160,11 +161,17 @@ func (t *Tray) buildMenu(keys map[Action]string) *tray.Menu {
 			continue
 		}
 		a, name := r.Action, r.Title
-		label := r.Title
-		if k := keys[a]; k != "" {
-			label = r.Title + trayKeyGap + k
+		// ⛔ ONLY WHAT IS IN THE MAP. A missing entry gives the zero Combo, whose
+		// key code is 0 -- and code 0 is a real key: ANSI calls it A and a French
+		// keyboard prints Q on it. Taken as a combination that would bind a BARE
+		// letter on every row nothing was granted for. Found by the test that
+		// says a row nothing was granted for names no key at all.
+		var key string
+		var mods tray.Mods
+		if c, ok := keys[a]; ok {
+			key, mods = trayKey(c)
 		}
-		menu.Add(tray.IconItem(label, rowIcon(r.Symbol), func() {
+		menu.Add(tray.KeyItem(r.Title, rowIcon(r.Symbol), key, mods, func() {
 			select {
 			case t.actions <- a:
 			default:
@@ -174,15 +181,6 @@ func (t *Tray) buildMenu(keys map[Action]string) *tray.Menu {
 	}
 	return menu
 }
-
-// trayKeyGap separates a row's name from its combination.
-//
-// Spaces rather than a real key equivalent, and that is the honest choice: an
-// NSMenuItem key equivalent is BOUND as well as drawn, and these combinations
-// are already bound system-wide by Carbon. Binding them a second time, so that
-// they are drawn right-aligned, would change what the program does to the
-// machine for the sake of where the text sits.
-const trayKeyGap = "   "
 
 // Hold runs the item AND the platform's main loop, and returns when Release is
 // called.
