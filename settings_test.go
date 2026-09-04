@@ -50,7 +50,7 @@ func found[T toolkit.Widget](root toolkit.Widget) []T {
 // reads as a form or as a row of slivers is a pure function this can call.
 func arranged(t *testing.T, cfg *Config, attached []glasses.USB) ([]toolkit.Rect, int) {
 	t.Helper()
-	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	h := settingsH(*cfg, attached)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: h})
 
@@ -131,7 +131,7 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
-	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	w, h := settingsSize(*cfg, attached)
 
 	for _, size := range []toolkit.Rect{
@@ -190,7 +190,7 @@ func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 func TestTheWindowHasNothingToScroll(t *testing.T) {
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
-	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	if views := found[*toolkit.ScrollView](root); len(views) != 0 {
 		t.Errorf("the window holds %d scroll views", len(views))
 	}
@@ -228,7 +228,7 @@ func TestTheWindowIsSizedToWhatItsPageMeasures(t *testing.T) {
 // chose has to arrive in the file.
 func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	cfg := &Config{}
-	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, 0, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 
 	// Pick the second headset, the third screen count, and turn the menu bar
@@ -286,7 +286,7 @@ func TestTheSettingsWindowOpensOnWhatIsAlreadyChosen(t *testing.T) {
 		Ribbon:  &ConfigRibbon{Screens: ptr(9)},
 		Glasses: &ConfigGlasses{Model: ptr("VITURE Luma Ultra")},
 	}
-	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, 0, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	// Read straight back without touching anything: what was there is what
 	// comes out.
@@ -307,7 +307,7 @@ func TestSaveAndCloseAreWiredUp(t *testing.T) {
 
 	closed := 0
 	cfg := &Config{}
-	root, _ := settingsRoot(cfg, []glasses.USB{luma}, nil, func() { closed++ })
+	root, _ := settingsRoot(cfg, []glasses.USB{luma}, 0, nil, func() { closed++ })
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	b := buttonsOf(root)
 	if b["Save"] == nil || b["Close"] == nil {
@@ -356,7 +356,7 @@ func TestSaveSaysSoWhenItCannot(t *testing.T) {
 	closed := 0
 	var said []string
 	cfg := &Config{}
-	root, _ := settingsRoot(cfg, nil, func(f string, a ...any) {
+	root, _ := settingsRoot(cfg, nil, 0, func(f string, a ...any) {
 		said = append(said, fmt.Sprintf(f, a...))
 	}, func() { closed++ })
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
@@ -393,7 +393,7 @@ func TestTheWindowIsTallEnoughForWhateverItHasToSay(t *testing.T) {
 	} {
 		cfg := &Config{}
 		h := settingsH(*cfg, attached)
-		root, _ := settingsRoot(cfg, attached, nil, func() {})
+		root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 		root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: h})
 
 		// Every leaf inside the frame, buttons included.
@@ -505,7 +505,7 @@ func TestSettingsScale(t *testing.T) {
 // window is given.
 func TestTheHeadsetCanBeChosenWithTheMouse(t *testing.T) {
 	cfg := &Config{}
-	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, nil, func() {})
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, 0, nil, func() {})
 	top := settingsSurface(root)
 	w, h := settingsSize(*cfg, []glasses.USB{oneS, luma})
 	top.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
@@ -753,7 +753,7 @@ func TestAShortcutThatHadToBeSubstitutedSaysSoUnderItsName(t *testing.T) {
 func glassesTilePixels(t *testing.T) []byte {
 	t.Helper()
 	cfg := &Config{}
-	root, _ := settingsRoot(cfg, []glasses.USB{oneS}, nil, func() {})
+	root, _ := settingsRoot(cfg, []glasses.USB{oneS}, 0, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	grids := found[*toolkit.IconGrid](root)
 	if len(grids) != 1 {

@@ -113,6 +113,8 @@ func RunSettings(opt SettingsOptions) error {
 	}
 	scale := FitScale(want, maxW, maxH, size)
 	w, h := size(scale)
+
+	w, h, roomH := fitWindow(w, h, maxW, maxH, logf)
 	logf("the settings window is %dx%d pixels at scale %.2f, in %s",
 		w, h, scale, faceName(ferr))
 
@@ -140,7 +142,7 @@ func RunSettings(opt SettingsOptions) error {
 	}
 	defer win.Close()
 
-	root, apply := settingsRoot(&cfg, attached, logf, func() { _ = win.Close() })
+	root, apply := settingsRoot(&cfg, attached, roomH, logf, func() { _ = win.Close() })
 	_ = apply
 	// Wrapped in a popover host, which is what makes the drop-down work: a
 	// DropDown draws its closed face and hands the option list to whoever owns
@@ -184,4 +186,42 @@ func settingsScreen(logf func(string, ...any)) *window.Screen {
 			best.Name, best.Width, best.Height, best.VisibleWidth, best.VisibleHeight)
 	}
 	return best
+}
+
+// fitWindow bounds a window to the display it opens on and says how much room
+// the page then has above the button bar.
+//
+// ⛔ THE WINDOW IS NEVER BIGGER THAN THE SCREEN IT OPENS ON.
+//
+// FitScale shrinks the magnification until the page fits and stops at 1,
+// because type smaller than that buys nothing a person can read. When it still
+// will not fit, something has to give -- and a window taller than the display
+// puts Save and Close past the bottom edge with no way to reach them, which is
+// what happened at 1470 pixels against 1409 usable.
+//
+// So the window is clamped and the PAGE scrolls. That is the right thing to
+// give: a scrollbar costs a strip of width, unreachable buttons cost the
+// window. Folding rows bought room once; it would not survive the next smaller
+// screen, and a laptop panel is a smaller screen.
+//
+// The returned room is zero when the page fits, which settingsRoot reads as "no
+// limit, do not scroll". It is what is left of the height after the button bar,
+// the window's own top and bottom margins, and the gap between the two -- the
+// chrome that is there whether or not anything scrolls.
+//
+// A maxW or maxH of zero means the display could not be measured, and nothing
+// is clamped: a guess at how big a screen is would be worse than the platform's
+// own placement.
+func fitWindow(w, h, maxW, maxH int, logf func(string, ...any)) (int, int, int) {
+	room := 0
+	if maxH > 0 && h > maxH {
+		room = maxH - toolkit.Scaled(ButtonBarH) - 2*toolkit.Scaled(SettingsPadY) -
+			toolkit.Scaled(PageSpacing)
+		logf("the page wants %d pixels and this screen has %d: it scrolls", h, maxH)
+		h = maxH
+	}
+	if maxW > 0 && w > maxW {
+		w = maxW
+	}
+	return w, h, room
 }
