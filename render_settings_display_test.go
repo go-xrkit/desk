@@ -107,7 +107,7 @@ func TestRenderTheSettingsWindow(t *testing.T) {
 	buf := make([]byte, w*h*4)
 	p := painter.NewPixelPainter(buf, w, h)
 	theme := toolkit.DefaultDark()
-	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 	p.FillRect(painter.Rect{X: 0, Y: 0, W: w, H: h}, theme.Background)
 	root.Draw(p, theme)

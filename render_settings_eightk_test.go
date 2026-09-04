@@ -65,7 +65,7 @@ func TestRenderTheSettingsWindowForAnEightKPanel(t *testing.T) {
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
 	w, h := settingsSize(*cfg, attached)
-	form, _ := settingsRoot(cfg, attached, nil, func() {})
+	form, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	root := settingsSurface(form)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 

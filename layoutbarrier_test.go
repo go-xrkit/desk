@@ -192,7 +192,7 @@ func f(box *toolkit.Container, n int) {
 func TestTheSettingsWindowHasNothingOutsideItsParent(t *testing.T) {
 	cfg := &Config{}
 	attached := []glasses.USB{oneS, luma}
-	root, _ := settingsRoot(cfg, attached, nil, func() {})
+	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	w, h := settingsSize(*cfg, attached)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 

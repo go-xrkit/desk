@@ -286,8 +286,8 @@ func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 // The window is not resizable any more (window.Config.FixedSize) because it is
 // exactly as big as what it has to say, so the band and the measured page are
 // enough and nothing has to scroll.
-func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any),
-	closeWindow func()) (toolkit.Widget, func()) {
+func settingsRoot(cfg *Config, attached []glasses.USB, roomH int,
+	logf func(string, ...any), closeWindow func()) (toolkit.Widget, func()) {
 
 	// A nil Logf says nothing, here as everywhere else. It matters more here
 	// than usual: this one is only ever called from a button, so a nil left
@@ -296,11 +296,34 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 		logf = func(string, ...any) {}
 	}
 
-	// No scroll view, because the window cannot be resized: it opens at the size
-	// its page measures, so there is never anything out of view. One was there
-	// while the window was resizable, and its gutter took a strip of width from
-	// every row to hold a scrollbar that could not appear.
+	// A scroll view ONLY when the page does not fit, which is the answer to why
+	// there was none at all.
+	//
+	// There was one while the window was resizable, and its gutter took a strip
+	// of width from every row to hold a scrollbar that could not appear -- so it
+	// was removed, on the reasoning that a window opening at the size its page
+	// measures never has anything out of view. That reasoning has a hole: the
+	// page measures what it measures, and the SCREEN decides what there is room
+	// for. A desk with nine screen shortcuts wanted 1470 pixels where 1409 were
+	// usable, and the Save and Close buttons went past the bottom edge with no
+	// way to reach them.
+	//
+	// FitScale shrinks the magnification to fit and stops at 1, deliberately:
+	// type smaller than that buys nothing a person can read. So when the page
+	// still will not fit at 1, something has to give, and it is better that the
+	// content scrolls than that the buttons leave the screen.
+	//
+	// roomH of zero means "no limit", which is what every caller who is not
+	// opening a window passes: measuring a page needs no screen.
 	page, read := settingsPage(cfg, attached)
+	content := toolkit.Widget(page)
+	if roomH > 0 {
+		inner := toolkit.Scaled(SettingsWidth) - 2*toolkit.Scaled(SettingsPadX)
+		if _, ph := page.Measure(inner, 0); ph > roomH {
+			logf("the page is %d pixels tall and there is room for %d: it scrolls", ph, roomH)
+			content = toolkit.NewScrollView(page)
+		}
+	}
 
 	row := toolkit.NewBoxLayout()
 	row.Spacing = toolkit.Scaled(8)
@@ -322,7 +345,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, logf func(string, ...any)
 	frame := toolkit.NewContainer(toolkit.BorderLayout{})
 	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth,
 		Size: toolkit.Scaled(ButtonBarH)})
-	frame.Add(toolkit.Item{Widget: page, Region: toolkit.RegionCenter})
+	frame.Add(toolkit.Item{Widget: content, Region: toolkit.RegionCenter})
 
 	pad := toolkit.NewPadding(frame, 0)
 	pad.Left, pad.Right = SettingsPadX, SettingsPadX
