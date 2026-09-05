@@ -530,13 +530,19 @@ func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
 		return m.Items[threeDRow(t)].Checked
 	}, "the tick to arrive")
 
-	before := h.Refreshes
+	// ⛔ THE MENU'S IDENTITY, READ UNDER THE BACKEND'S OWN LOCK. Reading
+	// h.Refreshes directly is a DATA RACE and the race detector said so, once
+	// in several runs: this item binds its icon to an observable and refreshes
+	// from the animator's goroutine every second, so the counter moves while a
+	// test looks at it. Snapshot is the accessor that takes the lock, and a
+	// rebuild is visible in it anyway -- buildMenu makes a NEW menu, so an
+	// unchanged pointer is a menu that was not rebuilt.
+	_, _, before := h.Snapshot()
 	for range 5 {
 		item.Show3D(true)
 	}
-	if h.Refreshes != before {
-		t.Errorf("saying the same thing five times rebuilt the menu %d times",
-			h.Refreshes-before)
+	if _, _, after := h.Snapshot(); after != before {
+		t.Error("saying the same thing five times rebuilt the menu")
 	}
 }
 
