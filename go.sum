@@ -60,8 +60,8 @@ github.com/go-macos/coreml v0.1.0 h1:vzIqix5/2V9fXT6psX56wJnFR0olrXllZ5L2bgw6dIA
 github.com/go-macos/coreml v0.1.0/go.mod h1:fzohkuw/D3qvM+1BkjRmfYLrFYCw5zjpzIR0wNcX6SA=
 github.com/go-macos/hotkey v0.9.0 h1:7QneUXxCFL8LEQ1vmhRUmTMSVZbwhOTm19zuJmevukk=
 github.com/go-macos/hotkey v0.9.0/go.mod h1:Ey0viyE12mOfpo0Zf1NmaYmXfrBXgYHmmOZYTdlT744=
-github.com/go-macos/iokit v0.7.0 h1:M7g1GaR03PNOqMBdgcaxDOu6mLX+j8Kx9rueAMXXs3E=
-github.com/go-macos/iokit v0.7.0/go.mod h1:wH6UchjE6k8iCtouJcF+WggCgFpn9GQtzBpQtEcCLUY=
+github.com/go-macos/iokit v0.8.0 h1:5QXcmbkyrmkfKHhSuTFQv+p5meDjVfW0zw5pS45VRIA=
+github.com/go-macos/iokit v0.8.0/go.mod h1:wH6UchjE6k8iCtouJcF+WggCgFpn9GQtzBpQtEcCLUY=
 github.com/go-macos/metal v0.1.0 h1:3giY1/2m5Z6Px2qfKP3zSA4wMk5oE9OtPajae2Erc9s=
 github.com/go-macos/metal v0.1.0/go.mod h1:OWBxTf+oac2xxRj0+pehRsWo2yDqnEWpSyWmqBEOMlQ=
 github.com/go-macos/multitouch v0.1.0 h1:AxoFrha3qztSodAU6dvydj0RToACqImuubVA1DodKXs=
