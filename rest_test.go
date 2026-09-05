@@ -119,3 +119,37 @@ func TestPuttingTheGlassesDownIsNotQuitting(t *testing.T) {
 		t.Error("quitting reads as something other than quitting")
 	}
 }
+
+// TestPuttingThemDownWorksFromEitherGalleryToo: the row is chosen from a menu
+// bar, and a menu bar is reachable from wherever the person happens to be.
+//
+// ⛔ EACH VIEW HAS ITS OWN SWITCH. The desk answers actions in three places --
+// the ribbon, the screen gallery, the applications -- and a row that works from
+// one of them and silently does nothing from the other two is worse than no row
+// at all: it is a control that works when you first try it and fails when you
+// need it.
+func TestPuttingThemDownWorksFromEitherGalleryToo(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	d.Do(ActionGalleryOpen)
+	d.Do(ActionPause)
+	if !d.Quit() || !d.WantsPause() || d.WantsSettings() {
+		t.Errorf("from the screen gallery: quit=%v paused=%v settings=%v",
+			d.Quit(), d.WantsPause(), d.WantsSettings())
+	}
+
+	a, _ := appDesk(t, threeApps, nil)
+	a.Do(ActionAppsOpen)
+	if !a.inApps {
+		t.Fatal("the applications did not open")
+	}
+	a.Do(ActionPause)
+	if !a.Quit() || !a.WantsPause() || a.WantsSettings() {
+		t.Errorf("from the applications: quit=%v paused=%v settings=%v",
+			a.Quit(), a.WantsPause(), a.WantsSettings())
+	}
+}
