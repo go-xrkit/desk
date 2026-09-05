@@ -58,7 +58,7 @@ func DefaultShortcuts() []Shortcut {
 		// outside and "close" from inside does the wrong thing every time they
 		// have lost track. Up goes in and down comes out, which is also the
 		// direction the grid is in relative to the band.
-		{hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods | hotkey.Control}, ActionGalleryOpen},
+		{hotkey.Combo{Key: hotkey.KeyF3, Mods: mods | hotkey.Control}, ActionGalleryOpen},
 		// ↑ shows the SCREENS, ↓ shows what is RUNNING on them.
 		//
 		// The applications were on ⌃⌥⌘A and it did nothing at all on the machine
@@ -71,7 +71,7 @@ func DefaultShortcuts() []Shortcut {
 		// Leaving is not here any more. It does not need to be: while a gallery
 		// is up the desk holds the bare Escape, and ⌃⌥⌘Space toggles from
 		// outside. What a blind press needs is for OPEN to always mean open.
-		{hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods | hotkey.Control}, ActionAppsOpen},
+		{hotkey.Combo{Key: hotkey.KeyF4, Mods: mods | hotkey.Control}, ActionAppsOpen},
 		// And choosing, system-wide with the rest.
 		//
 		// Enter alone is a key in the window, which is no use to somebody who
@@ -172,6 +172,23 @@ func DefaultShortcuts() []Shortcut {
 		// it, and `shortcut "fit" { keys = "ctrl+alt+cmd+=" }` is then the
 		// obvious place for it.
 		{hotkey.Combo{Key: hotkey.KeyN0, Mods: mods | hotkey.Control}, ActionFit},
+
+		// ⭐ THE HEADSET'S OWN SETTINGS, ON THE KEYS A MAC ALREADY USES FOR THEM.
+		// F1 and F2 dim and brighten a Mac's screen; F10 to F12 are its sound.
+		// With three modifiers they are the same gesture aimed at what is in
+		// front of the person's eyes instead, which is a mapping nobody has to
+		// be taught.
+		//
+		// ⚠ A FUNCTION KEY NEEDS THE FUNCTION FLAG, and that is a fact about
+		// testing rather than about using: measured here, a synthetic ⌃⌥⌘F1
+		// without NSEventModifierFlagFunction does not fire and the same event
+		// with it does. A real keyboard sends it; a probe that forgets it
+		// reports a working shortcut as broken, which is what happened once.
+		{hotkey.Combo{Key: hotkey.KeyF1, Mods: mods | hotkey.Control}, ActionDimmer},
+		{hotkey.Combo{Key: hotkey.KeyF2, Mods: mods | hotkey.Control}, ActionBrighter},
+		{hotkey.Combo{Key: hotkey.KeyF10, Mods: mods | hotkey.Control}, ActionMute},
+		{hotkey.Combo{Key: hotkey.KeyF11, Mods: mods | hotkey.Control}, ActionQuieter},
+		{hotkey.Combo{Key: hotkey.KeyF12, Mods: mods | hotkey.Control}, ActionLouder},
 	}
 }
 

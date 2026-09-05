@@ -222,6 +222,25 @@ const (
 	// is the hardware's doing and not something this could suppress if it
 	// wanted to.
 	ActionPhoto
+
+	// The headset's own settings, on the keys a Mac already uses for the same
+	// idea: F1 and F2 dim and brighten, F10 to F12 do the sound.
+	//
+	// ⭐ THE SAME PLACE, A DIFFERENT SCREEN. Somebody wearing glasses still has
+	// the Mac's brightness on F1 and F2; these are the same gesture aimed at
+	// what is in front of their eyes, and holding three modifiers is what says
+	// which of the two you meant.
+	ActionDimmer
+	ActionBrighter
+	// ActionMute, ActionQuieter and ActionLouder are the headset's sound.
+	//
+	// ⚠ ACCEPTED BUT UNVERIFIED. The glasses answer "taken" to a volume write
+	// and then announce nothing, where their own button announces the new step.
+	// So the command reaches them and is well-formed; whether it moves the
+	// sound has not been established here, and only a person listening can say.
+	ActionMute
+	ActionQuieter
+	ActionLouder
 )
 
 // screenOf reports which screen an action goes to, counting from zero, and
@@ -304,6 +323,16 @@ func (a Action) String() string {
 		return "fit"
 	case ActionPhoto:
 		return "take a photograph"
+	case ActionDimmer:
+		return "dim the glasses"
+	case ActionBrighter:
+		return "brighten the glasses"
+	case ActionMute:
+		return "mute the glasses"
+	case ActionQuieter:
+		return "the glasses, quieter"
+	case ActionLouder:
+		return "the glasses, louder"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -565,6 +594,7 @@ func (d *Desk) InGallery() bool {
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
 	var photo func() (string, error)
+	glasses := ActionNone
 	var stereo3D func(bool)
 	var stereoWant bool
 	var add func() (Feed, error)
@@ -758,6 +788,10 @@ func (d *Desk) Do(a Action) {
 	case ActionPoint:
 		// Same seam, same reason: moving a pointer talks to the window server.
 		point, pos = d.OnPoint, d.nav.Focus()
+	case ActionDimmer, ActionBrighter, ActionMute, ActionQuieter, ActionLouder:
+		// Outside the lock, like every handler that talks to hardware: this
+		// opens the headset's control interface and waits for its answer.
+		glasses = a
 	case ActionPhoto:
 		// Outside the lock, like every other handler that talks to hardware:
 		// opening a camera takes long enough that holding the desk shut for it
@@ -815,6 +849,61 @@ func (d *Desk) Do(a Action) {
 	if photo != nil {
 		d.takePhoto(photo)
 	}
+	if glasses != ActionNone {
+		d.adjustGlasses(glasses)
+	}
+}
+
+// adjustGlasses moves one of the headset's own settings and says where it
+// landed.
+//
+// ⛔ IT SAYS THE NUMBER. A key that dims something without saying how far is a
+// key pressed blind twice: the person cannot tell "one step darker" from "it
+// did nothing", which is the fault the notice was built for. So the new step is
+// on the picture, out of nine.
+//
+// And it READS before it writes, because the person may have used the buttons
+// on the headset's arm since the desk last looked -- the glasses are the only
+// thing that knows where the setting is.
+func (d *Desk) adjustGlasses(a Action) {
+	var id byte
+	var by int
+	var max uint16
+	var what string
+	switch a {
+	case ActionDimmer:
+		id, by, max, what = GlassesBrightness, -1, BrightnessMax, "brightness"
+	case ActionBrighter:
+		id, by, max, what = GlassesBrightness, +1, BrightnessMax, "brightness"
+	case ActionQuieter:
+		id, by, max, what = GlassesVolume, -1, VolumeMax, "volume"
+	case ActionLouder:
+		id, by, max, what = GlassesVolume, +1, VolumeMax, "volume"
+	case ActionMute:
+		id, by, max, what = GlassesVolume, 0, VolumeMax, "volume"
+	default:
+		return
+	}
+
+	var at uint16
+	var err error
+	if a == ActionMute {
+		err = GlassesSet(id, 0)
+	} else {
+		at, err = Nudge(id, by, max)
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err != nil {
+		d.notice.say(err.Error())
+		d.err = err
+		return
+	}
+	if a == ActionMute {
+		d.notice.say("the glasses are muted")
+		return
+	}
+	d.notice.say(fmt.Sprintf("%s %d of %d", what, at, max))
 }
 
 // takePhoto asks for the picture and says where it went.

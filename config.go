@@ -395,12 +395,20 @@ var configActions = map[string]Action{
 	"further":   ActionFurther,
 	"closer":    ActionCloser,
 	"fit":       ActionFit,
-	"flatter":   ActionFlatter,
-	"rounder":   ActionRounder,
-	"point":     ActionPoint,
-	"spread":    ActionSpread,
-	"remove":    ActionRemove,
-	"settings":  ActionSettings,
+	// The headset's own settings. Named after what they do to the glasses and
+	// not after the keys they sit on, because a settings file that says "f1"
+	// would be a file nobody could move.
+	"dimmer":   ActionDimmer,
+	"brighter": ActionBrighter,
+	"mute":     ActionMute,
+	"quieter":  ActionQuieter,
+	"louder":   ActionLouder,
+	"flatter":  ActionFlatter,
+	"rounder":  ActionRounder,
+	"point":    ActionPoint,
+	"spread":   ActionSpread,
+	"remove":   ActionRemove,
+	"settings": ActionSettings,
 	// One name per screen, so a settings file can move them. Nine, because
 	// MaxScreens is nine.
 	"screen-1": ActionScreen1,
