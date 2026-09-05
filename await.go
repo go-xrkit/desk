@@ -93,8 +93,8 @@ type AwaitOptions struct {
 // It returns AT ONCE when the display is already there, and logs nothing in that
 // case: the normal path stays quiet.
 //
-// While waiting it answers the menu bar â [ErrAwaitQuit] and
-// [ErrAwaitSettings] â because the shortcuts are claimed by the desk's window,
+// While waiting it answers the menu bar — [ErrAwaitQuit] and
+// [ErrAwaitSettings] — because the shortcuts are claimed by the desk's window,
 // which does not exist yet. Nothing is created and nothing on the machine is
 // changed until a display is found.
 func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {

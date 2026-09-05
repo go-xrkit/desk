@@ -1,4 +1,4 @@
-// xrdesk shows several screens on a 360ÃÂ° ribbon inside AR glasses.
+// xrdesk shows several screens on a 360° ribbon inside AR glasses.
 //
 // It is the application; cmd/deskcheck is the probe that says what this machine
 // can do without taking a display over.
@@ -29,8 +29,8 @@ import (
 //
 // AppKit refuses to create an NSWindow anywhere else, and window.Open's own
 // LockOSThread is TOO LATE: it locks the goroutine to whatever thread it is on
-// by then, and a foreign call made earlier Ã¢ÂÂ creating the virtual displays, in
-// this program Ã¢ÂÂ can leave the main goroutine resumed on a different thread.
+// by then, and a foreign call made earlier — creating the virtual displays, in
+// this program — can leave the main goroutine resumed on a different thread.
 //
 // The failure is intermittent, which is worse than reliable: it depends on
 // scheduling. This one aborted on the SECOND live run with "NSWindow should
@@ -169,7 +169,7 @@ func run() int {
 	askedAboutGlasses := false
 	// resting says the person put the glasses down and kept the program.
 	//
-	// â IT MUST NOT BE THE DISPLAY. The glasses are still plugged in when
+	// ⛔ IT MUST NOT BE THE DISPLAY. The glasses are still plugged in when
 	// somebody takes them off, so a wait that starts when a headset appears
 	// would start again in the same second and there would be no way to stop.
 	// See [desk.AwaitOptions.Resting].
@@ -366,9 +366,9 @@ func run() int {
 		}
 
 		defer func() {
-			// Waiting for the removal is right when the desk is coming back Ã¢ÂÂ
+			// Waiting for the removal is right when the desk is coming back —
 			// the settings window opens next and a person may well look at
-			// System Settings Ã¢ÂÂ and wrong on the way out, where it was measured
+			// System Settings — and wrong on the way out, where it was measured
 			// costing eight seconds and printing a warning nobody can act on.
 			// See desk.Screens.Close.
 			var err error
@@ -445,7 +445,7 @@ func run() int {
 						closeFeed(f)
 					} else {
 						closeFeed(old)
-						logf("screen 1: %s Ã¢ÂÂ this Mac's own screen", o.Name)
+						logf("screen 1: %s — this Mac's own screen", o.Name)
 					}
 				} else {
 					logf("screen 1: this Mac offers no screen to show here")
@@ -497,8 +497,8 @@ func run() int {
 			// whoever walks past, lit for nobody.
 			//
 			// The way back is deferred FIRST, before anything is turned off, so
-			// that every path out of here Ã¢ÂÂ a refusal below, a quit, the -for
-			// timer Ã¢ÂÂ goes through it.
+			// that every path out of here — a refusal below, a quit, the -for
+			// timer — goes through it.
 			// The screen the desk itself is on is never darkened, and it is
 			// identified by its RECTANGLE: two identical monitors are the same
 			// size and are not in the same place.
@@ -598,7 +598,7 @@ func run() int {
 			//
 			// This is the whole of the persistence: the package does not know
 			// where settings live, and RememberScreens EDITS the file rather
-			// than rendering it from a struct Ã¢ÂÂ so the comments of somebody who
+			// than rendering it from a struct — so the comments of somebody who
 			// wrote their own desk.hcl survive an action that was about adding a
 			// screen, not about saving settings.
 			d.OnScreens = func(n int) {
@@ -627,7 +627,7 @@ func run() int {
 
 			// A photograph, through one of the glasses' cameras.
 			//
-			// Ã¢ÂÂ THE CAMERA IS OPENED FOR THE PHOTOGRAPH AND CLOSED AFTER IT.
+			// ⛔ THE CAMERA IS OPENED FOR THE PHOTOGRAPH AND CLOSED AFTER IT.
 			// A camera held open is a camera left ON, light and all, and a
 			// desk that kept one for a session would be a headset watching the
 			// room all afternoon so that one key press could be quick.
@@ -830,7 +830,7 @@ func run() int {
 // writeSnapshot saves the picture the glasses were shown, OUTSIDE any
 // repository.
 //
-// A frame of this program is a picture of whoever ran it, at work Ã¢ÂÂ every screen
+// A frame of this program is a picture of whoever ran it, at work — every screen
 // on the ribbon is one of their displays. It goes where durable per-user data
 // goes, never where a `git add` could reach it, and the path is printed so it
 // can be found.
@@ -876,7 +876,7 @@ func repoRootOf(dir string) string {
 
 // closeFeed releases a feed the ribbon no longer holds, and says so if it
 // refuses. SetFeed hands the old one back rather than closing it, because
-// swapping and discarding are not the same gesture Ã¢ÂÂ this is the discarding.
+// swapping and discarding are not the same gesture — this is the discarding.
 func closeFeed(f desk.Feed) {
 	if f == nil {
 		return
@@ -887,7 +887,7 @@ func closeFeed(f desk.Feed) {
 }
 
 // tallestDisplay is the height of the biggest display attached, which is where
-// a window macOS places for itself is most likely to land Ã¢ÂÂ and the one whose
+// a window macOS places for itself is most likely to land — and the one whose
 // pixels are smallest to look at.
 //
 // The settings window is scaled for it rather than for the glasses: it is shown
