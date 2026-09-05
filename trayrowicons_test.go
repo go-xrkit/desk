@@ -546,20 +546,30 @@ func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
 	}
 }
 
-// TestOnlyTheThreeDRowIsATick: stateFor answers for one action and no other, so
-// a row that was never meant to carry a tick does not sprout one.
-func TestOnlyTheThreeDRowIsATick(t *testing.T) {
-	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}); !on {
+// TestOnlyTheTickingRowsTick: stateFor answers for the two actions that carry a
+// state and no other, so a row that was never meant to carry a tick does not
+// sprout one.
+func TestOnlyTheTickingRowsTick(t *testing.T) {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}, false); !on {
 		t.Error("the 3D row does not follow the state")
 	}
-	if on, _ := stateFor(ActionStereo3D, Stereo3D{}); on {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{}, false); on {
 		t.Error("the 3D row is ticked with 3D off")
 	}
-	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}); why != "one eye" {
+	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}, false); why != "one eye" {
 		t.Errorf("the reason came back %q", why)
 	}
+	// And the row that says whether the glasses are in use follows the
+	// SESSION, not the conversion: it is ticked while a desk is up, and the
+	// tick is the only thing that says which way pressing it will go.
+	if on, why := stateFor(ActionPause, Stereo3D{}, true); !on || why != "" {
+		t.Errorf("the glasses row is %v %q with a desk up", on, why)
+	}
+	if on, _ := stateFor(ActionPause, Stereo3D{On: true}, false); on {
+		t.Error("the glasses row is ticked with no desk up")
+	}
 	for _, a := range []Action{ActionQuit, ActionSettings, ActionPhoto, ActionNone} {
-		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"})
+		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"}, true)
 		if on || why != "" {
 			t.Errorf("%v carries a state: %v %q", a, on, why)
 		}

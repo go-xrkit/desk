@@ -24,7 +24,7 @@ package desk
 // A SYMBOL RATHER THAN AN EMOJI, and it was measured rather than argued.
 // In the item's own strip of the menu bar:
 //
-//	emoji title 👓            79 pixels of ink
+//	emoji title ð            79 pixels of ink
 //	symbol eyeglasses        100
 //	symbol rectangle.3.group 161
 //	symbol visionpro         182
@@ -87,7 +87,7 @@ type TrayRow struct {
 	// SymbolOn is the symbol a toggling row shows when what it controls is ON.
 	// Empty leaves [TrayRow.Symbol] in both states.
 	//
-	// ⛔ A TICK SAYS "ON" AND NOTHING SAYS "OFF". macOS draws a checkmark for a
+	// â A TICK SAYS "ON" AND NOTHING SAYS "OFF". macOS draws a checkmark for a
 	// menu item that is on and NOTHING AT ALL for one that is off, so an
 	// unticked checkbox is indistinguishable from an ordinary row -- which is
 	// how somebody came to ask "how do I know whether 3D is on? nothing in the
@@ -97,7 +97,7 @@ type TrayRow struct {
 
 // Stereo3D is what the menu should say about the 3D conversion.
 //
-// ⛔ THREE STATES AND NOT TWO. A display that shows one eye has nothing to
+// â THREE STATES AND NOT TWO. A display that shows one eye has nothing to
 // convert to, and a depth model that will not load cannot convert -- so the
 // conversion is not merely off, it is UNAVAILABLE, and a row that looks
 // pressable is a row somebody presses again and again. On the headset this was
@@ -132,7 +132,7 @@ func TrayRows() []TrayRow {
 		{Title: "One application per screen", Key: "x", Action: ActionSpread,
 			Symbol: "rectangle.3.group"},
 		{},
-		// ⛔ ONE ROW, WITH A TICK. It was two -- "3D on" and "3D off" -- and
+		// â ONE ROW, WITH A TICK. It was two -- "3D on" and "3D off" -- and
 		// that is right for a KEY, which is pressed blind: a shortcut meaning
 		// "on" from outside and "off" from inside does the wrong thing every
 		// time somebody has lost track. A MENU is the opposite case. The state
@@ -151,6 +151,20 @@ func TrayRows() []TrayRow {
 		// whatever they are looking at, so nothing here is ever automatic.
 		{Title: "Take a photograph", Action: ActionPhoto, Symbol: "camera"},
 		{},
+		// ⛔ PUTTING THE GLASSES DOWN IS NOT QUITTING, and until this row
+		// existed there was no way to say so: the only thing that ended a
+		// ribbon ended the program with it, so a person who wanted their
+		// keyboard back for ten minutes had to quit and set the desk up
+		// again afterwards. Asked for in those words -- "garder l'app
+		// xrdesk ouverte mais arreter d'utiliser des lunettes".
+		//
+		// A TICK rather than two rows, for the reason the 3D row is one row:
+		// the state is in front of the person as they choose. And it is the
+		// one row that has to work in BOTH states, because while the glasses
+		// are down this menu is the only control left alive -- the shortcuts
+		// went back to the rest of the machine when the ribbon came down.
+		{Title: "Use the glasses", Action: ActionPause, Toggle: true,
+			Symbol: "eyeglasses", SymbolOn: "eyeglasses"},
 		{Title: "Quit the desk", Key: "q", Action: ActionQuit, Symbol: "power"},
 	}
 }

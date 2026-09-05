@@ -1,4 +1,4 @@
-// xrdesk shows several screens on a 360° ribbon inside AR glasses.
+// xrdesk shows several screens on a 360ÃÂ° ribbon inside AR glasses.
 //
 // It is the application; cmd/deskcheck is the probe that says what this machine
 // can do without taking a display over.
@@ -29,8 +29,8 @@ import (
 //
 // AppKit refuses to create an NSWindow anywhere else, and window.Open's own
 // LockOSThread is TOO LATE: it locks the goroutine to whatever thread it is on
-// by then, and a foreign call made earlier — creating the virtual displays, in
-// this program — can leave the main goroutine resumed on a different thread.
+// by then, and a foreign call made earlier Ã¢ÂÂ creating the virtual displays, in
+// this program Ã¢ÂÂ can leave the main goroutine resumed on a different thread.
 //
 // The failure is intermittent, which is worse than reliable: it depends on
 // scheduling. This one aborted on the SECOND live run with "NSWindow should
@@ -167,12 +167,19 @@ func run() int {
 	// askedAboutGlasses remembers that a person has already been shown the
 	// choice once. Asking twice with the same answer is a loop.
 	askedAboutGlasses := false
+	// resting says the person put the glasses down and kept the program.
+	//
+	// â IT MUST NOT BE THE DISPLAY. The glasses are still plugged in when
+	// somebody takes them off, so a wait that starts when a headset appears
+	// would start again in the same second and there would be no way to stop.
+	// See [desk.AwaitOptions.Resting].
+	resting := false
 	// provideTries counts how often the window server has refused to make the
 	// screens, so a Mac that will not make any is waited for and then accepted
 	// rather than waited for for ever.
 	provideTries := 0
 
-	session := func(n int, model string, dist, splay float64, settings desk.Config) (again, wantSettings bool, code int) {
+	session := func(n int, model string, dist, splay float64, settings desk.Config) (again, wantSettings, wantPause bool, code int) {
 		// Ctrl-C must reach the same exit as the quit key, or a session left
 		// running keeps virtual displays the person never asked for. It is set
 		// up BEFORE the wait below, so a person who changes their mind about
@@ -231,6 +238,7 @@ func run() int {
 		}
 		chosen, err := await(desk.AwaitOptions{
 			Want: model, Actions: actions, Logf: logf, Asked: askedAboutGlasses,
+			Resting: resting,
 			List: func() ([]glasses.Display, error) {
 				ss, err := window.Screens()
 				if err != nil {
@@ -245,19 +253,23 @@ func run() int {
 		})
 		switch {
 		case errors.Is(err, desk.ErrAwaitQuit), errors.Is(err, context.Canceled):
-			return false, false, 0
+			return false, false, false, 0
 		case errors.Is(err, context.DeadlineExceeded):
 			// -for ran out while still waiting. Not a failure: the run did
 			// exactly what it was told, and saying so is better than a silent
 			// zero after nothing happened.
 			fmt.Printf("gave up waiting after %s; nothing was created\n", *forDur)
-			return false, false, 0
+			return false, false, false, 0
+		case errors.Is(err, desk.ErrAwaitResume):
+			// Picked back up. Straight round again, this time looking for the
+			// display rather than for a person.
+			return true, false, false, 0
 		case errors.Is(err, desk.ErrAwaitSettings):
 			askedAboutGlasses = true
-			return true, true, 0
+			return true, true, false, 0
 		case err != nil:
 			fmt.Printf("%v\n", err)
-			return false, false, 1
+			return false, false, false, 1
 		}
 		fmt.Printf("on %s\n", chosen)
 		// THE MENU BAR SAYS SO. A green dot on the icon while a desk is up,
@@ -279,7 +291,7 @@ func run() int {
 		})
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			return false, false, 1
+			return false, false, false, 1
 		}
 		logf("%s", plan)
 
@@ -318,10 +330,10 @@ func run() int {
 			fmt.Printf("waiting, and trying again in %v\n", retryAfter)
 			select {
 			case <-ctx.Done():
-				return false, false, 0
+				return false, false, false, 0
 			case <-time.After(retryAfter):
 			}
-			return true, false, 0
+			return true, false, false, 0
 		}
 
 		// MADE NOTHING, AND SHOWING THE MACHINE'S OWN SCREENS INSTEAD.
@@ -347,16 +359,16 @@ func run() int {
 			}
 			select {
 			case <-ctx.Done():
-				return false, false, 0
+				return false, false, false, 0
 			case <-time.After(retryAfter):
 			}
-			return true, false, 0
+			return true, false, false, 0
 		}
 
 		defer func() {
-			// Waiting for the removal is right when the desk is coming back —
+			// Waiting for the removal is right when the desk is coming back Ã¢ÂÂ
 			// the settings window opens next and a person may well look at
-			// System Settings — and wrong on the way out, where it was measured
+			// System Settings Ã¢ÂÂ and wrong on the way out, where it was measured
 			// costing eight seconds and printing a warning nobody can act on.
 			// See desk.Screens.Close.
 			var err error
@@ -373,7 +385,7 @@ func run() int {
 		feeds, err := desk.Capture(ctx, made, screens, logf)
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			return false, false, 1
+			return false, false, false, 1
 		}
 		// Position 0 is left empty for now: what goes there is opened once the
 		// inventory can name it, through the same path as every other source.
@@ -383,7 +395,7 @@ func run() int {
 		d, err := desk.New(plan, feeds)
 		if err != nil {
 			fmt.Printf("%v\n", err)
-			return false, false, 1
+			return false, false, false, 1
 		}
 		defer d.Close()
 
@@ -433,7 +445,7 @@ func run() int {
 						closeFeed(f)
 					} else {
 						closeFeed(old)
-						logf("screen 1: %s — this Mac's own screen", o.Name)
+						logf("screen 1: %s Ã¢ÂÂ this Mac's own screen", o.Name)
 					}
 				} else {
 					logf("screen 1: this Mac offers no screen to show here")
@@ -485,8 +497,8 @@ func run() int {
 			// whoever walks past, lit for nobody.
 			//
 			// The way back is deferred FIRST, before anything is turned off, so
-			// that every path out of here — a refusal below, a quit, the -for
-			// timer — goes through it.
+			// that every path out of here Ã¢ÂÂ a refusal below, a quit, the -for
+			// timer Ã¢ÂÂ goes through it.
 			// The screen the desk itself is on is never darkened, and it is
 			// identified by its RECTANGLE: two identical monitors are the same
 			// size and are not in the same place.
@@ -586,7 +598,7 @@ func run() int {
 			//
 			// This is the whole of the persistence: the package does not know
 			// where settings live, and RememberScreens EDITS the file rather
-			// than rendering it from a struct — so the comments of somebody who
+			// than rendering it from a struct Ã¢ÂÂ so the comments of somebody who
 			// wrote their own desk.hcl survive an action that was about adding a
 			// screen, not about saving settings.
 			d.OnScreens = func(n int) {
@@ -615,7 +627,7 @@ func run() int {
 
 			// A photograph, through one of the glasses' cameras.
 			//
-			// ⛔ THE CAMERA IS OPENED FOR THE PHOTOGRAPH AND CLOSED AFTER IT.
+			// Ã¢ÂÂ THE CAMERA IS OPENED FOR THE PHOTOGRAPH AND CLOSED AFTER IT.
 			// A camera held open is a camera left ON, light and all, and a
 			// desk that kept one for a session would be a headset watching the
 			// room all afternoon so that one key press could be quick.
@@ -748,11 +760,13 @@ func run() int {
 		}
 		if err := desk.Run(ctx, plan, d, opts); err != nil {
 			fmt.Printf("%v\n", err)
-			return false, false, 1
+			return false, false, false, 1
 		}
 		fmt.Printf("ran for %s\n", time.Since(start).Round(time.Millisecond))
 		// The desk stopped. It asked for the settings, or it is simply done.
-		return d.WantsSettings(), d.WantsSettings(), 0
+		// The desk stopped. It asked for the settings, it asked to be put down,
+		// or it is simply done.
+		return d.WantsSettings() || d.WantsPause(), d.WantsSettings(), d.WantsPause(), 0
 	}
 
 	for {
@@ -773,10 +787,22 @@ func run() int {
 				sp = -1
 			}
 		}
-		again, wantSettings, code := session(n, model, dist, sp, settings)
+		again, wantSettings, wantPause, code := session(n, model, dist, sp, settings)
 		if !again {
 			return code
 		}
+		// Put down, or picked back up. Either way the loop goes round; what
+		// changes is whether the next turn waits for a PERSON or for a display.
+		//
+		// ⭐ THE MENU BAR IS THE ONLY THING STILL LISTENING. The ribbon is
+		// down, so the shortcuts are back with the rest of the machine -- which
+		// is the point of putting the glasses down -- and the item that
+		// outlives every session is what starts the next one.
+		if wantPause {
+			resting = true
+			continue
+		}
+		resting = false
 		if !wantSettings {
 			// The session asked to be run again without changing anything --
 			// the screens could not be made and it is waiting for the machine to
@@ -804,7 +830,7 @@ func run() int {
 // writeSnapshot saves the picture the glasses were shown, OUTSIDE any
 // repository.
 //
-// A frame of this program is a picture of whoever ran it, at work — every screen
+// A frame of this program is a picture of whoever ran it, at work Ã¢ÂÂ every screen
 // on the ribbon is one of their displays. It goes where durable per-user data
 // goes, never where a `git add` could reach it, and the path is printed so it
 // can be found.
@@ -850,7 +876,7 @@ func repoRootOf(dir string) string {
 
 // closeFeed releases a feed the ribbon no longer holds, and says so if it
 // refuses. SetFeed hands the old one back rather than closing it, because
-// swapping and discarding are not the same gesture — this is the discarding.
+// swapping and discarding are not the same gesture Ã¢ÂÂ this is the discarding.
 func closeFeed(f desk.Feed) {
 	if f == nil {
 		return
@@ -861,7 +887,7 @@ func closeFeed(f desk.Feed) {
 }
 
 // tallestDisplay is the height of the biggest display attached, which is where
-// a window macOS places for itself is most likely to land — and the one whose
+// a window macOS places for itself is most likely to land Ã¢ÂÂ and the one whose
 // pixels are smallest to look at.
 //
 // The settings window is scaled for it rather than for the glasses: it is shown
