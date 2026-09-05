@@ -125,7 +125,7 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	// font has neither, and "the glasses' own menu bar" came out as a hole in
 	// the middle of a sentence. The system face has them, but the window falls
 	// back to the built-in one on a platform that offers no face at all.
-	immersive := toolkit.NewSwitch(cfg.Immersive())
+	immersive := nativeSwitch(cfg.Immersive())
 	immersive.SetBounds(toolkit.Rect{
 		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
 
@@ -139,7 +139,7 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	// forehead, or showing what they are doing to a person beside them, wants
 	// the screen lit. Finding out that a program turned your laptop off is the
 	// kind of surprise worth a switch a person can see.
-	dim := toolkit.NewSwitch(cfg.Dim())
+	dim := nativeSwitch(cfg.Dim())
 	dim.SetBounds(toolkit.Rect{
 		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
 
@@ -315,7 +315,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, roomH int,
 	row.Spacing = toolkit.Scaled(8)
 	row.Pack = toolkit.PackEnd
 	buttons := toolkit.NewContainer(row)
-	buttons.Add(toolkit.Item{Size: toolkit.Scaled(ButtonW), Widget: toolkit.NewButton("Save", func() {
+	buttons.Add(toolkit.Item{Size: toolkit.Scaled(ButtonW), Widget: nativeButton("Save", func() {
 		read()
 		path, err := cfg.Save()
 		if err != nil {
@@ -326,7 +326,7 @@ func settingsRoot(cfg *Config, attached []glasses.USB, roomH int,
 		closeWindow()
 	})})
 	buttons.Add(toolkit.Item{Size: toolkit.Scaled(ButtonW),
-		Widget: toolkit.NewButton("Close", func() { closeWindow() })})
+		Widget: nativeButton("Close", func() { closeWindow() })})
 
 	frame := toolkit.NewContainer(toolkit.BorderLayout{})
 	frame.Add(toolkit.Item{Widget: buttons, Region: toolkit.RegionSouth,
