@@ -255,6 +255,15 @@ const (
 	// that is deliberate -- it is the one control that outlives a session,
 	// so it is the one that can start the next one.
 	ActionPause
+	// ActionMic silences the microphone, or brings it back.
+	//
+	// ⛔ THE MICROPHONE IN USE, NOT THE HEADSET'S. Asked for as the VITURE
+	// microphone, and that one REFUSES: measured 2026-09-05, it publishes no
+	// mute switch and no capture level, while every other input on the machine
+	// publishes at least one. So nothing in the audio system can turn it off,
+	// and silencing what a person is actually speaking into is both the nearest
+	// thing that works and what a key called "mute the microphone" should mean.
+	ActionMic
 )
 
 // screenOf reports which screen an action goes to, counting from zero, and
@@ -349,6 +358,8 @@ func (a Action) String() string {
 		return "the glasses, louder"
 	case ActionPause:
 		return "put the glasses down"
+	case ActionMic:
+		return "mute the microphone"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -624,6 +635,7 @@ func (d *Desk) InGallery() bool {
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
+	var mic bool
 	var photo func() (string, error)
 	glasses := ActionNone
 	var stereo3D func(bool)
@@ -823,6 +835,8 @@ func (d *Desk) Do(a Action) {
 	case ActionPoint:
 		// Same seam, same reason: moving a pointer talks to the window server.
 		point, pos = d.OnPoint, d.nav.Focus()
+	case ActionMic:
+		mic = true
 	case ActionDimmer, ActionBrighter, ActionMute, ActionQuieter, ActionLouder:
 		// Outside the lock, like every handler that talks to hardware: this
 		// opens the headset's control interface and waits for its answer.
@@ -885,6 +899,9 @@ func (d *Desk) Do(a Action) {
 	}
 	if photo != nil {
 		d.takePhoto(photo)
+	}
+	if mic {
+		d.toggleMic()
 	}
 	if glasses != ActionNone {
 		d.adjustGlasses(glasses)
@@ -1602,4 +1619,31 @@ func (d *Desk) fit() {
 	if err := d.reshape(next); err != nil {
 		d.err = err
 	}
+}
+
+// toggleMic silences the microphone or brings it back, and says which.
+//
+// ⛔ OUTSIDE THE LOCK, like every handler that talks to hardware: this
+// enumerates audio devices and writes a property.
+//
+// ⛔ AND IT NAMES THE DEVICE. "muted" alone is not enough when the thing being
+// muted is not the one a person expected: the headset's own microphone cannot
+// be silenced at all -- measured, it publishes no mute switch and no capture
+// level -- so what is actually turned off is whatever else the machine listed,
+// and saying which is the difference between a key that worked and a key that
+// did something else.
+func (d *Desk) toggleMic() {
+	name, off, err := ToggleMic()
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if err != nil {
+		d.notice.say(err.Error())
+		d.err = err
+		return
+	}
+	if off {
+		d.notice.say(fmt.Sprintf("%s is muted", name))
+		return
+	}
+	d.notice.say(fmt.Sprintf("%s is live", name))
 }

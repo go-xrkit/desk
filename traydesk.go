@@ -170,7 +170,21 @@ func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 	t.mu.Lock()
 	t.keys = keys
 	t.mu.Unlock()
-	t.t.SetMenu(t.buildMenu(keys))
+	m := t.buildMenu(keys)
+	// ⛔ SAY HOW MANY ROWS ACTUALLY GOT ONE. This has now gone missing twice,
+	// both times silently: a row with no key equivalent draws exactly like a
+	// row whose action was never granted, so the only report either time was a
+	// person saying the shortcuts were not there. A count is the cheapest thing
+	// that can contradict that, and it names the two ends -- what the session
+	// granted, and what the menu drew -- because the fault has been at both.
+	drawn := 0
+	for _, it := range m.Items {
+		if it.Key != "" {
+			drawn++
+		}
+	}
+	t.logf("the menu draws %d key equivalents from %d granted shortcuts", drawn, len(keys))
+	t.t.SetMenu(m)
 }
 
 // Show3D tells the item whether the 3D conversion is on, and rebuilds.

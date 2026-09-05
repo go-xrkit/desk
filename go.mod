@@ -46,6 +46,7 @@ require (
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/depth v0.4.0 // indirect
 	github.com/go-images/images v0.0.0-20260830151046-7e8189dc2288 // indirect
+	github.com/go-macos/coreaudio v0.2.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
