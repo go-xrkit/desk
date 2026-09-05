@@ -61,7 +61,7 @@ type RunOptions struct {
 	// never on.
 	//
 	// Nil is nobody asking, which is the default.
-	On3D func(on bool)
+	On3D func(Stereo3D)
 
 	// Actions are actions from somewhere other than the keyboard: a menu-bar
 	// item, a script, a remote. They are treated exactly like a global shortcut
@@ -230,9 +230,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// ACTUALLY in. A menu tick that followed the request would say the desk is
 	// in a state it is not, and the person would press it again to fix a thing
 	// that was never on.
-	say3D := func(on bool) {
+	say3D := func(s Stereo3D) {
 		if opt.On3D != nil {
-			opt.On3D(on)
+			opt.On3D(s)
 		}
 	}
 	setStereo3D := func(on bool) {
@@ -243,12 +243,16 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				conv = nil
 			}
 			logf("3D        off")
-			say3D(false)
+			say3D(Stereo3D{})
 			return
 		}
 		if !v.convertible() {
+			// ⛔ NOT MERELY OFF: it cannot be turned on here at all, and the
+			// menu has to say so. This was the whole of the report -- the log
+			// said this sentence and the menu said nothing whatever, so the row
+			// looked pressable and did nothing every time.
 			logf("3D        asked for, but this display shows one eye; there is nothing to convert to")
-			say3D(false)
+			say3D(Stereo3D{Why: "this display shows one eye"})
 			return
 		}
 		if conv == nil {
@@ -258,20 +262,29 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			})
 			if err != nil {
 				logf("3D        unavailable: %v", err)
-				say3D(false)
+				say3D(Stereo3D{Why: "no depth model"})
 				return
 			}
 			conv = c
 		}
 		v.SetConverter(conv)
 		logf("3D        on: %s", conv.Describe())
-		say3D(true)
+		say3D(Stereo3D{On: true})
 	}
 	defer func() {
 		if conv != nil {
 			conv.Close()
 		}
 	}()
+	// ⛔ SAY WHAT IS POSSIBLE BEFORE ANYBODY ASKS. Whether there is anything to
+	// convert to is known the moment the view exists, and waiting for a press
+	// to say so is how the row came to look pressable and do nothing: the
+	// person presses it, the log says "this display shows one eye", and the
+	// menu is unchanged. So the menu is told at the start of the session, and
+	// told again by every press after it.
+	if !v.convertible() {
+		say3D(Stereo3D{Why: "this display shows one eye"})
+	}
 	d.OnStereo3D = setStereo3D
 	if opt.Stereo3D {
 		// Through the desk rather than straight to the view, so that the switch

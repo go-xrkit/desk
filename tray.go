@@ -83,6 +83,35 @@ type TrayRow struct {
 	// The state is not here, because a row is a description and the state
 	// changes while the menu exists. [Tray.Show3D] is how the item is told.
 	Toggle bool
+
+	// SymbolOn is the symbol a toggling row shows when what it controls is ON.
+	// Empty leaves [TrayRow.Symbol] in both states.
+	//
+	// ⛔ A TICK SAYS "ON" AND NOTHING SAYS "OFF". macOS draws a checkmark for a
+	// menu item that is on and NOTHING AT ALL for one that is off, so an
+	// unticked checkbox is indistinguishable from an ordinary row -- which is
+	// how somebody came to ask "how do I know whether 3D is on? nothing in the
+	// menu says". A symbol that CHANGES answers in both directions.
+	SymbolOn string
+}
+
+// Stereo3D is what the menu should say about the 3D conversion.
+//
+// ⛔ THREE STATES AND NOT TWO. A display that shows one eye has nothing to
+// convert to, and a depth model that will not load cannot convert -- so the
+// conversion is not merely off, it is UNAVAILABLE, and a row that looks
+// pressable is a row somebody presses again and again. On the headset this was
+// reported from, the log said "3D asked for, but this display shows one eye"
+// and the menu said nothing whatever.
+type Stereo3D struct {
+	// On is whether the conversion is running.
+	On bool
+	// Why, when not empty, is why it cannot be turned on here -- a sentence to
+	// put in front of a person, not an error to parse. Empty means it can.
+	//
+	// A bare string and no Available() method beside it: there is one place
+	// that asks, and it reads no better for a name.
+	Why string
 }
 
 // TrayRows is the menu, in order.
@@ -109,7 +138,10 @@ func TrayRows() []TrayRow {
 		// time somebody has lost track. A MENU is the opposite case. The state
 		// is in front of the person as they choose, so two rows are two rows
 		// where one of them always does nothing, and the tick says which.
-		{Title: "3D", Action: ActionStereo3D, Symbol: "view.3d", Toggle: true},
+		{Title: "3D", Action: ActionStereo3D, Toggle: true,
+			// The pair the system itself uses, so the row says which of the two
+			// the picture is in rather than only that it could be either.
+			Symbol: "view.2d", SymbolOn: "view.3d"},
 		{Title: "Show the gallery", Action: ActionGalleryOpen, Symbol: "square.grid.3x3"},
 		{Title: "Leave the gallery", Action: ActionGalleryClose,
 			Symbol: "arrow.down.right.and.arrow.up.left"},

@@ -135,7 +135,7 @@ type Tray struct {
 	// claiming keys, a converter opening or being refused.
 	mu     sync.Mutex
 	keys   map[Action]hotkey.Combo
-	threeD bool
+	threeD Stereo3D
 }
 
 // ShowShortcuts puts the combination that was GRANTED on each row it belongs
@@ -172,32 +172,33 @@ func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 // tick that followed the request would then say the desk is in a state it is
 // not. The application calls this from the place that knows: after the
 // conversion has been made or refused.
-func (t *Tray) Show3D(on bool) {
+func (t *Tray) Show3D(s Stereo3D) {
 	if t == nil {
 		return
 	}
 	t.mu.Lock()
-	if t.threeD == on {
+	if t.threeD == s {
 		t.mu.Unlock()
 		return
 	}
-	t.threeD = on
+	t.threeD = s
 	keys := t.keys
 	t.mu.Unlock()
 	t.t.SetMenu(t.buildMenu(keys))
 }
 
-// onFor reports the state a toggling row should show.
+// stateFor reports what a toggling row should show: whether it is on, and why
+// it cannot be turned on at all.
 //
 // A function of the state rather than a field on TrayRow: a row is a
 // DESCRIPTION, written once, and what it describes changes while the menu is on
 // screen.
-func onFor(a Action, threeD bool) bool {
+func stateFor(a Action, threeD Stereo3D) (on bool, why string) {
 	switch a {
 	case ActionStereo3D:
-		return threeD
+		return threeD.On, threeD.Why
 	default:
-		return false
+		return false, ""
 	}
 }
 
@@ -235,15 +236,35 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 		}
 		var it *tray.MenuItem
 		if r.Toggle {
-			// The tick, and the SAME send: a checkbox row is an ordinary row
-			// that also says what state the thing is in. Its own Checked field
-			// is flipped by tray before the callback runs, and it is then
-			// overwritten on the next rebuild by what actually happened --
-			// which matters, because turning 3D on can be refused by a display
-			// that shows one eye.
-			it = tray.Checkbox(r.Title, onFor(a, threeD), func(bool) { choose() })
-			it.Icon = rowIcon(r.Symbol)
+			// ⛔ THE ROW SAYS ITS STATE THREE WAYS, because one is not enough.
+			// macOS draws a checkmark for a menu item that is on and NOTHING
+			// AT ALL for one that is off, so a tick alone answers "is it on?"
+			// with silence whenever the answer is no -- which is how somebody
+			// came to ask how they were supposed to tell.
+			//
+			// So: the TICK is the platform's own convention for on; the SYMBOL
+			// changes between the pair the system uses for 2D and 3D, which
+			// answers in BOTH directions; and a conversion that cannot be
+			// turned on here at all is DISABLED and says why, because a row
+			// that looks pressable and does nothing is a row somebody presses
+			// again and again.
+			//
+			// The Checked field is flipped by tray before the callback runs,
+			// and overwritten on the next rebuild by what actually happened --
+			// which matters, because turning 3D on can be refused.
+			on, why := stateFor(a, threeD)
+			sym := r.Symbol
+			if on && r.SymbolOn != "" {
+				sym = r.SymbolOn
+			}
+			label := r.Title
+			if why != "" {
+				label = r.Title + " — " + why
+			}
+			it = tray.Checkbox(label, on, func(bool) { choose() })
+			it.Icon = rowIcon(sym)
 			it.Key, it.Mods = key, mods
+			it.Disabled = why != ""
 		} else {
 			it = tray.KeyItem(r.Title, rowIcon(r.Symbol), key, mods, choose)
 		}
