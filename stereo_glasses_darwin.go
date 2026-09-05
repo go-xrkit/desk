@@ -18,7 +18,7 @@ import (
 // platformSet3D asks the glasses to put a different picture in front of each
 // eye, or to stop.
 //
-// ⛔ THIS IS WHAT MAKES THE 3D ROW A SWITCH RATHER THAN A SIGN. The conversion
+// â THIS IS WHAT MAKES THE 3D ROW A SWITCH RATHER THAN A SIGN. The conversion
 // needs a display with room for two eyes, and the headset only offers one when
 // it has been told to: measured, its EDID changes with its mode, model 0x120
 // with eleven modes up to 1920x1080 and model 0x220 with eleven up to
@@ -46,13 +46,13 @@ func platformSet3D(on bool) error {
 	if err := d.Open(); err != nil {
 		return fmt.Errorf("desk: opening the glasses: %w", err)
 	}
-	defer d.Close()
 
 	// Listen BEFORE asking, or the answer arrives while nobody is looking.
 	ctx, cancel := context.WithTimeout(context.Background(), glasses3DWait)
-	defer cancel()
 	replies := make(chan uint16, 8)
+	streamed := make(chan struct{})
 	go func() {
+		defer close(streamed)
 		_ = hid.Stream(ctx, func(_ *hid.Device, b []byte) {
 			if e, ok := viture.ParseEvent(b); ok &&
 				e.ID == viture.MsgDisplayMode && e.Kind == viture.DirWrite+viture.ReplyBit {
@@ -63,6 +63,13 @@ func platformSet3D(on bool) error {
 			}
 		}, d)
 	}()
+	// The same order as [withGlasses], for the same reason: closing a device
+	// the run loop still holds ends the PROCESS, in silence.
+	defer func() {
+		cancel()
+		<-streamed
+		_ = d.Close()
+	}()
 	time.Sleep(100 * time.Millisecond)
 
 	if err := d.SetReport(hid.Output, 0, viture.SetDisplayMode(mode)); err != nil {
@@ -72,7 +79,7 @@ func platformSet3D(on bool) error {
 	case status := <-replies:
 		return statusError(status, on)
 	case <-ctx.Done():
-		// ⚠ NOT AN ERROR BY ITSELF. The glasses answer within milliseconds when
+		// â  NOT AN ERROR BY ITSELF. The glasses answer within milliseconds when
 		// they answer at all, but the display tearing down and coming back is
 		// what a person will see, and it happens either way. Saying "no answer"
 		// is honest; claiming failure would not be.
@@ -82,7 +89,7 @@ func platformSet3D(on bool) error {
 
 // platformGlassesGet reads one setting from the headset.
 //
-// ⛔ A READ CHANGES NOTHING, which is why every path here starts with one: it is
+// â A READ CHANGES NOTHING, which is why every path here starts with one: it is
 // safe to repeat, and its success is visible where a command's is not.
 func platformGlassesGet(id byte) (uint16, error) {
 	var out uint16
@@ -129,7 +136,7 @@ func platformGlassesSet(id byte, value uint16) error {
 
 // readOf and writeOf build the two reports.
 //
-// ⛔ THE VALUE GOES IN TWICE, LITTLE-ENDIAN. That one detail is what nineteen
+// â THE VALUE GOES IN TWICE, LITTLE-ENDIAN. That one detail is what nineteen
 // attempts had wrong: the headset's own REPLIES carry a value little-endian and
 // then big-endian, and copying that shape into a command has it refused.
 func readOf(id byte) []byte {
@@ -162,12 +169,12 @@ func withGlasses(fn func(*hid.Device, chan viture.Event) error) error {
 	if err := d.Open(); err != nil {
 		return fmt.Errorf("desk: opening the glasses: %w", err)
 	}
-	defer d.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*glasses3DWait)
-	defer cancel()
 	in := make(chan viture.Event, 16)
+	streamed := make(chan struct{})
 	go func() {
+		defer close(streamed)
 		_ = hid.Stream(ctx, func(_ *hid.Device, b []byte) {
 			if e, ok := viture.ParseEvent(b); ok {
 				select {
@@ -176,6 +183,24 @@ func withGlasses(fn func(*hid.Device, chan viture.Event) error) error {
 				}
 			}
 		}, d)
+	}()
+	// ⛔ THE DEVICE IS CLOSED ONLY AFTER THE STREAM HAS LET GO OF IT.
+	//
+	// This used to be a plain `defer d.Close()`, and it killed the program:
+	// cancelling the context does not stop the run loop, it only asks -- the
+	// pump is inside CFRunLoopRunInMode and checks the context when it comes
+	// out. So Close ran while IOKit still had the device scheduled with a
+	// registered callback, and macOS ended the process with
+	// "BUG IN CLIENT OF LIBPLATFORM: os_unfair_lock is corrupt".
+	//
+	// ⛔ AND NOTHING IS PRINTED WHEN THAT HAPPENS. It is not a Go panic:
+	// there is no stack, no message, the log simply stops after the line that
+	// says which shortcut was pressed. Measured 2026-09-05 17:36 -- the only
+	// witness was ~/Library/Logs/DiagnosticReports.
+	defer func() {
+		cancel()
+		<-streamed
+		_ = d.Close()
 	}()
 	time.Sleep(80 * time.Millisecond)
 	return fn(d, in)
