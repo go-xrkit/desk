@@ -152,6 +152,18 @@ func run() int {
 		logf("%v", err)
 	} else {
 		defer func() { _ = menuBar.Close() }()
+		// ⛔ THE MENU SAYS ITS KEYS BEFORE THERE IS A SESSION. The item is
+		// built once and outlives every session; the shortcuts are claimed
+		// only while one runs -- so waiting for a headset, sitting in the
+		// settings window, or with the glasses put down, the menu had no key
+		// equivalents at all. And a row with none draws exactly like a row
+		// whose action was never granted, so the only report was a person
+		// saying twice that the shortcuts were missing.
+		//
+		// What the settings ASK FOR, replaced by what a session actually
+		// claims the moment one starts. A reminder that may be corrected is
+		// better than a menu that says nothing.
+		menuBar.ShowShortcuts(desk.AskedFor(settings.ShortcutsOr(desk.DefaultShortcuts())))
 	}
 
 	// What the command line asked for, kept apart from what the settings say: a

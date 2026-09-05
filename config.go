@@ -404,7 +404,9 @@ var configActions = map[string]Action{
 	"quieter":  ActionQuieter,
 	"louder":   ActionLouder,
 	// The glasses down and back up, on one name because it is one switch.
-	"glasses":  ActionPause,
+	"glasses": ActionPause,
+	// The microphone in use, not the headset's: see [ActionMic].
+	"mic":      ActionMic,
 	"flatter":  ActionFlatter,
 	"rounder":  ActionRounder,
 	"point":    ActionPoint,

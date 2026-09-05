@@ -201,6 +201,15 @@ func DefaultShortcuts() []Shortcut {
 		// is most of what putting them down means; this one stays, because a
 		// key that can only put down and never pick up is half a switch.
 		{hotkey.Combo{Key: hotkey.KeyF6, Mods: mods | hotkey.Control}, ActionPause},
+		// The microphone, on the key beside the one that puts the glasses down.
+		//
+		// ⛔ WHAT IS ACTUALLY BEING SPOKEN INTO. Asked for as the VITURE
+		// microphone, and the VITURE microphone refuses: measured, it publishes
+		// no mute switch and no capture level, while every other input on the
+		// machine publishes at least one. So the key silences the input in use
+		// and NAMES it on the picture, because muting a different microphone
+		// than the one somebody meant is worse than saying you cannot.
+		{hotkey.Combo{Key: hotkey.KeyF5, Mods: mods | hotkey.Control}, ActionMic},
 	}
 }
 
@@ -420,4 +429,32 @@ func ResumeOnly(all []Shortcut) []Shortcut {
 	// Nothing bound to it: the menu row is the only way back, and that is a
 	// working answer rather than a reason to refuse.
 	return nil
+}
+
+// AskedFor is the combinations a shortcut list NAMES, as a map by action.
+//
+// ⛔ FOR A MENU THAT HAS NO SESSION YET, and that is a state the item spends
+// most of its life in: it is built once for the whole process and outlives
+// every session, while the shortcuts are claimed only while one runs. So
+// between sessions -- waiting for a headset, in the settings window, with the
+// glasses put down -- the menu had no key equivalents at all, and a row with
+// none draws exactly like a row whose action was never granted. Reported twice
+// as "the shortcuts are missing from the menu", both times while the desk was
+// sitting in the settings window with nothing claimed.
+//
+// ⚠ ASKED FOR IS NOT GRANTED, and the difference is real: the ladder
+// substitutes when a combination is taken, so one of these may end up being
+// something else. It is a REMINDER until a session says otherwise, which is
+// better than a menu that says nothing -- and [Hotkeys.Granted] replaces it
+// with what was actually claimed the moment a session starts.
+func AskedFor(all []Shortcut) map[Action]hotkey.Combo {
+	m := make(map[Action]hotkey.Combo, len(all))
+	for _, s := range all {
+		// The FIRST wins, like a claim: a list naming one action twice claims
+		// the first and substitutes or refuses the second.
+		if _, seen := m[s.Does]; !seen {
+			m[s.Does] = s.Want
+		}
+	}
+	return m
 }

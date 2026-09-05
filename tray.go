@@ -150,6 +150,10 @@ func TrayRows() []TrayRow {
 		// person asks for deliberately -- and a camera on a headset points at
 		// whatever they are looking at, so nothing here is ever automatic.
 		{Title: "Take a photograph", Action: ActionPhoto, Symbol: "camera"},
+		// The microphone. One row, and it says WHICH microphone once pressed:
+		// the headset's own cannot be silenced at all, so what is turned off is
+		// whatever else the machine listed, and a person has to be told which.
+		{Title: "Mute the microphone", Action: ActionMic, Symbol: "mic.slash"},
 		{},
 		// ⛔ PUTTING THE GLASSES DOWN IS NOT QUITTING, and until this row
 		// existed there was no way to say so: the only thing that ended a

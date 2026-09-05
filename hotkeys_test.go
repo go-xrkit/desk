@@ -465,3 +465,38 @@ func TestGrantedIsWhatWasClaimedAndNotWhatWasAsked(t *testing.T) {
 		t.Error("a set that claimed nothing gave a map back")
 	}
 }
+
+// TestAskedForIsWhatTheMenuSaysBeforeThereIsASession.
+//
+// ⛔ THE ITEM OUTLIVES EVERY SESSION AND THE CLAIMS DO NOT. The menu bar item
+// is built once for the whole process; the shortcuts are claimed only while a
+// session runs. So waiting for a headset, sitting in the settings window, or
+// with the glasses put down, the menu had NO key equivalents -- and a row with
+// none draws exactly like a row whose action was never granted. Measured: "the
+// menu draws 0 key equivalents" before this, 7 after.
+func TestAskedForIsWhatTheMenuSaysBeforeThereIsASession(t *testing.T) {
+	settings := hotkey.Combo{Key: hotkey.KeyS, Mods: hotkey.Command}
+	first := hotkey.Combo{Key: hotkey.KeyM, Mods: hotkey.Command}
+	second := hotkey.Combo{Key: hotkey.KeyN, Mods: hotkey.Command}
+
+	got := AskedFor([]Shortcut{
+		{settings, ActionSettings},
+		{first, ActionPoint},
+		// ⛔ THE FIRST WINS, like a claim: a list naming one action twice
+		// claims the first and substitutes or refuses the second, so a menu
+		// built from the second would name a key that does something else.
+		{second, ActionPoint},
+	})
+	if len(got) != 2 {
+		t.Fatalf("AskedFor gave %d entries, want 2", len(got))
+	}
+	if got[ActionSettings] != settings {
+		t.Errorf("the settings row names %v", got[ActionSettings])
+	}
+	if got[ActionPoint] != first {
+		t.Errorf("the pointer row names %v, want the first of the two", got[ActionPoint])
+	}
+	if got := AskedFor(nil); len(got) != 0 {
+		t.Errorf("an empty list gave %v", got)
+	}
+}
