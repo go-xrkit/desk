@@ -417,3 +417,185 @@ func TestTheSameKeyEquivalentOnEveryPlatform(t *testing.T) {
 		})
 	}
 }
+
+// TestOneRowForThreeDWithATick.
+//
+// ⛔ IT WAS TWO ROWS, and that is right for a KEY: a shortcut is pressed blind,
+// so one meaning "on" from outside and "off" from inside does the wrong thing
+// every time somebody has lost track. A MENU is the opposite case -- the state
+// is in front of the person as they choose -- so two rows are two rows where
+// one always does nothing, and the tick says which.
+func TestOneRowForThreeDWithATick(t *testing.T) {
+	rows := TrayRows()
+	n := 0
+	for _, r := range rows {
+		switch r.Action {
+		case ActionStereo3DOn, ActionStereo3DOff:
+			t.Errorf("%q is still a row of its own", r.Title)
+		case ActionStereo3D:
+			n++
+			if !r.Toggle {
+				t.Errorf("%q is not a checkbox", r.Title)
+			}
+		}
+	}
+	if n != 1 {
+		t.Errorf("%d rows toggle 3D, want one", n)
+	}
+}
+
+// TestTheTickSaysWhatThePictureIs.
+//
+// ⛔ What HAPPENED, not what was asked. Turning 3D on can be refused by a
+// display that shows one eye or by a depth model that will not load, and a tick
+// that followed the request would say the desk is in a state it is not -- so a
+// person would press it again to fix something that was never on.
+func TestTheTickSaysWhatThePictureIs(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	tick := func() bool {
+		_, _, m := h.Snapshot()
+		for i, r := range TrayRows() {
+			if r.Action == ActionStereo3D {
+				return m.Items[i].Checked
+			}
+		}
+		t.Fatal("no 3D row")
+		return false
+	}
+	if tick() {
+		t.Error("3D is ticked before anything turned it on")
+	}
+
+	item.Show3D(true)
+	waitFor(t, tick, "the tick to arrive")
+
+	// ⛔ AND THE COMBINATIONS SURVIVE IT. The other thing that rebuilds this
+	// menu is the shortcut report, and a rebuild that dropped it would take
+	// every key equivalent off the menu the first time somebody pressed 3D.
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	item.ShowShortcuts(map[Action]hotkey.Combo{
+		ActionSettings: {Key: hotkey.KeyS, Mods: mods},
+	})
+	item.Show3D(false)
+	waitFor(t, func() bool { return !tick() }, "the tick to go away")
+
+	_, _, m := h.Snapshot()
+	if m.Items[0].Key != "s" {
+		t.Errorf("the first row's key equivalent is %q after a 3D rebuild: "+
+			"the combinations were thrown away", m.Items[0].Key)
+	}
+}
+
+// TestShow3DOnNoItemDoesNothing: OpenTray can fail, and main carries on.
+func TestShow3DOnNoItemDoesNothing(t *testing.T) {
+	var none *Tray
+	none.Show3D(true)
+}
+
+// TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing.
+//
+// A rebuild replaces every NSMenuItem in the bar. Doing it for a state that has
+// not changed is work for nothing on a path the frame loop can reach -- and the
+// 3D state is reported on EVERY press, including the ones that were refused and
+// changed nothing.
+func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	item.Show3D(true)
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m.Items[threeDRow(t)].Checked
+	}, "the tick to arrive")
+
+	before := h.Refreshes
+	for range 5 {
+		item.Show3D(true)
+	}
+	if h.Refreshes != before {
+		t.Errorf("saying the same thing five times rebuilt the menu %d times",
+			h.Refreshes-before)
+	}
+}
+
+// TestOnlyTheThreeDRowIsATick: onFor answers for one action and no other, so a
+// row that was never meant to carry a tick does not sprout one.
+func TestOnlyTheThreeDRowIsATick(t *testing.T) {
+	if !onFor(ActionStereo3D, true) {
+		t.Error("the 3D row does not follow the state")
+	}
+	if onFor(ActionStereo3D, false) {
+		t.Error("the 3D row is ticked with 3D off")
+	}
+	for _, a := range []Action{ActionQuit, ActionSettings, ActionPhoto, ActionNone} {
+		if onFor(a, true) {
+			t.Errorf("%v carries a tick", a)
+		}
+	}
+}
+
+// threeDRow is where the 3D row sits in the menu.
+func threeDRow(t *testing.T) int {
+	t.Helper()
+	for i, r := range TrayRows() {
+		if r.Action == ActionStereo3D {
+			return i
+		}
+	}
+	t.Fatal("no 3D row")
+	return -1
+}
+
+// TestChoosingTheThreeDRowTogglesIt.
+//
+// ⛔ A checkbox row is an ordinary row that also shows a state. Its tick is
+// flipped by the menu before the callback runs, and the ACTION it sends must
+// still be the toggle -- a row that changed its own tick and told nobody would
+// be a menu that lies until the next rebuild.
+func TestChoosingTheThreeDRowTogglesIt(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	_, _, menu := h.Snapshot()
+	menu.Items[threeDRow(t)].Activate()
+	select {
+	case a := <-actions:
+		if a != ActionStereo3D {
+			t.Errorf("the 3D row sent %v", a)
+		}
+	default:
+		t.Error("the 3D row sent nothing")
+	}
+}

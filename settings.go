@@ -129,11 +129,30 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	immersive.SetBounds(toolkit.Rect{
 		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
 
+	// ⚠ THIS ONE TURNS A REAL PANEL OFF, which is why it is a setting and not
+	// only a flag. Screen 1 mirrors this Mac, so the desktop is in front of the
+	// person twice -- once on a panel nobody is looking at and once in the
+	// glasses -- and turning the panel off saves its backlight and stops a
+	// bright rectangle competing with what they are wearing.
+	//
+	// But somebody sharing a room, or with the glasses pushed up on their
+	// forehead, or showing what they are doing to a person beside them, wants
+	// the screen lit. Finding out that a program turned your laptop off is the
+	// kind of surprise worth a switch a person can see.
+	dim := toolkit.NewSwitch(cfg.Dim())
+	dim.SetBounds(toolkit.Rect{
+		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
+
 	deskCard := toolkit.NewSettingsGroup("The desk",
 		&toolkit.SettingRow{
 			Title:    "Cover the local menu bar and Dock",
 			Subtitle: "the glasses own the whole panel",
 			Control:  immersive,
+		},
+		&toolkit.SettingRow{
+			Title:    "Turn this Mac's screen off",
+			Subtitle: "while the band is showing a copy of it",
+			Control:  dim,
 		},
 	)
 
@@ -172,6 +191,8 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 		}
 		on := immersive.On().Get()
 		cfg.Ribbon.Immersive = &on
+		lit := dim.On().Get()
+		cfg.Ribbon.Dim = &lit
 	}
 	return page, read
 }

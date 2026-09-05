@@ -83,7 +83,8 @@ func run() int {
 	depthModel := flag.String("depth-model", "",
 		"a Core ML depth model (.mlpackage or .mlmodelc) for -3d; without one, depth is guessed from the picture and is visibly worse")
 	dim := flag.Bool("dim", true,
-		"turn a Mac panel off while the ribbon is showing a copy of it; -dim=false leaves every screen lit")
+		"turn a Mac panel off while the ribbon shows a copy of it; -dim=false leaves every "+
+			"screen lit for one run. The lasting choice is in the settings window.")
 	flag.Parse()
 
 	logf := func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) }
@@ -500,7 +501,11 @@ func run() int {
 				// Only in the glasses. Windowed, the desk is a window ON one of
 				// these screens and darkening them would black out the very
 				// thing being used.
-				if !*dim || !settings.Immersive() {
+				// THE SETTING FIRST, then the flag. A person who turned this
+				// off in the window means it off, and a flag whose default is
+				// true would otherwise turn it back on for them every session.
+				// The flag is still there to force it off for one run.
+				if !settings.Dim() || !*dim || !settings.Immersive() {
 					return
 				}
 				on := make([]desk.Offer, 0, inv.Positions())
@@ -723,6 +728,9 @@ func run() int {
 			// said which keys we may have. The item is made before this session
 			// and outlives it, so it is told rather than asked.
 			OnGranted: menuBar.ShowShortcuts,
+			// And whether 3D is on, so the menu row carries a tick that says
+			// what the picture IS rather than what was last asked for.
+			On3D: menuBar.Show3D,
 			// And the band follows the pointer onto any of these, whether it is a
 			// screen this program made or this Mac's own panel mirrored onto one.
 			Screens: ribbonIDs(mirror, macID, screens.IDs),

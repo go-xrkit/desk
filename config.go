@@ -127,6 +127,23 @@ type ConfigRibbon struct {
 	// Turn it off if the glasses are the MAIN display, where that bar and the
 	// Dock are the real ones rather than a copy on a screen nobody is using.
 	Immersive *bool `hcl:"immersive"`
+
+	// Dim turns the Mac's own panel OFF while the band is showing a copy of it.
+	// Nil means true.
+	//
+	// It is worth having because of what mirroring is for: screen 1 shows this
+	// Mac's desktop, so the desktop is in front of the person twice -- once on
+	// the panel they are not looking at and once in the glasses. Turning the
+	// panel off saves its backlight and stops a bright rectangle in the corner
+	// of the room from competing with what they are wearing.
+	//
+	// ⚠ AND IT IS A REAL PANEL BEING TURNED OFF. Somebody sharing a room, or
+	// working with the glasses pushed up on their forehead, or showing what
+	// they are doing to a person beside them, wants the screen to stay lit --
+	// and finding out that a program turned their laptop off is the kind of
+	// surprise that is worth an option rather than a flag. So it is a setting,
+	// in the window, beside the other things the desk does to the machine.
+	Dim *bool `hcl:"dim"`
 }
 
 // ConfigGlasses is the `glasses { }` block.
@@ -429,6 +446,16 @@ func (c Config) Immersive() bool {
 		return true
 	}
 	return *c.Ribbon.Immersive
+}
+
+// Dim reports whether the Mac's own panel is turned off while the band shows a
+// copy of it. A file that does not say asks for true, which is what the desk
+// did before it could be said.
+func (c Config) Dim() bool {
+	if c.Ribbon == nil || c.Ribbon.Dim == nil {
+		return true
+	}
+	return *c.Ribbon.Dim
 }
 
 // BadgeSeconds is how long the screen's number stays up after the band moves.

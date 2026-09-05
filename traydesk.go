@@ -128,6 +128,14 @@ type Tray struct {
 	state   *mvvm.Observable[TrayState]
 	stop    func()
 	actions chan<- Action
+
+	// mu guards what the MENU says about the world: the combinations the
+	// machine granted, and whether the 3D conversion is on. Both arrive from
+	// somewhere else while the item is already in the menu bar -- a session
+	// claiming keys, a converter opening or being refused.
+	mu     sync.Mutex
+	keys   map[Action]hotkey.Combo
+	threeD bool
 }
 
 // ShowShortcuts puts the combination that was GRANTED on each row it belongs
@@ -149,11 +157,58 @@ func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 	if t == nil {
 		return
 	}
+	// Remembered, because the OTHER thing that rebuilds this menu -- the 3D
+	// tick -- must not throw the combinations away to do it.
+	t.mu.Lock()
+	t.keys = keys
+	t.mu.Unlock()
 	t.t.SetMenu(t.buildMenu(keys))
+}
+
+// Show3D tells the item whether the 3D conversion is on, and rebuilds.
+//
+// ⛔ WHAT HAPPENED, NOT WHAT WAS ASKED. Turning 3D on can be refused -- by a
+// display that shows one eye, or by a depth model that will not load -- and a
+// tick that followed the request would then say the desk is in a state it is
+// not. The application calls this from the place that knows: after the
+// conversion has been made or refused.
+func (t *Tray) Show3D(on bool) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	if t.threeD == on {
+		t.mu.Unlock()
+		return
+	}
+	t.threeD = on
+	keys := t.keys
+	t.mu.Unlock()
+	t.t.SetMenu(t.buildMenu(keys))
+}
+
+// onFor reports the state a toggling row should show.
+//
+// A function of the state rather than a field on TrayRow: a row is a
+// DESCRIPTION, written once, and what it describes changes while the menu is on
+// screen.
+func onFor(a Action, threeD bool) bool {
+	switch a {
+	case ActionStereo3D:
+		return threeD
+	default:
+		return false
+	}
 }
 
 // buildMenu is the rows, with whatever combinations are known.
 func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
+	// Read ONCE, under the lock. A menu half built before a change and half
+	// after would show two answers to one question.
+	t.mu.Lock()
+	threeD := t.threeD
+	t.mu.Unlock()
+
 	menu := tray.NewMenu()
 	for _, r := range TrayRows() {
 		if r.Action == ActionNone {
@@ -171,13 +226,28 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 		if c, ok := keys[a]; ok {
 			key, mods = trayKey(c)
 		}
-		menu.Add(tray.KeyItem(r.Title, rowIcon(r.Symbol), key, mods, func() {
+		choose := func() {
 			select {
 			case t.actions <- a:
 			default:
 				t.logf("%q was chosen while the desk was not listening; dropped", name)
 			}
-		}))
+		}
+		var it *tray.MenuItem
+		if r.Toggle {
+			// The tick, and the SAME send: a checkbox row is an ordinary row
+			// that also says what state the thing is in. Its own Checked field
+			// is flipped by tray before the callback runs, and it is then
+			// overwritten on the next rebuild by what actually happened --
+			// which matters, because turning 3D on can be refused by a display
+			// that shows one eye.
+			it = tray.Checkbox(r.Title, onFor(a, threeD), func(bool) { choose() })
+			it.Icon = rowIcon(r.Symbol)
+			it.Key, it.Mods = key, mods
+		} else {
+			it = tray.KeyItem(r.Title, rowIcon(r.Symbol), key, mods, choose)
+		}
+		menu.Add(it)
 	}
 	return menu
 }
