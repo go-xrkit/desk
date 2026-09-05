@@ -136,6 +136,14 @@ type Tray struct {
 	mu     sync.Mutex
 	keys   map[Action]hotkey.Combo
 	threeD Stereo3D
+	// running mirrors the state observable, for the "use the glasses" tick.
+	//
+	// ⛔ A MIRROR RATHER THAN A READ. mvvm.Observable has no lock -- it is
+	// built for one thread, the one that draws -- and this menu is rebuilt
+	// from whichever goroutine noticed a change: the session, for the
+	// shortcuts, and the 3D conversion, for its tick. So the value is copied
+	// under THIS lock when it changes, and buildMenu reads the copy.
+	running bool
 }
 
 // ShowShortcuts puts the combination that was GRANTED on each row it belongs
@@ -167,7 +175,7 @@ func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 
 // Show3D tells the item whether the 3D conversion is on, and rebuilds.
 //
-// ⛔ WHAT HAPPENED, NOT WHAT WAS ASKED. Turning 3D on can be refused -- by a
+// â WHAT HAPPENED, NOT WHAT WAS ASKED. Turning 3D on can be refused -- by a
 // display that shows one eye, or by a depth model that will not load -- and a
 // tick that followed the request would then say the desk is in a state it is
 // not. The application calls this from the place that knows: after the
@@ -193,10 +201,17 @@ func (t *Tray) Show3D(s Stereo3D) {
 // A function of the state rather than a field on TrayRow: a row is a
 // DESCRIPTION, written once, and what it describes changes while the menu is on
 // screen.
-func stateFor(a Action, threeD Stereo3D) (on bool, why string) {
+func stateFor(a Action, threeD Stereo3D, running bool) (on bool, why string) {
 	switch a {
 	case ActionStereo3D:
 		return threeD.On, threeD.Why
+	case ActionPause:
+		// Ticked while a desk IS up, because the row says "use the glasses"
+		// and a tick is the platform's word for "this is on". The tick is
+		// also the only thing that says which way the row will go: macOS
+		// draws nothing at all for an unticked item, so a row whose title
+		// changed with the state would read as one word with no state.
+		return running, ""
 	default:
 		return false, ""
 	}
@@ -207,7 +222,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 	// Read ONCE, under the lock. A menu half built before a change and half
 	// after would show two answers to one question.
 	t.mu.Lock()
-	threeD := t.threeD
+	threeD, running := t.threeD, t.running
 	t.mu.Unlock()
 
 	menu := tray.NewMenu()
@@ -217,7 +232,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 			continue
 		}
 		a, name := r.Action, r.Title
-		// ⛔ ONLY WHAT IS IN THE MAP. A missing entry gives the zero Combo, whose
+		// â ONLY WHAT IS IN THE MAP. A missing entry gives the zero Combo, whose
 		// key code is 0 -- and code 0 is a real key: ANSI calls it A and a French
 		// keyboard prints Q on it. Taken as a combination that would bind a BARE
 		// letter on every row nothing was granted for. Found by the test that
@@ -236,7 +251,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 		}
 		var it *tray.MenuItem
 		if r.Toggle {
-			// ⛔ THE ROW SAYS ITS STATE THREE WAYS, because one is not enough.
+			// â THE ROW SAYS ITS STATE THREE WAYS, because one is not enough.
 			// macOS draws a checkmark for a menu item that is on and NOTHING
 			// AT ALL for one that is off, so a tick alone answers "is it on?"
 			// with silence whenever the answer is no -- which is how somebody
@@ -252,14 +267,14 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 			// The Checked field is flipped by tray before the callback runs,
 			// and overwritten on the next rebuild by what actually happened --
 			// which matters, because turning 3D on can be refused.
-			on, why := stateFor(a, threeD)
+			on, why := stateFor(a, threeD, running)
 			sym := r.Symbol
 			if on && r.SymbolOn != "" {
 				sym = r.SymbolOn
 			}
 			label := r.Title
 			if why != "" {
-				label = r.Title + " — " + why
+				label = r.Title + " â " + why
 			}
 			it = tray.Checkbox(label, on, func(bool) { choose() })
 			it.Icon = rowIcon(sym)
@@ -477,7 +492,21 @@ func (t *Tray) follow() func() {
 	// One frame each: nothing here animates. The period is what an animation
 	// would use and is unused with a single frame; it is given rather than
 	// left zero because zero is a ticker that fires as fast as it can.
-	return tray.BindIcon(t.t, t.state, icons, time.Second)
+	stop := tray.BindIcon(t.t, t.state, icons, time.Second)
+	// And the MENU follows it too, for the "use the glasses" tick.
+	//
+	// A menu is built once and kept, so a row whose tick describes the session
+	// has to be rebuilt when the session starts or stops -- otherwise the row
+	// that puts the glasses down still reads as ticked afterwards, which is the
+	// one moment a person looks at it.
+	unwatch := t.state.Subscribe(func(s TrayState) {
+		t.mu.Lock()
+		t.running = s == TrayRunning
+		keys := t.keys
+		t.mu.Unlock()
+		t.t.SetMenu(t.buildMenu(keys))
+	})
+	return func() { unwatch(); stop() }
 }
 
 // glassesIcon is the system's glasses symbol as a drawable icon, as a seam.
@@ -524,13 +553,13 @@ var labelInk = platformLabelInk
 
 // squared centres a picture in a transparent square of the given side.
 //
-// ⛔ WITHOUT THIS THE ROWS ARE NOT THE SAME SIZE, and it is not a matter of
+// â WITHOUT THIS THE ROWS ARE NOT THE SAME SIZE, and it is not a matter of
 // taste: go-widgets/tray normalises a row icon's HEIGHT to 16 points and lets
 // the width follow the aspect ratio -- right for a caller shipping a wordmark,
 // wrong for a set of glyphs. A symbol comes back at the size of its own ink, so
 // "eyeglasses" is 32x14 and "power" is 30x32; drawn at a common height the
 // first is 37 points wide and the second is 15, and a menu of them reads as a
-// mistake. "les icons utilisées ne semble avoir une taille uniforme."
+// mistake. "les icons utilisÃ©es ne semble avoir une taille uniforme."
 //
 // A square is also what the system itself lays symbols out in: appicon renders
 // each one so its LONGER side is the size asked for, which is the symbol's

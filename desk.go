@@ -19,8 +19,8 @@ var ErrNoScreens = errors.New("desk: no screens")
 // Feed is one screen's pixels, arriving over time.
 //
 // It is an interface rather than a concrete capture handle because what is
-// behind it differs completely per platform — ScreenCaptureKit, X11 shared
-// memory, a Windows duplication texture — while what this package needs of it is
+// behind it differs completely per platform â ScreenCaptureKit, X11 shared
+// memory, a Windows duplication texture â while what this package needs of it is
 // the same everywhere: the most recent pixels, and whether they are new.
 //
 // Frame must NOT allocate and must NOT copy: it hands back a borrowed view of
@@ -48,7 +48,7 @@ const (
 	// ActionFullscreen promotes the focused screen to fill the view, or puts it
 	// back.
 	ActionFullscreen
-	// ActionGallery opens the gallery — every screen at once, as a grid — or
+	// ActionGallery opens the gallery â every screen at once, as a grid â or
 	// closes it again leaving the ribbon exactly as it was.
 	ActionGallery
 	// ActionGalleryOpen opens the gallery and ActionGalleryClose leaves it,
@@ -69,8 +69,8 @@ const (
 	ActionUp
 	ActionDown
 	// ActionCycle asks for the next source on the focused screen. What that
-	// means is the application's business — this package knows the ribbon, not
-	// what a platform has to offer — so it is reported through OnCycle rather
+	// means is the application's business â this package knows the ribbon, not
+	// what a platform has to offer â so it is reported through OnCycle rather
 	// than acted on here.
 	ActionCycle
 	// ActionQuit ends the session.
@@ -137,7 +137,7 @@ const (
 	// ActionApps opens the gallery of running APPLICATIONS, or closes it.
 	//
 	// It is the other gallery. The screen gallery answers "which desktop am I
-	// looking at"; this one answers "what is open, and where is it" — a grid of
+	// looking at"; this one answers "what is open, and where is it" â a grid of
 	// the applications that have a window, each saying which screen it is on.
 	//
 	// From it, ActionChoose puts the highlighted application on the screen the
@@ -212,7 +212,7 @@ const (
 
 	// ActionPhoto takes a photograph through one of the glasses' cameras.
 	//
-	// ⛔ IT IS A DELIBERATE ACT AND IT SAYS SO. A camera on a headset points at
+	// â IT IS A DELIBERATE ACT AND IT SAYS SO. A camera on a headset points at
 	// whatever the person wearing it is looking at, so this is never
 	// automatic, never on a timer, and never a side effect of anything else --
 	// and the desk puts the path it wrote on the picture, because a photograph
@@ -226,7 +226,7 @@ const (
 	// The headset's own settings, on the keys a Mac already uses for the same
 	// idea: F1 and F2 dim and brighten, F10 to F12 do the sound.
 	//
-	// ⭐ THE SAME PLACE, A DIFFERENT SCREEN. Somebody wearing glasses still has
+	// â­ THE SAME PLACE, A DIFFERENT SCREEN. Somebody wearing glasses still has
 	// the Mac's brightness on F1 and F2; these are the same gesture aimed at
 	// what is in front of their eyes, and holding three modifiers is what says
 	// which of the two you meant.
@@ -234,13 +234,27 @@ const (
 	ActionBrighter
 	// ActionMute, ActionQuieter and ActionLouder are the headset's sound.
 	//
-	// ⚠ ACCEPTED BUT UNVERIFIED. The glasses answer "taken" to a volume write
+	// â  ACCEPTED BUT UNVERIFIED. The glasses answer "taken" to a volume write
 	// and then announce nothing, where their own button announces the new step.
 	// So the command reaches them and is well-formed; whether it moves the
 	// sound has not been established here, and only a person listening can say.
 	ActionMute
 	ActionQuieter
 	ActionLouder
+	// ActionPause puts the glasses DOWN without closing the program.
+	//
+	// ⛔ IT IS NOT ActionQuit. Taking a headset off for a meeting and
+	// wanting the program gone are two different wishes, and until now the
+	// only key that ended the ribbon ended everything with it -- so the way
+	// to stop using the glasses for ten minutes was to quit and set the
+	// whole desk up again afterwards.
+	//
+	// It stops the ribbon and RELEASES the shortcuts: while the glasses are
+	// down, ⌃⌥⌘ belongs to whatever else wants it, which is most of the
+	// point of putting them down. What survives is the menu bar item, and
+	// that is deliberate -- it is the one control that outlives a session,
+	// so it is the one that can start the next one.
+	ActionPause
 )
 
 // screenOf reports which screen an action goes to, counting from zero, and
@@ -333,6 +347,8 @@ func (a Action) String() string {
 		return "the glasses, quieter"
 	case ActionLouder:
 		return "the glasses, louder"
+	case ActionPause:
+		return "put the glasses down"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -362,7 +378,7 @@ func (a Action) String() string {
 // feeds filling them, and the panorama they are drawn into.
 //
 // Everything here is portable. It knows nothing about how a screen was created
-// or how its pixels arrive — only that a [Feed] will hand them over. That is
+// or how its pixels arrive â only that a [Feed] will hand them over. That is
 // what lets the same logic run over ScreenCaptureKit, X11 and Windows, and what
 // lets it be tested against feeds that are not screens at all.
 type Desk struct {
@@ -375,8 +391,8 @@ type Desk struct {
 	strip *Strip
 	grid  *Grid
 
-	// apps is the other gallery — what is RUNNING rather than what is on the
-	// band — and inApps whether it is up. It is not a ribbon mode: the band
+	// apps is the other gallery â what is RUNNING rather than what is on the
+	// band â and inApps whether it is up. It is not a ribbon mode: the band
 	// keeps its focus underneath, because "put this application on the screen I
 	// am looking at" needs that focus to still mean something.
 	apps   *appsView
@@ -392,16 +408,16 @@ type Desk struct {
 	fan    *Fan
 
 	// mu serialises everything a viewer can change against everything the frame
-	// loop reads. They are genuinely different goroutines — keys arrive on the
+	// loop reads. They are genuinely different goroutines â keys arrive on the
 	// window back-end EVENT thread while the ribbon is advanced and drawn on a
-	// TICKER — and neither ribbon.Nav nor these slices is safe on its own.
+	// TICKER â and neither ribbon.Nav nor these slices is safe on its own.
 	mu sync.Mutex
 
 	// Background is what the gaps between screens show.
 	Background [4]byte
 
 	// OnAdd, when set, is what the gallery's "add a screen" cell calls. It must
-	// return a feed for the new screen — which on macOS means creating another
+	// return a feed for the new screen â which on macOS means creating another
 	// virtual display and capturing it.
 	//
 	// It is a callback and not something this package does, for the same reason
@@ -411,7 +427,7 @@ type Desk struct {
 
 	// OnCycle, when set, is called with the FOCUSED position when the viewer
 	// asks for the next source there. It is called without the desk's lock held,
-	// so a handler may call SetFeed — which is the whole point of it.
+	// so a handler may call SetFeed â which is the whole point of it.
 	OnCycle func(pos int)
 
 	// OnStereo3D, when set, is told whenever the 3D conversion is turned on or
@@ -466,7 +482,7 @@ type Desk struct {
 	// the window server, and there is no operating system in this file.
 	OnApps func() ([]App, error)
 
-	// OnPlace, when set, is handed the placements the viewer asked for — one
+	// OnPlace, when set, is handed the placements the viewer asked for â one
 	// from the application gallery, or a screen each from [ActionSpread].
 	//
 	// It is called without the desk's lock held, and it deliberately hands over
@@ -480,6 +496,9 @@ type Desk struct {
 	// settings is set with quit when the desk stopped to show the settings
 	// window rather than to end the session. See [Desk.WantsSettings].
 	settings bool
+	// paused is set with quit when the desk stopped so the person could put
+	// the glasses down and keep the program. See [Desk.WantsPause].
+	paused bool
 	// badge says which screen the viewer has arrived at, for a moment. Nil when
 	// it has been turned off.
 	badge *badge
@@ -498,7 +517,7 @@ type Desk struct {
 	marks *marks
 
 	// err is the last thing a viewer's action returned. The gallery can refuse
-	// — a direction it has no cell for, choosing outside it — and a refusal that
+	// â a direction it has no cell for, choosing outside it â and a refusal that
 	// nobody can see is a key that silently does nothing.
 	err error
 }
@@ -550,8 +569,8 @@ func (d *Desk) Nav() *ribbon.Nav { return d.nav }
 // Canvas is the panorama, for the warp to read.
 func (d *Desk) Canvas() *Canvas { return d.canvas }
 
-// Err reports what the last action returned, or nil. The gallery can refuse —
-// a direction it has no cell for — and a refusal nobody can see is a key that
+// Err reports what the last action returned, or nil. The gallery can refuse â
+// a direction it has no cell for â and a refusal nobody can see is a key that
 // silently does nothing.
 func (d *Desk) Err() error {
 	d.mu.Lock()
@@ -576,6 +595,18 @@ func (d *Desk) WantsSettings() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.settings
+}
+
+// WantsPause reports whether the desk stopped so the glasses could be put down
+// while the program stays.
+//
+// Like [Desk.WantsSettings] it comes WITH [Desk.Quit] rather than instead of
+// it: the ribbon has to come down for both, and only the caller knows whether
+// to open a window, wait, or return.
+func (d *Desk) WantsPause() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.paused
 }
 
 // InGallery reports whether a gallery covers the view -- either of them.
@@ -625,7 +656,7 @@ func (d *Desk) Do(a Action) {
 	}
 
 	// Straight to one screen, answered here for the same reason: a system-wide
-	// key is pressed BLIND, so ⌃⌥⌘3 has to mean the same thing with a gallery
+	// key is pressed BLIND, so ââ¥â3 has to mean the same thing with a gallery
 	// open, with the application list up, and on the band. Answering it inside
 	// each mode's switch would be one key meaning three things depending on
 	// where the viewer had lost track of being.
@@ -658,7 +689,7 @@ func (d *Desk) Do(a Action) {
 				//
 				// Not tidiness: with it open the arrows move the SELECTION, so
 				// the band cannot be turned, so the only thing a second choose
-				// could do is put another application on the same screen — which
+				// could do is put another application on the same screen â which
 				// hides one of them. Closing is what lets the next one go
 				// somewhere else, and it shows the person what just happened.
 				d.inApps = false
@@ -682,6 +713,8 @@ func (d *Desk) Do(a Action) {
 			d.quit = true
 		case ActionSettings:
 			d.quit, d.settings = true, true
+		case ActionPause:
+			d.quit, d.paused = true, true
 		}
 		d.mu.Unlock()
 		if place != nil && d.OnPlace != nil {
@@ -720,6 +753,8 @@ func (d *Desk) Do(a Action) {
 			d.quit = true
 		case ActionSettings:
 			d.quit, d.settings = true, true
+		case ActionPause:
+			d.quit, d.paused = true, true
 		case ActionPoint:
 			// In the gallery the pointer goes to the SELECTED cell's screen, not
 			// to the focused one: the gallery is where a person picks, and the
@@ -775,7 +810,7 @@ func (d *Desk) Do(a Action) {
 		d.notice.waiting("looking for what is running...")
 	case ActionSpread:
 		// From the band, with whatever the last look at the gallery found. It
-		// asks for a fresh list too — one key that spreads a stale list would
+		// asks for a fresh list too â one key that spreads a stale list would
 		// move the wrong windows.
 		list = d.OnApps
 		d.notice.waiting("looking for what is running...")
@@ -797,7 +832,7 @@ func (d *Desk) Do(a Action) {
 		// opening a camera takes long enough that holding the desk shut for it
 		// would stall the frame loop, and the light coming on is not something
 		// to do while nothing can be drawn.
-		// ⛔ A DESK WITH NO CAMERA SAYS SO, HERE. The placeholder below has no
+		// â A DESK WITH NO CAMERA SAYS SO, HERE. The placeholder below has no
 		// life -- it waits for the picture and comes down when it arrives --
 		// so putting it up with nobody to take it would leave "taking a
 		// photograph..." on the view for the rest of the session. That is
@@ -812,6 +847,8 @@ func (d *Desk) Do(a Action) {
 		d.quit = true
 	case ActionSettings:
 		d.quit, d.settings = true, true
+	case ActionPause:
+		d.quit, d.paused = true, true
 	case ActionCloser:
 		d.err = d.reshape(d.plan.WithDistance(d.plan.Distance() - DistanceStep))
 	case ActionFurther:
@@ -857,7 +894,7 @@ func (d *Desk) Do(a Action) {
 // adjustGlasses moves one of the headset's own settings and says where it
 // landed.
 //
-// ⛔ IT SAYS THE NUMBER. A key that dims something without saying how far is a
+// â IT SAYS THE NUMBER. A key that dims something without saying how far is a
 // key pressed blind twice: the person cannot tell "one step darker" from "it
 // did nothing", which is the fault the notice was built for. So the new step is
 // on the picture, out of nine.
@@ -908,7 +945,7 @@ func (d *Desk) adjustGlasses(a Action) {
 
 // takePhoto asks for the picture and says where it went.
 //
-// ⛔ OUTSIDE THE LOCK, and the notice is how a person knows anything happened.
+// â OUTSIDE THE LOCK, and the notice is how a person knows anything happened.
 // Opening a camera takes a second or so -- the light comes on, a session
 // starts, the first frame arrives -- and until then the view is unchanged,
 // which is the same silence "fit" was reported for.
@@ -931,7 +968,7 @@ func (d *Desk) takePhoto(take func() (string, error)) {
 // refresh asks what is running and then either shows the gallery or spreads.
 //
 // Outside the lock, because enumerating windows talks to the window server and
-// holding the desk shut for it would stall the frame loop — the same reason
+// holding the desk shut for it would stall the frame loop â the same reason
 // OnAdd is answered out here.
 func (d *Desk) refresh(list func() ([]App, error), a Action) {
 	apps, err := list()
@@ -1011,7 +1048,7 @@ func (d *Desk) Render() *Canvas {
 		d.blits = d.grid.Frame(d.blits)
 	case ribbon.ModeFullscreen:
 		// The only error Fullscreen can return is an out-of-range screen, and
-		// the navigator's focus is always a screen on this very band — so it
+		// the navigator's focus is always a screen on this very band â so it
 		// cannot happen here. TestPromotingAnyScreenAlwaysWorks pins that
 		// assumption down, rather than leaving a branch that can never be taken
 		// and therefore never be tested.
@@ -1095,8 +1132,8 @@ func (d *Desk) Close() error {
 // KeyAction maps a key to what it does.
 //
 // These are the keys that work while the desk itself has focus. The shortcuts
-// the viewer actually reaches for — turning the ribbon while working INSIDE one
-// of the screens — cannot be these, because the focus is then in somebody else's
+// the viewer actually reaches for â turning the ribbon while working INSIDE one
+// of the screens â cannot be these, because the focus is then in somebody else's
 // application. Those are system-wide shortcuts and they are registered
 // separately; this table is what remains useful when the desk is in front.
 func KeyAction(code string) Action {
@@ -1159,7 +1196,7 @@ func KeyAction(code string) Action {
 //
 // The last picture from the old feed is dropped with it, so a position whose new
 // feed has not produced anything yet shows background rather than the previous
-// screen's contents — which would be a lie about what is on that panel.
+// screen's contents â which would be a lie about what is on that panel.
 func (d *Desk) SetFeed(i int, f Feed) (Feed, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -1191,7 +1228,7 @@ func (d *Desk) FeedAt(i int) Feed {
 // twice at a tile in a headset.
 //
 // On the band it does nothing. A click on a captured desktop is not this
-// application's to interpret — the desktop under the cursor will have its own
+// application's to interpret â the desktop under the cursor will have its own
 // idea of what was clicked.
 func (d *Desk) Click(x, y int) bool {
 	var add func() (Feed, error)
@@ -1228,7 +1265,7 @@ func (d *Desk) Click(x, y int) bool {
 //
 // Everything that was sized for the old count is rebuilt: the placement, the
 // band, the gallery. Rebuilt rather than grown, because the layout is DERIVED
-// from the count — the pitch between screens is a share of the whole turn — so
+// from the count â the pitch between screens is a share of the whole turn â so
 // there is no version of this that adjusts one number and leaves the rest
 // standing.
 //
@@ -1416,7 +1453,7 @@ func (d *Desk) Distance() float64 {
 // away" the same gesture.
 //
 // It refuses to take the last screen. A desk of nothing is not a desk, and
-// everything here — the ribbon, the gallery, the navigator — is built from a
+// everything here â the ribbon, the gallery, the navigator â is built from a
 // plan of at least one; the person who wants none wants to quit.
 func (d *Desk) Shrink(pos int) (Feed, error) {
 	d.mu.Lock()
@@ -1430,7 +1467,7 @@ func (d *Desk) Shrink(pos int) (Feed, error) {
 
 	// Through the same swap as Grow and a change of distance: one fewer screen
 	// is a different plan, and reshape touches nothing until everything it needs
-	// exists — so a refusal leaves the desk exactly as it was.
+	// exists â so a refusal leaves the desk exactly as it was.
 	plan := d.plan.WithScreens(d.plan.Count() - 1)
 	// reshape cannot fail for a SMALLER plan. Everything it builds -- the
 	// ribbon, the strip, the gallery, the fan -- refuses only a count of
@@ -1481,7 +1518,7 @@ func (d *Desk) drop(pos int) {
 
 // Look turns the band to a screen without a key being pressed.
 //
-// It is what lets the ribbon FOLLOW something — the pointer, today. A position
+// It is what lets the ribbon FOLLOW something â the pointer, today. A position
 // it has no screen for is refused; the position it is already on is nothing,
 // deliberately, because "follow" is asked several times a second and a band that
 // re-aimed at the screen it is already on would never settle.

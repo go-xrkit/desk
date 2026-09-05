@@ -22,6 +22,11 @@ var (
 	// The desk has nothing to show yet, and the settings are exactly where
 	// somebody goes when the glasses are not being found.
 	ErrAwaitSettings = errors.New("desk: asked for the settings while waiting for a display")
+	// ErrAwaitResume says the person picked the glasses back up.
+	//
+	// It can only come out of a RESTING wait -- see [AwaitOptions.Resting] --
+	// where the same menu row that put them down is what takes them up again.
+	ErrAwaitResume = errors.New("desk: asked to use the glasses again")
 )
 
 // AwaitPoll is how often Await asks again.
@@ -60,6 +65,20 @@ type AwaitOptions struct {
 	// here and say so.
 	Asked bool
 
+	// Resting says the person put the glasses DOWN and the program stayed.
+	//
+	// ⛔ A RESTING WAIT IGNORES THE DISPLAY. That is the whole difference:
+	// the ordinary wait is looking for a headset to arrive and starts the
+	// moment one does, which is exactly the wrong answer for somebody who
+	// has just taken theirs off -- the glasses are still plugged in, so it
+	// would start again at once and there would be no way to stop. So this
+	// waits for a PERSON instead, through the menu bar, and returns
+	// [ErrAwaitResume].
+	//
+	// Nothing on the machine is touched meanwhile: no window, no screens, and
+	// no shortcuts, which is what gives ⌃⌥⌘ back to everything else.
+	Resting bool
+
 	// Logf says what is happening. Nil is silence.
 	Logf func(string, ...any)
 }
@@ -74,8 +93,8 @@ type AwaitOptions struct {
 // It returns AT ONCE when the display is already there, and logs nothing in that
 // case: the normal path stays quiet.
 //
-// While waiting it answers the menu bar — [ErrAwaitQuit] and
-// [ErrAwaitSettings] — because the shortcuts are claimed by the desk's window,
+// While waiting it answers the menu bar â [ErrAwaitQuit] and
+// [ErrAwaitSettings] â because the shortcuts are claimed by the desk's window,
 // which does not exist yet. Nothing is created and nothing on the machine is
 // changed until a display is found.
 func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
@@ -89,6 +108,9 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 	every := opt.Every
 	if every <= 0 {
 		every = AwaitPoll
+	}
+	if opt.Resting {
+		return glasses.Display{}, rest(ctx, opt.Actions, logf)
 	}
 
 	// said is the set of displays last reported, so plugging in a monitor that
@@ -306,4 +328,36 @@ func sameMakerAs(billboard glasses.USB, headsets []glasses.USB) bool {
 		}
 	}
 	return false
+}
+
+// rest waits for a person to pick the glasses back up.
+//
+// ⛔ IT DOES NOT LOOK AT THE DISPLAY, and that is the point. The glasses that
+// were just put down are still plugged in: a wait that starts when a headset
+// appears would start again in the same second, and there would be no way to
+// stop short of quitting -- which is the thing this exists to avoid.
+//
+// So the only thing that ends it is the menu bar, which is also the only
+// control still alive: the shortcuts went back to the rest of the machine when
+// the ribbon came down, deliberately.
+func rest(ctx context.Context, actions <-chan Action, logf func(string, ...any)) error {
+	logf("the glasses are down; the menu bar picks them up again")
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case a := <-actions:
+			switch a {
+			case ActionQuit:
+				return ErrAwaitQuit
+			case ActionSettings:
+				return ErrAwaitSettings
+			case ActionPause:
+				// The same row both ways. It is a switch, so the row that
+				// says "the glasses are down" is the row that takes them up.
+				return ErrAwaitResume
+			}
+			// Everything else needs a ribbon. There is none.
+		}
+	}
 }
