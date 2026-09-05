@@ -52,8 +52,8 @@ github.com/go-macos/brightness v0.1.1 h1:IrXhHJtwCEwQl2q54LW35C9+Caodwe+2h/yOqOq
 github.com/go-macos/brightness v0.1.1/go.mod h1:YSgahQXXD66Hjv9X0/A3lWR20iaemzWm3DiK7OHpuvc=
 github.com/go-macos/coreml v0.1.0 h1:vzIqix5/2V9fXT6psX56wJnFR0olrXllZ5L2bgw6dIA=
 github.com/go-macos/coreml v0.1.0/go.mod h1:fzohkuw/D3qvM+1BkjRmfYLrFYCw5zjpzIR0wNcX6SA=
-github.com/go-macos/hotkey v0.8.0 h1:k76VUCm1E6u3gTq5RKhtuRkl6kZJ066A1MBxuj8EPSE=
-github.com/go-macos/hotkey v0.8.0/go.mod h1:Ey0viyE12mOfpo0Zf1NmaYmXfrBXgYHmmOZYTdlT744=
+github.com/go-macos/hotkey v0.9.0 h1:7QneUXxCFL8LEQ1vmhRUmTMSVZbwhOTm19zuJmevukk=
+github.com/go-macos/hotkey v0.9.0/go.mod h1:Ey0viyE12mOfpo0Zf1NmaYmXfrBXgYHmmOZYTdlT744=
 github.com/go-macos/iokit v0.6.0 h1:ZsH+SGthydWASiP0Wr++otBy3ShnbOYxketABwo/wZo=
 github.com/go-macos/iokit v0.6.0/go.mod h1:wH6UchjE6k8iCtouJcF+WggCgFpn9GQtzBpQtEcCLUY=
 github.com/go-macos/metal v0.1.0 h1:3giY1/2m5Z6Px2qfKP3zSA4wMk5oE9OtPajae2Erc9s=
@@ -92,8 +92,8 @@ github.com/go-widgets/painter v0.12.0 h1:gMqTVbIbGSKmaE28NKsbbKdNIk2drupNMNuLjFP
 github.com/go-widgets/painter v0.12.0/go.mod h1:IPRLqdUJuJX8sfuHeYLZCzjoLvA0ApbOlyIAVmguJDQ=
 github.com/go-widgets/toolkit v0.300.0 h1:vyQ6oN/XsfUPo/WYzrjD5AIFPEj1X1OVaJd7yihmxJk=
 github.com/go-widgets/toolkit v0.300.0/go.mod h1:5G/reoXwETtl6LJGB56471Sqv6keCIYVkhx/bvFPB+g=
-github.com/go-widgets/tray v0.9.0 h1:u93dLP5/0woNCV/0dmpPBjUP0VljFTXRlzrcLGTfhEg=
-github.com/go-widgets/tray v0.9.0/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
+github.com/go-widgets/tray v0.10.0 h1:LrdLLLgRwECL0x8DcJmzWCaAO4tYCvEeiSH3mUzUFZ0=
+github.com/go-widgets/tray v0.10.0/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
 github.com/go-widgets/window v0.57.0 h1:FNPDgAddoQV3NSUid4X4OL0qNP1tD34daEOum89/aBY=
 github.com/go-widgets/window v0.57.0/go.mod h1:nJjeM1Zq9Jbr/j4KsC5WJDOQt9Ywz3At6ZK60CiZdos=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=

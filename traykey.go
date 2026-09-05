@@ -102,6 +102,27 @@ var trayGlyphKeys = map[hotkey.Key]string{
 	hotkey.KeyDelete:     tray.KeyDelete,
 	hotkey.KeyTab:        tray.KeyTab,
 	hotkey.KeySpace:      tray.KeySpace,
+	// The function keys, which have no character to print.
+	//
+	// ⛔ WITHOUT THESE A ROW BOUND TO F3 DRAWS NOTHING, and it draws nothing in
+	// exactly the way a row nothing was granted for does -- so moving the two
+	// galleries onto F3 and F4 quietly took their shortcuts out of the menu and
+	// said nothing. Asked about in those words: the shortcuts were not there.
+	hotkey.KeyF1:  tray.KeyF1,
+	hotkey.KeyF2:  tray.KeyF2,
+	hotkey.KeyF3:  tray.KeyF3,
+	hotkey.KeyF4:  tray.KeyF4,
+	hotkey.KeyF5:  tray.KeyF5,
+	hotkey.KeyF6:  tray.KeyF6,
+	hotkey.KeyF7:  tray.KeyF7,
+	hotkey.KeyF8:  tray.KeyF8,
+	hotkey.KeyF9:  tray.KeyF9,
+	hotkey.KeyF10: tray.KeyF10,
+	hotkey.KeyF11: tray.KeyF11,
+	hotkey.KeyF12: tray.KeyF12,
+	hotkey.KeyF13: tray.KeyF13,
+	hotkey.KeyF14: tray.KeyF14,
+	hotkey.KeyF15: tray.KeyF15,
 }
 
 // charOf is what a key prints, as a seam: hotkey has a layout service on macOS
