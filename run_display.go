@@ -252,16 +252,26 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			// states a fact a person cannot act on is a row that stops the
 			// conversation.
 			//
-			// ⛔ AND THE REMEDY IS THE GLASSES' OWN, NOT THIS PROGRAM'S.
-			// Measured on a Beast presenting a display, 2026-09-05:
-			// CGDisplayCopyAllDisplayModes lists ELEVEN modes for it, from
-			// 640x480 to 1920x1080, ALL at 60 Hz and NONE 3000 pixels wide.
-			// The side-by-side modes the firmware knows (0x32, 0x35, 0x37-0x3C,
-			// 0x42, 0x45) are not offered to the host at all: the headset has
-			// to be put into 3D by its own command channel, and only then does
-			// what it advertises to macOS change. So this cannot be a switch in
-			// this menu, and pretending otherwise would be a button that does
+			// ⛔ NOT THROUGH THE DISPLAY. Measured on a Beast, 2026-09-05,
+			// through CGDisplayCopyAllDisplayModes, in both states:
+			//
+			//	in 2D:  model 0x120, 11 modes, 640x480..1920x1080, all 60 Hz
+			//	in 3D:  model 0x220, 11 modes, 1024x768..3840x1080, all 60 Hz
+			//
+			// The headset presents a DIFFERENT EDID per mode -- even the model
+			// number changes -- so the side-by-side modes simply are not on
+			// offer while it is in 2D. CGDisplaySetDisplayMode cannot reach
+			// them, and a switch built on it would be a button that does
 			// nothing.
+			//
+			// ⚠ THERE IS A COMMAND, THOUGH, and an earlier version of this
+			// comment said there was not -- contradicting work already done
+			// and recorded here. SpaceWalker names it (R6SetDisplayModeHIDMsg)
+			// and it was disassembled on 2026-09-02: msgID 0x0124, payload
+			// 0x41-0x46 for the side-by-side modes, CRC-16/XMODEM.
+			// See /Users/Shared/xrdesk/viture-protocol/PROTOCOLE-R6.md. What is
+			// not yet pinned is the width of two envelope fields, so nothing is
+			// written from here until a captured frame settles them.
 			logf("3D        asked for, but this display shows one eye; there is nothing to convert to")
 			logf("          switch the glasses into their own 3D mode first, and the desk will follow")
 			say3D(Stereo3D{Why: "switch the glasses to 3D first"})
