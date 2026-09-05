@@ -18,7 +18,7 @@ import (
 // platformSet3D asks the glasses to put a different picture in front of each
 // eye, or to stop.
 //
-// â THIS IS WHAT MAKES THE 3D ROW A SWITCH RATHER THAN A SIGN. The conversion
+// ⛔ THIS IS WHAT MAKES THE 3D ROW A SWITCH RATHER THAN A SIGN. The conversion
 // needs a display with room for two eyes, and the headset only offers one when
 // it has been told to: measured, its EDID changes with its mode, model 0x120
 // with eleven modes up to 1920x1080 and model 0x220 with eleven up to
@@ -79,7 +79,7 @@ func platformSet3D(on bool) error {
 	case status := <-replies:
 		return statusError(status, on)
 	case <-ctx.Done():
-		// â  NOT AN ERROR BY ITSELF. The glasses answer within milliseconds when
+		// ⚠ NOT AN ERROR BY ITSELF. The glasses answer within milliseconds when
 		// they answer at all, but the display tearing down and coming back is
 		// what a person will see, and it happens either way. Saying "no answer"
 		// is honest; claiming failure would not be.
@@ -89,7 +89,7 @@ func platformSet3D(on bool) error {
 
 // platformGlassesGet reads one setting from the headset.
 //
-// â A READ CHANGES NOTHING, which is why every path here starts with one: it is
+// ⛔ A READ CHANGES NOTHING, which is why every path here starts with one: it is
 // safe to repeat, and its success is visible where a command's is not.
 func platformGlassesGet(id byte) (uint16, error) {
 	var out uint16
@@ -136,7 +136,7 @@ func platformGlassesSet(id byte, value uint16) error {
 
 // readOf and writeOf build the two reports.
 //
-// â THE VALUE GOES IN TWICE, LITTLE-ENDIAN. That one detail is what nineteen
+// ⛔ THE VALUE GOES IN TWICE, LITTLE-ENDIAN. That one detail is what nineteen
 // attempts had wrong: the headset's own REPLIES carry a value little-endian and
 // then big-endian, and copying that shape into a command has it refused.
 func readOf(id byte) []byte {

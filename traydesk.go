@@ -175,7 +175,7 @@ func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 
 // Show3D tells the item whether the 3D conversion is on, and rebuilds.
 //
-// â WHAT HAPPENED, NOT WHAT WAS ASKED. Turning 3D on can be refused -- by a
+// ⛔ WHAT HAPPENED, NOT WHAT WAS ASKED. Turning 3D on can be refused -- by a
 // display that shows one eye, or by a depth model that will not load -- and a
 // tick that followed the request would then say the desk is in a state it is
 // not. The application calls this from the place that knows: after the
@@ -232,7 +232,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 			continue
 		}
 		a, name := r.Action, r.Title
-		// â ONLY WHAT IS IN THE MAP. A missing entry gives the zero Combo, whose
+		// ⛔ ONLY WHAT IS IN THE MAP. A missing entry gives the zero Combo, whose
 		// key code is 0 -- and code 0 is a real key: ANSI calls it A and a French
 		// keyboard prints Q on it. Taken as a combination that would bind a BARE
 		// letter on every row nothing was granted for. Found by the test that
@@ -251,7 +251,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 		}
 		var it *tray.MenuItem
 		if r.Toggle {
-			// â THE ROW SAYS ITS STATE THREE WAYS, because one is not enough.
+			// ⛔ THE ROW SAYS ITS STATE THREE WAYS, because one is not enough.
 			// macOS draws a checkmark for a menu item that is on and NOTHING
 			// AT ALL for one that is off, so a tick alone answers "is it on?"
 			// with silence whenever the answer is no -- which is how somebody
@@ -274,7 +274,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 			}
 			label := r.Title
 			if why != "" {
-				label = r.Title + " â " + why
+				label = r.Title + " — " + why
 			}
 			it = tray.Checkbox(label, on, func(bool) { choose() })
 			it.Icon = rowIcon(sym)
@@ -553,13 +553,13 @@ var labelInk = platformLabelInk
 
 // squared centres a picture in a transparent square of the given side.
 //
-// â WITHOUT THIS THE ROWS ARE NOT THE SAME SIZE, and it is not a matter of
+// ⛔ WITHOUT THIS THE ROWS ARE NOT THE SAME SIZE, and it is not a matter of
 // taste: go-widgets/tray normalises a row icon's HEIGHT to 16 points and lets
 // the width follow the aspect ratio -- right for a caller shipping a wordmark,
 // wrong for a set of glyphs. A symbol comes back at the size of its own ink, so
 // "eyeglasses" is 32x14 and "power" is 30x32; drawn at a common height the
 // first is 37 points wide and the second is 15, and a menu of them reads as a
-// mistake. "les icons utilisÃ©es ne semble avoir une taille uniforme."
+// mistake. "les icons utilisées ne semble avoir une taille uniforme."
 //
 // A square is also what the system itself lays symbols out in: appicon renders
 // each one so its LONGER side is the size asked for, which is the symbol's

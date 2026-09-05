@@ -24,7 +24,7 @@ package desk
 // A SYMBOL RATHER THAN AN EMOJI, and it was measured rather than argued.
 // In the item's own strip of the menu bar:
 //
-//	emoji title ð            79 pixels of ink
+//	emoji title 👓            79 pixels of ink
 //	symbol eyeglasses        100
 //	symbol rectangle.3.group 161
 //	symbol visionpro         182
@@ -87,7 +87,7 @@ type TrayRow struct {
 	// SymbolOn is the symbol a toggling row shows when what it controls is ON.
 	// Empty leaves [TrayRow.Symbol] in both states.
 	//
-	// â A TICK SAYS "ON" AND NOTHING SAYS "OFF". macOS draws a checkmark for a
+	// ⛔ A TICK SAYS "ON" AND NOTHING SAYS "OFF". macOS draws a checkmark for a
 	// menu item that is on and NOTHING AT ALL for one that is off, so an
 	// unticked checkbox is indistinguishable from an ordinary row -- which is
 	// how somebody came to ask "how do I know whether 3D is on? nothing in the
@@ -97,7 +97,7 @@ type TrayRow struct {
 
 // Stereo3D is what the menu should say about the 3D conversion.
 //
-// â THREE STATES AND NOT TWO. A display that shows one eye has nothing to
+// ⛔ THREE STATES AND NOT TWO. A display that shows one eye has nothing to
 // convert to, and a depth model that will not load cannot convert -- so the
 // conversion is not merely off, it is UNAVAILABLE, and a row that looks
 // pressable is a row somebody presses again and again. On the headset this was
@@ -132,7 +132,7 @@ func TrayRows() []TrayRow {
 		{Title: "One application per screen", Key: "x", Action: ActionSpread,
 			Symbol: "rectangle.3.group"},
 		{},
-		// â ONE ROW, WITH A TICK. It was two -- "3D on" and "3D off" -- and
+		// ⛔ ONE ROW, WITH A TICK. It was two -- "3D on" and "3D off" -- and
 		// that is right for a KEY, which is pressed blind: a shortcut meaning
 		// "on" from outside and "off" from inside does the wrong thing every
 		// time somebody has lost track. A MENU is the opposite case. The state
