@@ -102,7 +102,7 @@ func platformGlassesGet(id byte) (uint16, error) {
 			case e := <-in:
 				if e.ID == id && e.Kind == viture.DirRead+viture.ReplyBit {
 					if e.Value == 2 {
-						return fmt.Errorf("%w: they have no setting %#02x", ErrNoGlasses3D, id)
+						return fmt.Errorf("%w: %#02x", ErrNoSetting, id)
 					}
 					out = e.Value
 					return nil

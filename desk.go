@@ -922,6 +922,15 @@ func (d *Desk) adjustGlasses(a Action) {
 		return
 	}
 
+	// ⛔ ONE AT A TIME, AND A BURST IS DROPPED. A held key produces presses far
+	// faster than a microcontroller on the end of a cable can answer, and each
+	// one here is a full open, listen, ask, answer, close -- twice over, because
+	// the step is read before it is written. See [glassesBusy].
+	if !glassesBusy.CompareAndSwap(false, true) {
+		return
+	}
+	defer glassesBusy.Store(false)
+
 	var at uint16
 	var err error
 	if a == ActionMute {
@@ -932,7 +941,15 @@ func (d *Desk) adjustGlasses(a Action) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if err != nil {
-		d.notice.say(err.Error())
+		// ⛔ IN WORDS, AND ABOUT THE THING THAT WAS ASKED FOR. This printed
+		// "the glasses would not change mode: they have no setting 0x22" at
+		// somebody who had pressed the brightness key -- a sentence about the
+		// display, with a hex number where the answer belongs.
+		if errors.Is(err, ErrNoSetting) {
+			d.notice.say(fmt.Sprintf("these glasses offer no %s", what))
+		} else {
+			d.notice.say(err.Error())
+		}
 		d.err = err
 		return
 	}

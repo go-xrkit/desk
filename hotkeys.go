@@ -191,17 +191,16 @@ func DefaultShortcuts() []Shortcut {
 		{hotkey.Combo{Key: hotkey.KeyF12, Mods: mods | hotkey.Control}, ActionLouder},
 		// Putting the glasses down, and picking them back up.
 		//
-		// ⭐ ON THE KEY A FRENCH MAC PRINTS "@", asked for by name. It is the
-		// extra key an ISO keyboard has and an ANSI one does not, so it is one
-		// nothing else on this machine was competing for -- and it is named as
-		// a POSITION, so a layout printing something else there gets the same
-		// physical key, which is what pointing at a keyboard means.
+		// ⭐ ON F6, WITH THE OTHER GLASSES KEYS, asked for after ⌃⌥⌘@ was
+		// tried: F1 and F2 are the headset's brightness and F10 to F12 its
+		// sound, so the key that puts the whole headset down belongs on the
+		// same row of the keyboard rather than off on a punctuation key.
 		//
 		// ⛔ AND IT IS THE ONE SHORTCUT HELD WHILE THE GLASSES ARE DOWN. Every
 		// other combination goes back to the rest of the machine then, which
 		// is most of what putting them down means; this one stays, because a
 		// key that can only put down and never pick up is half a switch.
-		{hotkey.Combo{Key: hotkey.KeyISOSection, Mods: mods | hotkey.Control}, ActionPause},
+		{hotkey.Combo{Key: hotkey.KeyF6, Mods: mods | hotkey.Control}, ActionPause},
 	}
 }
 
@@ -302,12 +301,20 @@ func (h *Hotkeys) Close() error {
 // Describe says what was claimed and what was not, in the form a person needs
 // to see rather than the form a log wants.
 //
+// ⛔ THE LEGEND ON THE KEY, NOT THE ANSI NAME OF THE POSITION. It rendered
+// through Combo.String, which names the position -- and that is exactly wrong
+// once OnThisKeyboard is in play: a claim asked for on "A" is MOVED to the key
+// that PRINTS "A", which on a French keyboard is the position ANSI calls Q, so
+// the report read "the applications: ⌃⌥⌘Q (asked for ⌃⌥⌘A)". Both halves named
+// the wrong key, and the one thing a person does with this line is press what
+// it says. Glyphs asks the keyboard.
+//
 // The claimed combination is SHOWN, not merely recorded. One of the three kinds
 // of conflict — an application's own menu key — cannot be detected by anything,
 // so a shortcut that registers without complaint may still be one another
 // application was quietly using. Naming what was taken is what lets the viewer
 // notice.
-func (h *Hotkeys) Describe() string { return h.describe(hotkey.Combo.String) }
+func (h *Hotkeys) Describe() string { return h.describe(hotkey.Combo.Glyphs) }
 
 // DescribeNames is the same, spelled out: "Option-Command-Left" rather than
 // "⌥⌘←".
