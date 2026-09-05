@@ -500,3 +500,47 @@ func TestAskedForIsWhatTheMenuSaysBeforeThereIsASession(t *testing.T) {
 		t.Errorf("an empty list gave %v", got)
 	}
 }
+
+// TestTheSettingsWindowNamesTheKeyOnTheKEYBOARD.
+//
+// ⛔ SEEN IN THE WINDOW, on 2026-09-05: "fit ... Control-Option-Command-Slash",
+// for a claim that sits on the key printing "=". A person reading that went
+// looking for a slash. The spelled form renders the key's ANSI POSITION, and
+// OnThisKeyboard moves claims away from those on purpose -- so the two halves
+// of the window disagreed with each other.
+func TestTheSettingsWindowNamesTheKeyOnTheKEYBOARD(t *testing.T) {
+	was := charOf
+	t.Cleanup(func() { charOf = was })
+	// A French keyboard, where the ANSI Slash position prints "=".
+	charOf = func(k hotkey.Key) string {
+		switch k {
+		case hotkey.KeySlash:
+			return "="
+		case hotkey.KeyA:
+			return "Q"
+		}
+		return ""
+	}
+
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	if got := spelledLegend(hotkey.Combo{Key: hotkey.KeySlash, Mods: mods}); got != "Control-Option-Command-=" {
+		t.Errorf("the slash position reads %q, want the legend on it", got)
+	}
+	// The modifiers stay SPELLED: this is the rendering for a window whose font
+	// is not known, where the glyphs came out as nothing at all.
+	if got := spelledLegend(hotkey.Combo{Key: hotkey.KeyA, Mods: mods}); got != "Control-Option-Command-Q" {
+		t.Errorf("the A position reads %q", got)
+	}
+	// No modifiers at all: the legend alone, and no stray separator.
+	if got := spelledLegend(hotkey.Combo{Key: hotkey.KeySlash}); got != "=" {
+		t.Errorf("a bare key reads %q", got)
+	}
+	// A key that prints nothing keeps its word, because half a name is worse
+	// than a name: the arrows and the function keys live here.
+	if got := spelledLegend(hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods}); got != "Control-Option-Command-Left" {
+		t.Errorf("the left arrow reads %q", got)
+	}
+	if got := spelledLegend(hotkey.Combo{Key: hotkey.KeyF3, Mods: mods}); got != "Control-Option-Command-F3" {
+		t.Errorf("F3 reads %q", got)
+	}
+}

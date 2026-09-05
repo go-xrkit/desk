@@ -333,7 +333,34 @@ func (h *Hotkeys) Describe() string { return h.describe(hotkey.Combo.Glyphs) }
 // toolkit's own, ⌥ ⌘ ⇧ ⌃ ← → all came out as nothing at all, so a line meant
 // to say which combination was granted said "previous:" and stopped. Anywhere
 // the font is not known, this is the one to use.
-func (h *Hotkeys) DescribeNames() string { return h.describe(hotkey.Combo.Names) }
+//
+// ⛔ SPELLED MODIFIERS, BUT THE LEGEND ON THE KEY. Seen in the settings window
+// on 2026-09-05: "fit ... Control-Option-Command-Slash", for a claim that sits
+// on the key printing "=" -- so a person reading it went looking for a slash.
+// Names alone renders the key's ANSI POSITION, and OnThisKeyboard moves claims
+// away from those on purpose.
+func (h *Hotkeys) DescribeNames() string { return h.describe(spelledLegend) }
+
+// spelledLegend is a combination with its modifiers in words and its key as the
+// keyboard prints it.
+//
+// ⚠ THE LAST "-" IS ALWAYS THE SEPARATOR. hotkey spells Minus, Equal and the
+// brackets as WORDS for exactly this reason -- its own comment says a key named
+// "-" could not be told from the join -- so cutting at the last one is safe
+// rather than lucky. A combination with no modifiers has no "-" at all.
+func spelledLegend(c hotkey.Combo) string {
+	s := c.Names()
+	ch := []rune(charOf(c.Key))
+	if len(ch) != 1 || ch[0] <= ' ' || ch[0] >= 0x7F {
+		// No layout to ask, or a key that prints nothing: the spelled name is
+		// the best there is, and it is what a menu draws for those keys too.
+		return s
+	}
+	if i := strings.LastIndex(s, "-"); i >= 0 {
+		return s[:i+1] + string(ch)
+	}
+	return string(ch)
+}
 
 func (h *Hotkeys) describe(render func(hotkey.Combo) string) string {
 	var b strings.Builder
