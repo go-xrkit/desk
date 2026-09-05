@@ -478,7 +478,7 @@ func TestTheTickSaysWhatThePictureIs(t *testing.T) {
 		t.Error("3D is ticked before anything turned it on")
 	}
 
-	item.Show3D(true)
+	item.Show3D(Stereo3D{On: true})
 	waitFor(t, tick, "the tick to arrive")
 
 	// ⛔ AND THE COMBINATIONS SURVIVE IT. The other thing that rebuilds this
@@ -488,7 +488,7 @@ func TestTheTickSaysWhatThePictureIs(t *testing.T) {
 	item.ShowShortcuts(map[Action]hotkey.Combo{
 		ActionSettings: {Key: hotkey.KeyS, Mods: mods},
 	})
-	item.Show3D(false)
+	item.Show3D(Stereo3D{})
 	waitFor(t, func() bool { return !tick() }, "the tick to go away")
 
 	_, _, m := h.Snapshot()
@@ -501,7 +501,7 @@ func TestTheTickSaysWhatThePictureIs(t *testing.T) {
 // TestShow3DOnNoItemDoesNothing: OpenTray can fail, and main carries on.
 func TestShow3DOnNoItemDoesNothing(t *testing.T) {
 	var none *Tray
-	none.Show3D(true)
+	none.Show3D(Stereo3D{On: true})
 }
 
 // TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing.
@@ -524,7 +524,7 @@ func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
 		return m != nil && len(m.Items) > 0
 	}, "the menu to arrive")
 
-	item.Show3D(true)
+	item.Show3D(Stereo3D{On: true})
 	waitFor(t, func() bool {
 		_, _, m := h.Snapshot()
 		return m.Items[threeDRow(t)].Checked
@@ -539,26 +539,116 @@ func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
 	// unchanged pointer is a menu that was not rebuilt.
 	_, _, before := h.Snapshot()
 	for range 5 {
-		item.Show3D(true)
+		item.Show3D(Stereo3D{On: true})
 	}
 	if _, _, after := h.Snapshot(); after != before {
 		t.Error("saying the same thing five times rebuilt the menu")
 	}
 }
 
-// TestOnlyTheThreeDRowIsATick: onFor answers for one action and no other, so a
-// row that was never meant to carry a tick does not sprout one.
+// TestOnlyTheThreeDRowIsATick: stateFor answers for one action and no other, so
+// a row that was never meant to carry a tick does not sprout one.
 func TestOnlyTheThreeDRowIsATick(t *testing.T) {
-	if !onFor(ActionStereo3D, true) {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}); !on {
 		t.Error("the 3D row does not follow the state")
 	}
-	if onFor(ActionStereo3D, false) {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{}); on {
 		t.Error("the 3D row is ticked with 3D off")
 	}
+	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}); why != "one eye" {
+		t.Errorf("the reason came back %q", why)
+	}
 	for _, a := range []Action{ActionQuit, ActionSettings, ActionPhoto, ActionNone} {
-		if onFor(a, true) {
-			t.Errorf("%v carries a tick", a)
+		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"})
+		if on || why != "" {
+			t.Errorf("%v carries a state: %v %q", a, on, why)
 		}
+	}
+}
+
+// TestARowThatCannotDoAnythingSaysSoAndIsGreyed.
+//
+// ⛔ THE REPORT, exactly. On the headset it was written for, the log said
+// "3D asked for, but this display shows one eye" and the menu said NOTHING
+// WHATEVER -- so the row looked pressable and did nothing, every time. A menu
+// that cannot do a thing has to say it cannot, and why.
+func TestARowThatCannotDoAnythingSaysSoAndIsGreyed(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	const why = "this display shows one eye"
+	item.Show3D(Stereo3D{Why: why})
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m.Items[threeDRow(t)].Disabled
+	}, "the row to be greyed")
+
+	_, _, m := h.Snapshot()
+	row := m.Items[threeDRow(t)]
+	if !strings.Contains(row.Label, why) {
+		t.Errorf("the row reads %q; it should say why it cannot", row.Label)
+	}
+	if row.Checked {
+		t.Error("a conversion that cannot run is ticked")
+	}
+
+	// And when it becomes possible again, the row comes back.
+	item.Show3D(Stereo3D{})
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return !m.Items[threeDRow(t)].Disabled
+	}, "the row to come back")
+	if _, _, m := h.Snapshot(); m.Items[threeDRow(t)].Label != "3D" {
+		t.Errorf("the row reads %q once it works again", m.Items[threeDRow(t)].Label)
+	}
+}
+
+// TestTheSymbolSaysTheStateToo.
+//
+// ⛔ A TICK SAYS "ON" AND NOTHING SAYS "OFF": macOS draws a checkmark for a
+// menu item that is on and NOTHING AT ALL for one that is off, so an unticked
+// checkbox is indistinguishable from an ordinary row. The symbol is what
+// answers in both directions, and it is the pair the system itself uses.
+func TestTheSymbolSaysTheStateToo(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	icon := func() []byte {
+		_, _, m := h.Snapshot()
+		return m.Items[threeDRow(t)].Icon
+	}
+	off := icon()
+	if len(off) == 0 {
+		t.Skip("this machine draws no symbols, so there is nothing to compare")
+	}
+	item.Show3D(Stereo3D{On: true})
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m.Items[threeDRow(t)].Checked
+	}, "the tick to arrive")
+	if on := icon(); string(on) == string(off) {
+		t.Error("the row draws the same symbol with 3D on and off, so the " +
+			"picture says nothing that the tick did not")
 	}
 }
 
