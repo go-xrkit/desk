@@ -510,6 +510,9 @@ type Desk struct {
 	// paused is set with quit when the desk stopped so the person could put
 	// the glasses down and keep the program. See [Desk.WantsPause].
 	paused bool
+	// stereoWanted is set when the headset was asked to switch into 3D, which
+	// ends the session. See [Desk.wantStereo3D].
+	stereoWanted bool
 	// badge says which screen the viewer has arrived at, for a moment. Nil when
 	// it has been turned off.
 	badge *badge
@@ -1646,4 +1649,31 @@ func (d *Desk) toggleMic() {
 		return
 	}
 	d.notice.say(fmt.Sprintf("%s is live", name))
+}
+
+// wantStereo3D records that the person asked for 3D and the headset is on its
+// way into it.
+//
+// ⛔ IT HAS TO SURVIVE THE SESSION, because switching the headset ENDS one:
+// the display is torn down and re-negotiated, the ribbon goes with it, and the
+// desk comes back on a display that is finally wide enough to convert to. A
+// wish held only in the view would be forgotten exactly at the moment it
+// becomes possible to grant, and the person would have to press the row twice
+// -- once to switch the glasses and once, after everything went black and came
+// back, to turn 3D on.
+func (d *Desk) wantStereo3D() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.stereoWanted = true
+}
+
+// WantedStereo3D reports whether the session ended with 3D asked for but not
+// yet possible, so the next one should come up in it.
+//
+// Like [Desk.WantsSettings] and [Desk.WantsPause], it is a question the CALLER
+// answers: only it knows how to start the next session.
+func (d *Desk) WantedStereo3D() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.stereoWanted
 }

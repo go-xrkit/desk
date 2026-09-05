@@ -247,11 +247,6 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			return
 		}
 		if !v.convertible() {
-			// ⛔ NOT MERELY OFF: it cannot be turned on here at all, and the
-			// menu has to say so -- and say what to DO about it. A row that
-			// states a fact a person cannot act on is a row that stops the
-			// conversation.
-			//
 			// ⛔ NOT THROUGH THE DISPLAY. Measured on a Beast, 2026-09-05,
 			// through CGDisplayCopyAllDisplayModes, in both states:
 			//
@@ -259,22 +254,30 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			//	in 3D:  model 0x220, 11 modes, 1024x768..3840x1080, all 60 Hz
 			//
 			// The headset presents a DIFFERENT EDID per mode -- even the model
-			// number changes -- so the side-by-side modes simply are not on
-			// offer while it is in 2D. CGDisplaySetDisplayMode cannot reach
-			// them, and a switch built on it would be a button that does
-			// nothing.
+			// number changes -- so the side-by-side modes are not on offer at
+			// all while it is in 2D, and CGDisplaySetDisplayMode cannot reach
+			// them.
 			//
-			// ⚠ THERE IS A COMMAND, THOUGH, and an earlier version of this
-			// comment said there was not -- contradicting work already done
-			// and recorded here. SpaceWalker names it (R6SetDisplayModeHIDMsg)
-			// and it was disassembled on 2026-09-02: msgID 0x0124, payload
-			// 0x41-0x46 for the side-by-side modes, CRC-16/XMODEM.
-			// See /Users/Shared/xrdesk/viture-protocol/PROTOCOLE-R6.md. What is
-			// not yet pinned is the width of two envelope fields, so nothing is
-			// written from here until a captured frame settles them.
-			logf("3D        asked for, but this display shows one eye; there is nothing to convert to")
-			logf("          switch the glasses into their own 3D mode first, and the desk will follow")
-			say3D(Stereo3D{Why: "switch the glasses to 3D first"})
+			// ⭐ SO ASK THE HEADSET, which is the one thing that can. This row
+			// was greyed out saying "switch the glasses to 3D first", and the
+			// comment here said no command had been pinned down. Both were out
+			// of date: the command was decoded and PROVEN on 2026-09-05 --
+			// 10 00 24 01 02 00 32 00 32 00 -- verified in both directions by
+			// the headset's own reply code AND by the Mac's display list. It
+			// lives in go-macos/iokit/viture.
+			//
+			// ⚠ AND IT ENDS THIS SESSION. The display is torn down and
+			// re-negotiated, so the ribbon goes with it. That is why the wish
+			// is recorded for the NEXT session rather than acted on here: there
+			// is no display left to act on.
+			logf("3D        asking the glasses to switch; the display will go and come back")
+			if err := Set3D(true); err != nil {
+				logf("3D        %v", err)
+				say3D(Stereo3D{Why: err.Error()})
+				return
+			}
+			d.wantStereo3D()
+			say3D(Stereo3D{Why: "the glasses are switching"})
 			return
 		}
 		if conv == nil {
@@ -298,14 +301,24 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			conv.Close()
 		}
 	}()
-	// ⛔ SAY WHAT IS POSSIBLE BEFORE ANYBODY ASKS. Whether there is anything to
-	// convert to is known the moment the view exists, and waiting for a press
-	// to say so is how the row came to look pressable and do nothing: the
-	// person presses it, the log says "this display shows one eye", and the
-	// menu is unchanged. So the menu is told at the start of the session, and
-	// told again by every press after it.
+	// ⛔ THE ROW MEANS "MAKE THE PICTURE 3D", AND HOW IS OUR PROBLEM. It used
+	// to be greyed out here, at the start of every session on a display that
+	// shows one eye, saying "switch the glasses to 3D first" -- a fact the
+	// person could act on only by reaching for the headset, and a disabled row
+	// nobody can press is the end of the conversation.
+	//
+	// Pressing it now ASKS THE HEADSET, so the row is enabled and plainly off
+	// whether or not this display can convert yet. The two cases differ only in
+	// how long the press takes and in the screen going away in between, and a
+	// menu row is the wrong place to explain that.
+	//
+	// ⚠ A headset that cannot be commanded at all is still possible -- one with
+	// no vendor control interface on the bus -- and that is found on the PRESS,
+	// where the row then says what the headset said. Later than it could be,
+	// and honest, which a greyed row promising a manual remedy was not.
 	if !v.convertible() {
-		say3D(Stereo3D{Why: "switch the glasses to 3D first"})
+		logf("3D        this display shows one eye; the 3D row will ask the headset to switch")
+		say3D(Stereo3D{})
 	}
 	d.OnStereo3D = setStereo3D
 	if opt.Stereo3D {

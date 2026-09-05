@@ -2,6 +2,7 @@ package desk
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/go-xrkit/depth3d"
@@ -201,3 +202,55 @@ func TestATooSmallViewIsRefusedRatherThanConverted(t *testing.T) {
 }
 
 var _ = errors.Is
+
+// TestAskingForThreeDSurvivesTheDisplayGoingAway.
+//
+// ⛔ SWITCHING THE HEADSET ENDS THE SESSION. The display is torn down and
+// re-negotiated, so the ribbon goes with it -- and a wish held only in the view
+// would be forgotten at exactly the moment it becomes possible to grant. The
+// person would press the row, watch everything go black and come back, and have
+// to press it again.
+func TestAskingForThreeDSurvivesTheDisplayGoingAway(t *testing.T) {
+	p := testPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	if d.WantedStereo3D() {
+		t.Fatal("a fresh desk already wants 3D")
+	}
+	d.wantStereo3D()
+	if !d.WantedStereo3D() {
+		t.Error("the wish did not survive being recorded")
+	}
+	// And it is a SEPARATE question from the other two ways a session ends:
+	// only the caller knows what to do with each, and one flag with three
+	// names would make the desk come back wrong.
+	if d.WantsSettings() || d.WantsPause() {
+		t.Errorf("asking for 3D reads as settings=%v paused=%v",
+			d.WantsSettings(), d.WantsPause())
+	}
+}
+
+// TestAHeadsetThatWillNotSwitchSaysWhatItSaid.
+//
+// ⛔ A ROW THAT SAYS A FACT A PERSON CANNOT ACT ON IS THE END OF THE
+// CONVERSATION. It used to be greyed out with "switch the glasses to 3D
+// first" -- a remedy that needed a hand on the headset. It is pressable now,
+// and a headset that refuses says SO, on the picture, in its own words.
+func TestAHeadsetThatWillNotSwitchSaysWhatItSaid(t *testing.T) {
+	was := Set3D
+	t.Cleanup(func() { Set3D = was })
+	Set3D = func(bool) error { return ErrNoGlasses3D }
+
+	if err := Set3D(true); !errors.Is(err, ErrNoGlasses3D) {
+		t.Fatalf("the stand-in refused with %v", err)
+	}
+	// A refusal is a sentence a person reads, not a code to parse: it names the
+	// package and what it would not do.
+	if got := ErrNoGlasses3D.Error(); !strings.Contains(got, "glasses") {
+		t.Errorf("the refusal reads %q", got)
+	}
+}
