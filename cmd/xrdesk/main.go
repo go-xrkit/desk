@@ -186,6 +186,9 @@ func run() int {
 	// would start again in the same second and there would be no way to stop.
 	// See [desk.AwaitOptions.Resting].
 	resting := false
+	// wants3D says the headset was asked to switch into 3D and the session
+	// ended because the display did. See [desk.Desk.WantedStereo3D].
+	wants3D := false
 	// provideTries counts how often the window server has refused to make the
 	// screens, so a Mac that will not make any is waited for and then accepted
 	// rather than waited for for ever.
@@ -748,12 +751,16 @@ func run() int {
 			Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
 			NoGlobal:    *noGlobal,
 			Interactive: *interactive,
-			Stereo3D:    *stereo3D,
-			DepthModel:  *depthModel,
-			Badge:       settings.BadgeSeconds(),
-			Windowed:    !settings.Immersive(),
-			Shortcuts:   settings.ShortcutsOr(desk.DefaultShortcuts()),
-			Hotkeys:     settings.HotkeyOptions(),
+			// ⛔ OR ASKED FOR MID-SESSION. Switching the headset into 3D tears
+			// the display down, which ends the session that asked -- so the wish
+			// is carried here, and the desk that comes back on the wide display
+			// starts converting without anybody pressing the row a second time.
+			Stereo3D:   *stereo3D || wants3D,
+			DepthModel: *depthModel,
+			Badge:      settings.BadgeSeconds(),
+			Windowed:   !settings.Immersive(),
+			Shortcuts:  settings.ShortcutsOr(desk.DefaultShortcuts()),
+			Hotkeys:    settings.HotkeyOptions(),
 			// The menu bar is an input like any other: same actions, same loop.
 			Actions: actions,
 			// And it says which key does the same thing, once the machine has
@@ -783,9 +790,14 @@ func run() int {
 			return false, false, false, 1
 		}
 		fmt.Printf("ran for %s\n", time.Since(start).Round(time.Millisecond))
-		// The desk stopped. It asked for the settings, or it is simply done.
 		// The desk stopped. It asked for the settings, it asked to be put down,
 		// or it is simply done.
+		if d.WantedStereo3D() {
+			// The glasses are changing mode. Straight back in: Await will find
+			// the display when it comes back, wide enough to convert to.
+			wants3D = true
+			return true, false, false, 0
+		}
 		return d.WantsSettings() || d.WantsPause(), d.WantsSettings(), d.WantsPause(), 0
 	}
 
