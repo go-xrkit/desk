@@ -7,9 +7,11 @@ package desk
 import (
 	"context"
 	"errors"
+
 	"testing"
 	"time"
 
+	"github.com/go-macos/hotkey"
 	"github.com/go-xrkit/xrkit/glasses"
 )
 
@@ -151,5 +153,57 @@ func TestPuttingThemDownWorksFromEitherGalleryToo(t *testing.T) {
 	if !a.Quit() || !a.WantsPause() || a.WantsSettings() {
 		t.Errorf("from the applications: quit=%v paused=%v settings=%v",
 			a.Quit(), a.WantsPause(), a.WantsSettings())
+	}
+}
+
+// TestAKeyPicksTheGlassesBackUp: the resting wait holds one shortcut, and it
+// is the one that ends the rest.
+//
+// ⛔ HALF A SWITCH IS THE DEFECT. Putting the glasses down releases every
+// shortcut, which is what a person means by putting them down -- so without
+// this the key that stopped the ribbon could never start it, and the menu bar
+// would be the only way back.
+func TestAKeyPicksTheGlassesBackUp(t *testing.T) {
+	// The existing fake claim, and a press the moment it is asked for.
+	claimedIt := make(chan struct{})
+	withRegister(t, func(c hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		f := &fakeClaim{got: c, want: c, ch: make(chan hotkey.Event, 1)}
+		f.press()
+		close(claimedIt)
+		return f, nil
+	})
+
+	_, err := Await(context.Background(), AwaitOptions{
+		List:    func() ([]glasses.Display, error) { return []glasses.Display{theGlasses}, nil },
+		Resting: true,
+		Resume:  []Shortcut{{hotkey.Combo{Key: hotkey.KeyISOSection}, ActionPause}},
+	})
+	if !errors.Is(err, ErrAwaitResume) {
+		t.Fatalf("the key did not pick the glasses up: %v", err)
+	}
+	select {
+	case <-claimedIt:
+	default:
+		t.Error("the resting wait never claimed the shortcut")
+	}
+}
+
+// TestResumeOnlyTakesTheOneAndTakesItFromTheSameList.
+//
+// ⛔ TWO LISTS WOULD BE TWO ANSWERS TO ONE QUESTION. A settings file that moves
+// this shortcut has to move both ends of it, so the resting claim reads the
+// SAME list the session does rather than naming a combination of its own.
+func TestResumeOnlyTakesTheOneAndTakesItFromTheSameList(t *testing.T) {
+	moved := hotkey.Combo{Key: hotkey.KeyN7, Mods: hotkey.Command}
+	got := ResumeOnly([]Shortcut{
+		{hotkey.Combo{Key: hotkey.KeyS}, ActionSettings},
+		{moved, ActionPause},
+		{hotkey.Combo{Key: hotkey.KeyM}, ActionPoint},
+	})
+	if len(got) != 1 || got[0].Want != moved || got[0].Does != ActionPause {
+		t.Errorf("the resting claim is %v, not the one the settings moved it to", got)
+	}
+	if got := ResumeOnly(nil); got != nil {
+		t.Errorf("with nothing bound the resting claim is %v, want none", got)
 	}
 }

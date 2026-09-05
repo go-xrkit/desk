@@ -189,6 +189,19 @@ func DefaultShortcuts() []Shortcut {
 		{hotkey.Combo{Key: hotkey.KeyF10, Mods: mods | hotkey.Control}, ActionMute},
 		{hotkey.Combo{Key: hotkey.KeyF11, Mods: mods | hotkey.Control}, ActionQuieter},
 		{hotkey.Combo{Key: hotkey.KeyF12, Mods: mods | hotkey.Control}, ActionLouder},
+		// Putting the glasses down, and picking them back up.
+		//
+		// ⭐ ON THE KEY A FRENCH MAC PRINTS "@", asked for by name. It is the
+		// extra key an ISO keyboard has and an ANSI one does not, so it is one
+		// nothing else on this machine was competing for -- and it is named as
+		// a POSITION, so a layout printing something else there gets the same
+		// physical key, which is what pointing at a keyboard means.
+		//
+		// ⛔ AND IT IS THE ONE SHORTCUT HELD WHILE THE GLASSES ARE DOWN. Every
+		// other combination goes back to the rest of the machine then, which
+		// is most of what putting them down means; this one stays, because a
+		// key that can only put down and never pick up is half a switch.
+		{hotkey.Combo{Key: hotkey.KeyISOSection, Mods: mods | hotkey.Control}, ActionPause},
 	}
 }
 
@@ -382,4 +395,22 @@ func (h *Hotkeys) Granted() map[Action]hotkey.Combo {
 		out[h.does[i]] = k.Combo()
 	}
 	return out
+}
+
+// ResumeOnly is the shortcut a resting wait should hold: the one that puts the
+// glasses down, which is the one that takes them back up.
+//
+// ⛔ FROM THE SAME LIST THE SESSION USES, never a second copy. A settings file
+// that moves this shortcut has to move both ends of it, and two lists would be
+// two answers to one question -- the shape of defect that had a menu row saying
+// a key the session had substituted away from.
+func ResumeOnly(all []Shortcut) []Shortcut {
+	for _, s := range all {
+		if s.Does == ActionPause {
+			return []Shortcut{s}
+		}
+	}
+	// Nothing bound to it: the menu row is the only way back, and that is a
+	// working answer rather than a reason to refuse.
+	return nil
 }

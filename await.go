@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-macos/hotkey"
 	"github.com/go-xrkit/xrkit/glasses"
 )
 
@@ -67,17 +68,32 @@ type AwaitOptions struct {
 
 	// Resting says the person put the glasses DOWN and the program stayed.
 	//
-	// ⛔ A RESTING WAIT IGNORES THE DISPLAY. That is the whole difference:
-	// the ordinary wait is looking for a headset to arrive and starts the
-	// moment one does, which is exactly the wrong answer for somebody who
-	// has just taken theirs off -- the glasses are still plugged in, so it
-	// would start again at once and there would be no way to stop. So this
-	// waits for a PERSON instead, through the menu bar, and returns
-	// [ErrAwaitResume].
+	// ⛔ A RESTING WAIT IGNORES THE DISPLAY. That is the whole difference: the
+	// ordinary wait is looking for a headset to arrive and starts the moment
+	// one does, which is exactly the wrong answer for somebody who has just
+	// taken theirs off -- the glasses are still plugged in, so it would start
+	// again at once and there would be no way to stop. So this waits for a
+	// PERSON instead and returns [ErrAwaitResume].
 	//
 	// Nothing on the machine is touched meanwhile: no window, no screens, and
-	// no shortcuts, which is what gives ⌃⌥⌘ back to everything else.
+	// no shortcuts but [AwaitOptions.Resume], which is what gives ⌃⌥⌘ back to
+	// everything else.
 	Resting bool
+	// Resume is the shortcut to hold WHILE RESTING, normally exactly one.
+	//
+	// ⛔ IT IS THE ONLY ONE HELD, and that is deliberate in both directions.
+	// Putting the glasses down gives ⌃⌥⌘ back to the rest of the machine,
+	// which is most of what a person means by putting them down -- but a key
+	// that can only put them down and never pick them up is half a switch,
+	// and the menu bar would be the only way back.
+	//
+	// Empty means the menu row is the only way back, which is also what a
+	// caller with no shortcuts at all gets.
+	Resume []Shortcut
+	// Hotkeys is how Resume should be claimed -- the ladder, and the rule that
+	// a shortcut is named by the LEGEND on the key rather than by a position.
+	// Nil takes [ClaimGlobal]'s defaults.
+	Hotkeys *hotkey.Options
 
 	// Logf says what is happening. Nil is silence.
 	Logf func(string, ...any)
@@ -110,7 +126,7 @@ func Await(ctx context.Context, opt AwaitOptions) (glasses.Display, error) {
 		every = AwaitPoll
 	}
 	if opt.Resting {
-		return glasses.Display{}, rest(ctx, opt.Actions, logf)
+		return glasses.Display{}, rest(ctx, opt, logf)
 	}
 
 	// said is the set of displays last reported, so plugging in a monitor that
@@ -337,27 +353,45 @@ func sameMakerAs(billboard glasses.USB, headsets []glasses.USB) bool {
 // appears would start again in the same second, and there would be no way to
 // stop short of quitting -- which is the thing this exists to avoid.
 //
-// So the only thing that ends it is the menu bar, which is also the only
-// control still alive: the shortcuts went back to the rest of the machine when
-// the ribbon came down, deliberately.
-func rest(ctx context.Context, actions <-chan Action, logf func(string, ...any)) error {
-	logf("the glasses are down; the menu bar picks them up again")
+// So a resting wait holds ONE shortcut and the menu bar, and nothing else.
+//
+// ⛔ THE ONE SHORTCUT IS WHAT MAKES THIS SYMMETRIC. Every other combination
+// went back to the rest of the machine when the ribbon came down -- which is
+// most of the point of putting the glasses down -- but a key that can only
+// PUT DOWN and never pick up is half a switch. Asked for in those words: "il
+// nous faudrait un raccourci clavier pour activer l'usage des lunettes".
+func rest(ctx context.Context, opt AwaitOptions, logf func(string, ...any)) error {
+	// Claimed for as long as the rest lasts, and given back after it. It is
+	// claimed HERE rather than left over from the session because a session
+	// that ended is a session whose shortcuts were closed.
+	var keys <-chan Action
+	if len(opt.Resume) > 0 {
+		hk := ClaimGlobal(opt.Resume, opt.Hotkeys)
+		defer func() { _ = hk.Close() }()
+		keys = hk.C()
+		if s := hk.Describe(); s != "" {
+			logf("while the glasses are down:\n%s", s)
+		}
+	}
+	logf("the glasses are down; the menu bar or that key picks them up")
 	for {
+		var a Action
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case a := <-actions:
-			switch a {
-			case ActionQuit:
-				return ErrAwaitQuit
-			case ActionSettings:
-				return ErrAwaitSettings
-			case ActionPause:
-				// The same row both ways. It is a switch, so the row that
-				// says "the glasses are down" is the row that takes them up.
-				return ErrAwaitResume
-			}
-			// Everything else needs a ribbon. There is none.
+		case a = <-opt.Actions:
+		case a = <-keys:
 		}
+		switch a {
+		case ActionQuit:
+			return ErrAwaitQuit
+		case ActionSettings:
+			return ErrAwaitSettings
+		case ActionPause:
+			// The same row and the same key both ways. It is a switch, so what
+			// says "the glasses are down" is what takes them up.
+			return ErrAwaitResume
+		}
+		// Everything else needs a ribbon. There is none.
 	}
 }

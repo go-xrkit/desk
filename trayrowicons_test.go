@@ -409,10 +409,22 @@ func TestTheSameKeyEquivalentOnEveryPlatform(t *testing.T) {
 			if got := equivalentFor(hotkey.KeyLeftArrow); got != tray.KeyLeft {
 				t.Errorf("the left arrow = %q, want the glyph key", got)
 			}
-			// A key whose name is a WORD is no key equivalent: half of "F1"
-			// would be worse than none of it.
-			if got := equivalentFor(hotkey.KeyF1); got != "" {
-				t.Errorf("F1 = %q, want nothing", got)
+			// ⛔ THIS USED TO ASSERT F1 DRAWS NOTHING, and the reasoning read
+			// well: "a key whose name is a WORD is no key equivalent, half of
+			// F1 would be worse than none of it". It was pinning the DEFECT.
+			// AppKit has a code for each function key, so the row can say F1
+			// exactly as it says the left arrow -- and drawing nothing is what
+			// a row nothing was granted for does, so the two were the same
+			// thing on screen and a person had to notice their shortcuts had
+			// gone missing.
+			if got := equivalentFor(hotkey.KeyF1); got != tray.KeyF1 {
+				t.Errorf("F1 = %q, want the function-key code", got)
+			}
+			// And a key with no name and nothing printed on it still draws
+			// nothing: a row that says three modifiers over an empty space
+			// would be worse than a row that says only its label.
+			if got := equivalentFor(hotkey.Key(0x42)); got != "" {
+				t.Errorf("an unnamed key = %q, want nothing", got)
 			}
 		})
 	}

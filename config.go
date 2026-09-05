@@ -403,6 +403,8 @@ var configActions = map[string]Action{
 	"mute":     ActionMute,
 	"quieter":  ActionQuieter,
 	"louder":   ActionLouder,
+	// The glasses down and back up, on one name because it is one switch.
+	"glasses":  ActionPause,
 	"flatter":  ActionFlatter,
 	"rounder":  ActionRounder,
 	"point":    ActionPoint,

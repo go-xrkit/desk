@@ -239,6 +239,14 @@ func run() int {
 		chosen, err := await(desk.AwaitOptions{
 			Want: model, Actions: actions, Logf: logf, Asked: askedAboutGlasses,
 			Resting: resting,
+			// ⛔ THE ONE SHORTCUT THAT OUTLIVES THE RIBBON. Everything else is
+			// given back when the desk stops, which is what a person putting
+			// their glasses down is asking for -- but the key that puts them
+			// down has to be the key that picks them up, or it is half a
+			// switch. Taken from the SAME list the session uses, so a settings
+			// file that moves it moves both.
+			Resume:  desk.ResumeOnly(settings.ShortcutsOr(desk.DefaultShortcuts())),
+			Hotkeys: settings.HotkeyOptions(),
 			List: func() ([]glasses.Display, error) {
 				ss, err := window.Screens()
 				if err != nil {
