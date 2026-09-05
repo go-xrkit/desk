@@ -463,3 +463,113 @@ func TestMirrorIsOnUnlessTheFileSaysOtherwise(t *testing.T) {
 		t.Error("mirror = true was not obeyed")
 	}
 }
+
+// TestTurningThisMacsScreenOffIsOptional.
+//
+// ⚠ IT IS A REAL PANEL. Somebody sharing a room, or with the glasses pushed up
+// on their forehead, or showing what they are doing to a person beside them,
+// wants the screen lit -- and finding out that a program turned your laptop off
+// is the kind of surprise worth a setting rather than a flag.
+//
+// A file that does not say asks for true, which is what the desk did before it
+// could be said: an option must not change what an existing settings file
+// means.
+func TestTurningThisMacsScreenOffIsOptional(t *testing.T) {
+	var none Config
+	if !none.Dim() {
+		t.Error("a file that says nothing turned the screen off setting off")
+	}
+	if !(Config{Ribbon: &ConfigRibbon{}}).Dim() {
+		t.Error("a ribbon block that says nothing changed it")
+	}
+	off := false
+	if (Config{Ribbon: &ConfigRibbon{Dim: &off}}).Dim() {
+		t.Error("a file that said no was ignored")
+	}
+	on := true
+	if !(Config{Ribbon: &ConfigRibbon{Dim: &on}}).Dim() {
+		t.Error("a file that said yes was ignored")
+	}
+}
+
+// TestDimMakesTheRoundTripThroughAFile, because a setting that cannot be
+// written is a switch that forgets.
+func TestDimMakesTheRoundTripThroughAFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "desk.hcl")
+	off := false
+	c := Config{Ribbon: &ConfigRibbon{Dim: &off}}
+	if err := c.SaveTo(path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadConfigFile(path)
+	if err != nil {
+		t.Fatalf("what was written does not load: %v", err)
+	}
+	if got.Dim() {
+		t.Error("the setting did not survive being written and read")
+	}
+}
+
+// TestSaveKeepsEveryRibbonSetting.
+//
+// ⛔ THE GUARD WAS A HAND-KEPT LIST AND IT HAD ALREADY FALLEN BEHIND. Save
+// rewrites the whole file, and the test for "is there a ribbon block to write"
+// named four of the seven fields -- so a person who had set `mirror` or
+// `badge_seconds` by hand LOST IT the first time they pressed Save, with
+// nothing to say so: the file simply came back without the line.
+//
+// This is the test that keeps the two in step: every field is set, written, and
+// read back.
+func TestSaveKeepsEveryRibbonSetting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "desk.hcl")
+	screens, distance, splay, badge := 6, 2.5, 12.0, 3.5
+	no, yes := false, true
+	c := Config{Ribbon: &ConfigRibbon{
+		Screens: &screens, Distance: &distance, Splay: &splay,
+		BadgeSeconds: &badge, Mirror: &no, Immersive: &yes, Dim: &no,
+	}}
+	if err := c.SaveTo(path); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadConfigFile(path)
+	if err != nil {
+		t.Fatalf("what was written does not load: %v", err)
+	}
+	if got.Screens() != screens {
+		t.Errorf("screens = %d", got.Screens())
+	}
+	if got.Distance() != distance {
+		t.Errorf("distance = %g", got.Distance())
+	}
+	if got.SplayDeg() != splay {
+		t.Errorf("splay = %g", got.SplayDeg())
+	}
+	if got.BadgeSeconds() != badge {
+		t.Errorf("badge_seconds = %g", got.BadgeSeconds())
+	}
+	if got.Mirror() {
+		t.Error("mirror came back on")
+	}
+	if !got.Immersive() {
+		t.Error("immersive came back off")
+	}
+	if got.Dim() {
+		t.Error("dim came back on")
+	}
+}
+
+// TestARibbonWithNothingInItWritesNoBlock, so a file a person reads is not
+// littered with empty blocks.
+func TestARibbonWithNothingInItWritesNoBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "desk.hcl")
+	if err := (Config{Ribbon: &ConfigRibbon{}}).SaveTo(path); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "ribbon") {
+		t.Errorf("an empty ribbon block was written:\n%s", data)
+	}
+}

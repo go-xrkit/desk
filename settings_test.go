@@ -243,12 +243,16 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	// person sees is at the leaves and not at the root.
 	tiles := found[*toolkit.IconGrid](root)
 	switches := found[*toolkit.Switch](root)
-	if len(tiles) != 1 || len(switches) != 1 {
-		t.Fatalf("the window has %d grids and %d switches; want the glasses tiles "+
-			"and the menu bar", len(tiles), len(switches))
+	if len(tiles) != 1 || len(switches) != 2 {
+		t.Fatalf("the window has %d grids and %d switches; want the glasses tiles, "+
+			"the menu bar and this Mac's screen", len(tiles), len(switches))
 	}
 	tiles[0].SetSelected(1) // the second headset
+	// In the order the card lists them: covering the menu bar, then turning
+	// this Mac's screen off. Both are moved, so a read that carried one and
+	// dropped the other would be caught.
 	switches[0].On().Set(false)
+	switches[1].On().Set(false)
 
 	read()
 	if got := cfg.Model(); got != "VITURE Luma Ultra" {
@@ -256,6 +260,9 @@ func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	}
 	if cfg.Immersive() {
 		t.Error("the menu bar covering was left on")
+	}
+	if cfg.Dim() {
+		t.Error("turning this Mac's screen off was left on")
 	}
 	// And what it produced must be settings the application will load.
 	if err := cfg.check(); err != nil {
@@ -321,7 +328,7 @@ func TestSaveAndCloseAreWiredUp(t *testing.T) {
 	// Turn the menu-bar covering off first, so what Save writes can be told
 	// apart from the defaults it started with.
 	sw := found[*toolkit.Switch](root)
-	if len(sw) != 1 {
+	if len(sw) != 2 {
 		t.Fatalf("the window has %d switches", len(sw))
 	}
 	sw[0].On().Set(false)

@@ -50,22 +50,48 @@ func (c Config) Bytes() []byte {
 		}
 		body.AppendNewline()
 	}
-	if c.Ribbon != nil && (c.Ribbon.Screens != nil || c.Ribbon.Immersive != nil ||
-		c.Ribbon.Distance != nil || c.Ribbon.Splay != nil) {
-		b := body.AppendNewBlock("ribbon", nil).Body()
+	// ⛔ EVERY FIELD, AND THE GUARD DERIVED FROM THEM. This was a hand-kept
+	// list -- "screens or immersive or distance or splay" -- and it had already
+	// fallen behind the struct twice: `mirror` and `badge_seconds` were not in
+	// it, so a person who set either by hand LOST IT the first time they
+	// pressed Save. Nothing said so; the file simply came back without the
+	// line. Building the block first and asking whether anything went into it
+	// is the same question with no list to forget.
+	if c.Ribbon != nil {
+		block := hclwrite.NewBlock("ribbon", nil)
+		b := block.Body()
+		wrote := false
+		set := func(name string, v cty.Value, ok bool) {
+			if ok {
+				b.SetAttributeValue(name, v)
+				wrote = true
+			}
+		}
 		if c.Ribbon.Screens != nil {
-			b.SetAttributeValue("screens", cty.NumberIntVal(int64(*c.Ribbon.Screens)))
+			set("screens", cty.NumberIntVal(int64(*c.Ribbon.Screens)), true)
 		}
 		if c.Ribbon.Distance != nil {
-			b.SetAttributeValue("distance", cty.NumberFloatVal(*c.Ribbon.Distance))
+			set("distance", cty.NumberFloatVal(*c.Ribbon.Distance), true)
 		}
 		if c.Ribbon.Splay != nil {
-			b.SetAttributeValue("splay", cty.NumberFloatVal(*c.Ribbon.Splay))
+			set("splay", cty.NumberFloatVal(*c.Ribbon.Splay), true)
+		}
+		if c.Ribbon.BadgeSeconds != nil {
+			set("badge_seconds", cty.NumberFloatVal(*c.Ribbon.BadgeSeconds), true)
+		}
+		if c.Ribbon.Mirror != nil {
+			set("mirror", cty.BoolVal(*c.Ribbon.Mirror), true)
 		}
 		if c.Ribbon.Immersive != nil {
-			b.SetAttributeValue("immersive", cty.BoolVal(*c.Ribbon.Immersive))
+			set("immersive", cty.BoolVal(*c.Ribbon.Immersive), true)
 		}
-		body.AppendNewline()
+		if c.Ribbon.Dim != nil {
+			set("dim", cty.BoolVal(*c.Ribbon.Dim), true)
+		}
+		if wrote {
+			body.AppendBlock(block)
+			body.AppendNewline()
+		}
 	}
 	if c.Glasses != nil && c.Glasses.Model != nil {
 		b := body.AppendNewBlock("glasses", nil).Body()

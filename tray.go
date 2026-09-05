@@ -76,6 +76,13 @@ type TrayRow struct {
 	//
 	// A platform with no such symbol draws the row as it always did.
 	Symbol string
+
+	// Toggle makes this row a checkbox: it carries a tick when what it controls
+	// is on, and its action TOGGLES rather than setting.
+	//
+	// The state is not here, because a row is a description and the state
+	// changes while the menu exists. [Tray.Show3D] is how the item is told.
+	Toggle bool
 }
 
 // TrayRows is the menu, in order.
@@ -96,11 +103,13 @@ func TrayRows() []TrayRow {
 		{Title: "One application per screen", Key: "x", Action: ActionSpread,
 			Symbol: "rectangle.3.group"},
 		{},
-		// view.3d and view.2d are a PAIR in the system's own vocabulary, which is
-		// why they are these two rather than a cube and a square: a person who
-		// has seen either anywhere else on the machine has seen both.
-		{Title: "3D on", Action: ActionStereo3DOn, Symbol: "view.3d"},
-		{Title: "3D off", Action: ActionStereo3DOff, Symbol: "view.2d"},
+		// ⛔ ONE ROW, WITH A TICK. It was two -- "3D on" and "3D off" -- and
+		// that is right for a KEY, which is pressed blind: a shortcut meaning
+		// "on" from outside and "off" from inside does the wrong thing every
+		// time somebody has lost track. A MENU is the opposite case. The state
+		// is in front of the person as they choose, so two rows are two rows
+		// where one of them always does nothing, and the tick says which.
+		{Title: "3D", Action: ActionStereo3D, Symbol: "view.3d", Toggle: true},
 		{Title: "Show the gallery", Action: ActionGalleryOpen, Symbol: "square.grid.3x3"},
 		{Title: "Leave the gallery", Action: ActionGalleryClose,
 			Symbol: "arrow.down.right.and.arrow.up.left"},

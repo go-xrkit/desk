@@ -51,6 +51,18 @@ type RunOptions struct {
 	// Nil is nobody asking, which is the default.
 	OnGranted func(map[Action]hotkey.Combo)
 
+	// On3D is told whether the 3D conversion is on, every time that could have
+	// changed.
+	//
+	// ⛔ WHAT HAPPENED, NOT WHAT WAS ASKED. Turning it on can be refused by a
+	// display that shows one eye or by a depth model that will not load, and a
+	// menu tick following the REQUEST would then say the desk is in a state it
+	// is not -- so a person would press it again to fix something that was
+	// never on.
+	//
+	// Nil is nobody asking, which is the default.
+	On3D func(on bool)
+
 	// Actions are actions from somewhere other than the keyboard: a menu-bar
 	// item, a script, a remote. They are treated exactly like a global shortcut
 	// -- the same actions, the same loop -- because the difference between
@@ -212,6 +224,17 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// not under the ribbon's lock -- which is why Desk calls OnStereo3D outside
 	// it.
 	var conv depth3d.Converter
+	// ⛔ WHAT HAPPENED, NOT WHAT WAS ASKED. Turning 3D on can be refused twice
+	// over -- by a display that shows one eye, and by a depth model that will
+	// not load -- so every path out of here says which state the picture is
+	// ACTUALLY in. A menu tick that followed the request would say the desk is
+	// in a state it is not, and the person would press it again to fix a thing
+	// that was never on.
+	say3D := func(on bool) {
+		if opt.On3D != nil {
+			opt.On3D(on)
+		}
+	}
 	setStereo3D := func(on bool) {
 		if !on {
 			v.SetConverter(nil)
@@ -220,10 +243,12 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				conv = nil
 			}
 			logf("3D        off")
+			say3D(false)
 			return
 		}
 		if !v.convertible() {
 			logf("3D        asked for, but this display shows one eye; there is nothing to convert to")
+			say3D(false)
 			return
 		}
 		if conv == nil {
@@ -233,12 +258,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			})
 			if err != nil {
 				logf("3D        unavailable: %v", err)
+				say3D(false)
 				return
 			}
 			conv = c
 		}
 		v.SetConverter(conv)
 		logf("3D        on: %s", conv.Describe())
+		say3D(true)
 	}
 	defer func() {
 		if conv != nil {
