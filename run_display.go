@@ -248,11 +248,23 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		}
 		if !v.convertible() {
 			// ⛔ NOT MERELY OFF: it cannot be turned on here at all, and the
-			// menu has to say so. This was the whole of the report -- the log
-			// said this sentence and the menu said nothing whatever, so the row
-			// looked pressable and did nothing every time.
+			// menu has to say so -- and say what to DO about it. A row that
+			// states a fact a person cannot act on is a row that stops the
+			// conversation.
+			//
+			// ⛔ AND THE REMEDY IS THE GLASSES' OWN, NOT THIS PROGRAM'S.
+			// Measured on a Beast presenting a display, 2026-09-05:
+			// CGDisplayCopyAllDisplayModes lists ELEVEN modes for it, from
+			// 640x480 to 1920x1080, ALL at 60 Hz and NONE 3000 pixels wide.
+			// The side-by-side modes the firmware knows (0x32, 0x35, 0x37-0x3C,
+			// 0x42, 0x45) are not offered to the host at all: the headset has
+			// to be put into 3D by its own command channel, and only then does
+			// what it advertises to macOS change. So this cannot be a switch in
+			// this menu, and pretending otherwise would be a button that does
+			// nothing.
 			logf("3D        asked for, but this display shows one eye; there is nothing to convert to")
-			say3D(Stereo3D{Why: "this display shows one eye"})
+			logf("          switch the glasses into their own 3D mode first, and the desk will follow")
+			say3D(Stereo3D{Why: "switch the glasses to 3D first"})
 			return
 		}
 		if conv == nil {
@@ -283,7 +295,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// menu is unchanged. So the menu is told at the start of the session, and
 	// told again by every press after it.
 	if !v.convertible() {
-		say3D(Stereo3D{Why: "this display shows one eye"})
+		say3D(Stereo3D{Why: "switch the glasses to 3D first"})
 	}
 	d.OnStereo3D = setStereo3D
 	if opt.Stereo3D {
