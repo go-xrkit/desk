@@ -805,18 +805,24 @@ func TestOpenAndLeaveTheGalleryAreSeparateKeys(t *testing.T) {
 	}
 }
 
-// TestTheGalleryKeysAreTheOnesThatWereAskedFor: control+option+command with the
-// up and down arrows -- UP for the screens, DOWN for what is running on them.
+// TestTheGalleryKeysAreTheOnesThatWereAskedFor: ⌃⌥⌘F3 for the screens and
+// ⌃⌥⌘F4 for what is running on them.
 //
-// One idea, two keys, and neither of them a letter. The applications were on
-// ⌃⌥⌘A and it did nothing at all on the machine this was written for: granted
-// without complaint and never delivered, which is the one way a combination can
-// be taken that nothing can detect.
+// ⭐ THE WHOLE ROW READS AS ONE IDEA NOW. F1 and F2 dim and brighten the
+// glasses where a Mac dims and brightens itself, F10 to F12 are the sound, and
+// F3 and F4 are the two galleries: a run of function keys, in the order a
+// person meets them, rather than four unrelated letters and arrows.
+//
+// They were on the up and down arrows, and that was a good answer to a
+// different question: the applications had been on ⌃⌥⌘A, which was granted
+// without complaint and never delivered -- the one kind of conflict nothing can
+// detect. An arrow was the escape from a letter. A function key is a better
+// one, and it gives the arrows back to the distance keys.
 func TestTheGalleryKeysAreTheOnesThatWereAskedFor(t *testing.T) {
 	want := map[Action]hotkey.Combo{
-		ActionGalleryOpen: {Key: hotkey.KeyUpArrow,
+		ActionGalleryOpen: {Key: hotkey.KeyF3,
 			Mods: hotkey.Control | hotkey.Option | hotkey.Command},
-		ActionAppsOpen: {Key: hotkey.KeyDownArrow,
+		ActionAppsOpen: {Key: hotkey.KeyF4,
 			Mods: hotkey.Control | hotkey.Option | hotkey.Command},
 	}
 	got := map[Action]hotkey.Combo{}
