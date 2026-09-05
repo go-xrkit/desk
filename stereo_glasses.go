@@ -7,6 +7,7 @@ package desk
 import (
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -121,3 +122,30 @@ func Nudge(id byte, by int, max uint16) (uint16, error) {
 	}
 	return uint16(next), nil
 }
+
+// ErrNoSetting means the headset answered that it has no such setting.
+//
+// ⛔ A SEPARATE ERROR BECAUSE IT IS A SEPARATE THING. It used to come back
+// wrapped in ErrNoGlasses3D, so pressing the brightness key printed "the
+// glasses would not change mode: they have no setting 0x22" -- a sentence about
+// the display mode, in front of somebody who had asked for the brightness, with
+// a hex number where the answer should be.
+//
+// ⚠ AND THE HEADSET'S ANSWER CHANGES. Measured on 2026-09-05: 0x22 and 0x30
+// answered a read at 17:00 and were both gone by 18:46 -- while every other id
+// on the device still answered, with the same program, the same cable and no
+// replug in between. So this is a state to REPORT, not a fact to compile in.
+var ErrNoSetting = errors.New("desk: these glasses do not offer that setting")
+
+// glassesBusy is held for the length of one exchange with the headset.
+//
+// ⛔ A HELD KEY IS A BURST, and the headset is a microcontroller on the end of
+// a cable. Each press was a full open, listen, ask, answer, close -- and Nudge
+// makes TWO exchanges, because it reads before it writes. Twenty presses in a
+// few seconds is what the log shows, and at the end of that run the device
+// stopped answering about brightness and sound at all.
+//
+// So a press that arrives while one is in flight is DROPPED, which is what
+// Hotkeys.pump already does with presses the ribbon cannot keep up with, and
+// for the same reason: a finger held down is one intention, not thirty.
+var glassesBusy atomic.Bool

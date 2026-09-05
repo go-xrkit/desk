@@ -6,7 +6,9 @@ package desk
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -211,5 +213,85 @@ func TestQuieterAndAnActionThatIsNotOne(t *testing.T) {
 	d.adjustGlasses(ActionQuit)
 	if f.writes != before {
 		t.Error("an action that is not a glasses setting wrote one")
+	}
+}
+
+// TestAHeldKeyIsOneIntention: a press that arrives while an exchange is in
+// flight is dropped.
+//
+// ⛔ THE BURST IS THE HAZARD, and it is not hypothetical. Twenty presses in a
+// few seconds is what the log shows, each one a full open-ask-answer-close
+// against a microcontroller -- twice over, since the step reads before it
+// writes -- and at the end of that run the headset stopped answering about
+// brightness and sound at all.
+func TestAHeldKeyIsOneIntention(t *testing.T) {
+	wasGet, wasSet := GlassesGet, GlassesSet
+	t.Cleanup(func() { GlassesGet, GlassesSet = wasGet, wasSet })
+
+	inFlight := make(chan struct{})
+	release := make(chan struct{})
+	var reads, writes atomic.Int32
+	GlassesGet = func(byte) (uint16, error) {
+		if reads.Add(1) == 1 {
+			close(inFlight)
+			<-release
+		}
+		return 4, nil
+	}
+	GlassesSet = func(byte, uint16) error { writes.Add(1); return nil }
+
+	d := deskAt(t, MinDistance)
+	d.Badge(1, nil)
+
+	done := make(chan struct{})
+	go func() { defer close(done); d.Do(ActionBrighter) }()
+	<-inFlight
+	// While the first is held open, three more presses.
+	d.Do(ActionBrighter)
+	d.Do(ActionBrighter)
+	d.Do(ActionDimmer)
+	close(release)
+	<-done
+
+	if got := reads.Load(); got != 1 {
+		t.Errorf("four presses asked the headset %d times, want 1", got)
+	}
+	if got := writes.Load(); got != 1 {
+		t.Errorf("four presses wrote %d times, want 1", got)
+	}
+	// And the key is alive afterwards, or the burst guard would be a latch.
+	d.Do(ActionBrighter)
+	if got := reads.Load(); got != 2 {
+		t.Errorf("after the burst the key is dead: %d reads", got)
+	}
+}
+
+// TestASettingTheGlassesDoNotHaveIsSaidInWords.
+//
+// ⛔ IT SAID "the glasses would not change mode: they have no setting 0x22" at
+// somebody who had pressed the brightness key. A sentence about the display, in
+// front of a person who asked about the light, with a hex number where the
+// answer belongs.
+//
+// ⚠ AND IT IS A STATE, NOT A FACT. Measured on 2026-09-05, 0x22 and 0x30
+// answered a read at 17:00 and were both gone by 18:46, with the same cable and
+// no replug between -- while every other id on the device still answered.
+func TestASettingTheGlassesDoNotHaveIsSaidInWords(t *testing.T) {
+	was := GlassesGet
+	t.Cleanup(func() { GlassesGet = was })
+	GlassesGet = func(id byte) (uint16, error) {
+		return 0, fmt.Errorf("%w: %#02x", ErrNoSetting, id)
+	}
+
+	d := deskAt(t, MinDistance)
+	d.Badge(1, nil)
+
+	d.Do(ActionBrighter)
+	if got, _, _ := noticeSays(d); got != "these glasses offer no brightness" {
+		t.Errorf("the notice reads %q", got)
+	}
+	d.Do(ActionLouder)
+	if got, _, _ := noticeSays(d); got != "these glasses offer no volume" {
+		t.Errorf("the notice reads %q", got)
 	}
 }
