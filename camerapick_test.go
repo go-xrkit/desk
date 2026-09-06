@@ -4,7 +4,11 @@
 
 package desk
 
-import "testing"
+import (
+	"errors"
+	"strings"
+	"testing"
+)
 
 // TestTheHeadsetAndItsCameraShareAHub.
 //
@@ -89,4 +93,81 @@ func TestTheDisplayNameSaysWhichHeadsetToLookFor(t *testing.T) {
 	if got := wantedHeadset("VITURE"); got != lumaUltraProd {
 		t.Errorf("a Luma display wants %#04x", got)
 	}
+}
+
+// TestRoomCameraRefusesRatherThanShowTheMacsOwn.
+//
+// ⛔⛔ THE DEFECT THIS EXISTS FOR. Both call sites carried a comment saying
+// "the headset's camera, not the Mac's" and then fell through to the empty
+// string when the lookup came back empty -- and an empty camera name means "the
+// first one the machine lists" to AVFoundation, which on a laptop is the one
+// pointing at the person's FACE. So "show the room" would have shown the
+// viewer, and the photograph key would have photographed them.
+//
+// A rule written in a comment that the code does not enforce is not a rule.
+func TestRoomCameraRefusesRatherThanShowTheMacsOwn(t *testing.T) {
+	restore := headsetCamera
+	t.Cleanup(func() { headsetCamera = restore })
+
+	t.Run("a named camera wins, even when the headset has one", func(t *testing.T) {
+		headsetCamera = func(string) string { return "0xheadset" }
+		got, err := RoomCamera("0xchosen-by-hand", "VITURE Beast")
+		if err != nil {
+			t.Fatalf("RoomCamera: %v", err)
+		}
+		// A person who names a camera means that camera -- including the Mac's,
+		// if that is what they typed.
+		if got != "0xchosen-by-hand" {
+			t.Errorf("got %q, want the named one", got)
+		}
+	})
+
+	t.Run("no name takes the headset's", func(t *testing.T) {
+		headsetCamera = func(display string) string {
+			if display != "VITURE Beast" {
+				t.Errorf("looked up %q, want the display it was given", display)
+			}
+			return "0xheadset"
+		}
+		got, err := RoomCamera("", "VITURE Beast")
+		if err != nil {
+			t.Fatalf("RoomCamera: %v", err)
+		}
+		if got != "0xheadset" {
+			t.Errorf("got %q, want the headset's", got)
+		}
+	})
+
+	t.Run("no name and no headset camera REFUSES", func(t *testing.T) {
+		headsetCamera = func(string) string { return "" }
+		got, err := RoomCamera("", "VITURE Beast")
+		if err == nil {
+			t.Fatalf("got %q and no error; falling back to the Mac's camera is the bug", got)
+		}
+		if got != "" {
+			t.Errorf("got %q alongside an error; a refusal must not also hand one over", got)
+		}
+		if !errors.Is(err, ErrNoRoomCamera) {
+			t.Errorf("error %v does not answer to ErrNoRoomCamera", err)
+		}
+		// The message has to name the headset, or a person reading a log cannot
+		// tell which of two attached headsets could not be asked.
+		if !strings.Contains(err.Error(), "VITURE Beast") {
+			t.Errorf("error %q does not name the headset", err)
+		}
+		if !strings.Contains(err.Error(), "-photo-camera") {
+			t.Errorf("error %q does not say how to override it", err)
+		}
+	})
+
+	t.Run("with no display named, it still says what it is talking about", func(t *testing.T) {
+		headsetCamera = func(string) string { return "" }
+		_, err := RoomCamera("", "")
+		if err == nil {
+			t.Fatal("want a refusal")
+		}
+		if !strings.Contains(err.Error(), "the headset") {
+			t.Errorf("error %q leaves a blank where the display should be", err)
+		}
+	})
 }
