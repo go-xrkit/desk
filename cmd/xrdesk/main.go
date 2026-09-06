@@ -672,6 +672,19 @@ func run() int {
 				return desk.OpenPassthrough(cam, logf)
 			}
 
+			// The headset's own tracking. It does the work; this only asks.
+			d.OnTracking = func(mode int, recentre bool) error {
+				err := desk.SetTracking(mode, recentre)
+				// ⛔ THE MENU IS TOLD WHAT ACTUALLY HAPPENED, not what was
+				// asked for. A tick that moved because a row was clicked
+				// would be a tick that lies whenever the headset refuses --
+				// and it refuses whenever it is passing the picture through.
+				if menuBar != nil {
+					menuBar.ShowTracking(desk.ReadTracking())
+				}
+				return err
+			}
+
 			d.OnPhoto = func() (string, error) {
 				// ⛔ THE HEADSET'S CAMERA, NOT THE MAC'S. Empty means "the
 				// first the machine lists", which on a laptop is the one
@@ -805,6 +818,11 @@ func run() int {
 			Screens: ribbonIDs(mirror, macID, screens.IDs),
 			Showing: showing,
 		}
+		// ⛔ ASKED ONCE AS THE DESK STARTS, so the tick is right BEFORE anybody
+		// clicks anything. The headset has its own button: whatever mode it is
+		// already in was not chosen here, and a menu opening with no tick at all
+		// would say the glasses do not track.
+		menuBar.ShowTracking(desk.ReadTracking())
 		if *snap {
 			opts.Snapshot = func(pix []byte, w, h int) {
 				path, err := writeSnapshot(pix, w, h)
