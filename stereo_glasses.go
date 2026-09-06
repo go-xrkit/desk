@@ -8,26 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"sync/atomic"
-	"time"
 )
 
 // ErrNoGlasses3D means the headset could not be told to change its mode.
 var ErrNoGlasses3D = errors.New("desk: the glasses would not change mode")
-
-// The device this speaks to, and how long it is given to answer.
-//
-// ⭐ 35ca:1201 on the vendor usage page is the headset's control interface, and
-// it is the ONLY one of the three the glasses publish that carries the
-// protocol: the other two are called "VITURE Microphone" and are a Consumer
-// page audio set. The name misleads and the usage page does not.
-const (
-	vitureVendor uint16 = 0x35ca
-	vendorPage   uint16 = 0xff00
-
-	// glasses3DWait is generous for a device that answers in milliseconds, and
-	// short enough that a menu row does not appear to hang.
-	glasses3DWait = 2 * time.Second
-)
 
 // Set3D asks the glasses to put a different picture in front of each eye.
 //
@@ -39,31 +23,8 @@ const (
 // ⚠ THE DISPLAY GOES AWAY AND COMES BACK. Changing the mode tears the screen
 // down and re-negotiates it, which ends the session the desk is running -- so a
 // caller must expect to be restarted, and must remember what was asked for
-// across that gap. That is what [Config.Stereo3D] is for.
+// across that gap. That is what [Desk.WantedStereo3D] is for.
 var Set3D = func(on bool) error { return platformSet3D(on) }
-
-// statusError turns the headset's own answer into one a person can act on.
-//
-// ⭐ THE HEADSET ANSWERS EVERY COMMAND, and that is worth more than watching the
-// screen: a display that does not change cannot tell a refusal from a command
-// that never arrived, which is what made this take nineteen attempts to find.
-func statusError(status uint16, on bool) error {
-	switch status {
-	case 0: // taken
-		return nil
-	case 4:
-		what := "2D"
-		if on {
-			what = "side-by-side 3D"
-		}
-		return fmt.Errorf("%w: they refused %s", ErrNoGlasses3D, what)
-	case 6:
-		return fmt.Errorf("%w: they called the command too short, which is a bug here",
-			ErrNoGlasses3D)
-	default:
-		return fmt.Errorf("%w: they answered with the code %d", ErrNoGlasses3D, status)
-	}
-}
 
 // What the glasses hold, and the range each takes.
 //
@@ -149,3 +110,12 @@ var ErrNoSetting = errors.New("desk: these glasses do not offer that setting")
 // Hotkeys.pump already does with presses the ribbon cannot keep up with, and
 // for the same reason: a finger held down is one intention, not thirty.
 var glassesBusy atomic.Bool
+
+// headsetRefused is what a refused write reads as.
+//
+// ⛔ THE MAPPING FROM A STATUS CODE TO A SENTENCE LIVES IN go-viture/beast NOW,
+// with the reason it exists: the headset answers every command, and that is
+// worth more than watching a screen, because a screen that does not change
+// cannot tell a refusal from a command that never arrived. Nineteen writes were
+// lost learning it. This is only the desk's name for the result.
+var headsetRefused = fmt.Errorf("%w: the headset refused", ErrNoGlasses3D)
