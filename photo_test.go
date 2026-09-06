@@ -200,7 +200,7 @@ func TestAPictureThatCannotBeEncodedIsNotWritten(t *testing.T) {
 // OnPhoto is exactly that case, so it must say what happened.
 func TestADeskWithNoCameraSaysSo(t *testing.T) {
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionPhoto)
 	text, up, _ := noticeSays(d)
 	if !up {
@@ -218,7 +218,7 @@ func TestADeskWithNoCameraSaysSo(t *testing.T) {
 // directory is that somebody comes back to it.
 func TestThePathIsSaidOutLoud(t *testing.T) {
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.OnPhoto = func() (string, error) {
 		return "/somewhere/durable/2026-09-04-233015.png", nil
 	}
@@ -233,7 +233,7 @@ func TestThePathIsSaidOutLoud(t *testing.T) {
 // a sentence of our own that loses it.
 func TestAPhotographThatFailsSaysWhy(t *testing.T) {
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.OnPhoto = func() (string, error) {
 		return "", errors.New("another program has the camera")
 	}

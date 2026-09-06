@@ -117,7 +117,7 @@ func TestTheDisplacedFeedIsKeptAndGivenBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	was, _ := d.SetFeed(0, nil)
 	originalCam := &stubCamera{}
@@ -158,7 +158,7 @@ func TestADeskWithNoCameraSaysSoAboutTheRoom(t *testing.T) {
 	p := testPlan(t)
 	d, _ := New(p, feedsFor(p))
 	defer d.Close()
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	d.togglePassthrough(0)
 	if got, _, _ := noticeSays(d); !strings.Contains(got, "no camera") {
@@ -216,7 +216,7 @@ func TestPassthroughSurvivesAScreenThatWillNotTakeIt(t *testing.T) {
 	p := testPlan(t)
 	d, _ := New(p, feedsFor(p))
 	defer d.Close()
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	cam := &stubCamera{}
 	d.OnPassthrough = func() (Feed, error) { return &cameraFeed{c: cam}, nil }
@@ -235,7 +235,7 @@ func TestTurningTheRoomOffOnAScreenThatWentAway(t *testing.T) {
 	p := testPlan(t)
 	d, _ := New(p, feedsFor(p))
 	defer d.Close()
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	cam := &stubCamera{}
 	d.roomAt = map[int]Feed{999: &cameraFeed{c: cam}}
@@ -255,7 +255,7 @@ func TestTheRoomKeyWorksFromTheRibbon(t *testing.T) {
 	p := testPlan(t)
 	d, _ := New(p, feedsFor(p))
 	defer d.Close()
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	cam := &stubCamera{}
 	d.OnPassthrough = func() (Feed, error) { return &cameraFeed{c: cam}, nil }

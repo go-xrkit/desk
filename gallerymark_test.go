@@ -32,7 +32,7 @@ func galleryOf(t *testing.T, n int) (*Desk, *Canvas) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionGalleryOpen)
 	if d.Nav().Mode() != ribbon.ModeGallery {
 		t.Fatalf("the gallery did not open: %v", d.Err())

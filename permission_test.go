@@ -120,3 +120,36 @@ func TestNothingToReportSaysNothing(t *testing.T) {
 		t.Errorf("a report was made about no permissions: %v", lines)
 	}
 }
+
+// ⛔ A PERMISSION NOBODY HAS ASKED FOR IS NOT IN SYSTEM SETTINGS AT ALL. macOS
+// lists an application under a pane once it has asked once, and not before, so
+// the standing advice sends a person to look for a row that does not exist.
+// This is the case where the answer is "press the key".
+func TestAGrantNobodyHasAskedForDoesNotSendYouToSystemSettings(t *testing.T) {
+	lines := permissionLines([]Grant{{
+		What: "the camera (not asked yet)",
+		Pane: "Camera",
+		Held: false,
+		How:  "press the key that shows the room and macOS will ask",
+	}}, "/Users/Shared/xrdesk/XR desk.app")
+	all := strings.Join(lines, "\n")
+	if !strings.Contains(all, "press the key") {
+		t.Errorf("the report does not say what actually works:\n%s", all)
+	}
+	if strings.Contains(all, "grant it in System Settings") {
+		t.Errorf("the report still sends a person to a pane that will not list "+
+			"this application:\n%s", all)
+	}
+}
+
+// And the other way: a grant with no advice of its own keeps the pane, which is
+// the right answer for one that HAS been refused.
+func TestAGrantWithNoAdviceOfItsOwnKeepsThePane(t *testing.T) {
+	lines := permissionLines([]Grant{{
+		What: "the camera (refused)", Pane: "Camera", Held: false,
+	}}, "")
+	all := strings.Join(lines, "\n")
+	if !strings.Contains(all, "System Settings > Privacy & Security > Camera") {
+		t.Errorf("a refused grant no longer names its pane:\n%s", all)
+	}
+}

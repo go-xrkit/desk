@@ -6,6 +6,7 @@ package desk
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -59,7 +60,7 @@ func TestANoticeIsDrawnLowAndSmall(t *testing.T) {
 	c := NewCanvas(800, 600)
 	before := append([]byte(nil), c.Pix...)
 
-	n := newNotice(1, nil)
+	n := newNotice(1, nil, nil)
 	n.say("one screen, as large as these glasses show it")
 	n.draw(c)
 
@@ -94,7 +95,7 @@ func TestANoticeIsDrawnLowAndSmall(t *testing.T) {
 // is still going and says the work failed. So a wait has NO life, and only
 // clear takes it down.
 func TestAWaitStaysUntilItIsOver(t *testing.T) {
-	n := newNotice(0.1, nil) // a very short life, if it had one
+	n := newNotice(0.1, nil, nil) // a very short life, if it had one
 	n.waiting("looking for what is running...")
 	for range 1000 {
 		n.tick()
@@ -129,7 +130,7 @@ func TestAWaitStaysUntilItIsOver(t *testing.T) {
 // changes nothing is indistinguishable from one that was never granted.
 func TestFitSaysSoWhenThereIsNothingToDo(t *testing.T) {
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionFit)
 	text, up, _ := noticeSays(d)
 	if !up {
@@ -142,7 +143,7 @@ func TestFitSaysSoWhenThereIsNothingToDo(t *testing.T) {
 	// And from further out it says what it did, because a band that jumps is
 	// worth a word too -- but a different one.
 	d = deskAt(t, MaxDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionFit)
 	if text, _, _ := noticeSays(d); strings.Contains(text, "already") {
 		t.Errorf("fit from %g said %q", MaxDistance, text)
@@ -161,7 +162,7 @@ func TestFitSaysSoWhenThereIsNothingToDo(t *testing.T) {
 // arrives -- not on a timer.
 func TestTheAppListPutsAPlaceholderUpWhileItIsRead(t *testing.T) {
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	asked := make(chan struct{})
 	release := make(chan struct{})
@@ -189,7 +190,7 @@ func TestTheAppListPutsAPlaceholderUpWhileItIsRead(t *testing.T) {
 // for ever: a wait that ends in silence is the same picture as one still going.
 func TestAListThatCannotBeReadReplacesThePlaceholder(t *testing.T) {
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.OnApps = func() ([]App, error) { return nil, errors.New("no accessibility grant") }
 	d.Do(ActionAppsOpen)
 	text, up, life := noticeSays(d)
@@ -232,10 +233,47 @@ func TestANoticeOnATinyPictureIsStillDrawn(t *testing.T) {
 	}
 	c := NewCanvas(60, 20)
 	before := append([]byte(nil), c.Pix...)
-	n := newNotice(1, nil)
+	n := newNotice(1, nil, nil)
 	n.say("fit")
 	n.draw(c)
 	if len(changedRows(c, before)) == 0 {
 		t.Error("nothing was drawn on a small view")
+	}
+}
+
+// ⛔ A NOTICE IS WRITTEN DOWN AS WELL AS SHOWN, and the photograph is why. A
+// notice lives about three seconds on a panel a hand's width from one eye, so a
+// sentence carrying something needed LATER is a sentence somebody had one
+// chance to read -- and only if they were wearing the glasses at that moment.
+// "photograph saved: /Users/.../2026-09-06-170010.png" was said, was correct,
+// was gone, and the next question asked was "where was the photo taken?".
+func TestWhatANoticeSaysIsAlsoWrittenDown(t *testing.T) {
+	var said []string
+	n := newNotice(1, nil, func(f string, a ...any) { said = append(said, fmt.Sprintf(f, a...)) })
+
+	n.say("photograph saved: /somewhere/2026-09-06-170010.png")
+	n.waiting("taking a photograph...")
+	n.clear()
+
+	if len(said) != 2 {
+		t.Fatalf("two sentences were said and %d were written: %q", len(said), said)
+	}
+	if !strings.Contains(said[0], "2026-09-06-170010.png") {
+		t.Errorf("the path was not written down: %q", said[0])
+	}
+	if !strings.Contains(said[1], "taking a photograph") {
+		t.Errorf("a wait was not written down: %q", said[1])
+	}
+	// clear says nothing: taking a notice down is not an event to report, and a
+	// log full of blank lines is a log nobody reads.
+}
+
+// A notice with nowhere to write is a notice, not a crash: that is what every
+// test here builds and what a caller that passes nil gets.
+func TestANoticeWithNowhereToWriteStillShows(t *testing.T) {
+	n := newNotice(1, nil, nil)
+	n.say("something")
+	if !n.up() {
+		t.Error("a notice with no log did not go up")
 	}
 }

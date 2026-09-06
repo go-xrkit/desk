@@ -85,7 +85,7 @@ func TestTheMicKeySaysWhichMicrophone(t *testing.T) {
 	installMic(t, m, nil)
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	d.Do(ActionMic)
 	if got, _, _ := noticeSays(d); got != "MacBook Pro Microphone is muted" {
@@ -103,7 +103,7 @@ func TestAMicrophoneThatWillNotBeSilencedSaysSo(t *testing.T) {
 	installMic(t, nil, ErrNoMicrophone)
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionMic)
 	if got, _, _ := noticeSays(d); got != ErrNoMicrophone.Error() {
 		t.Errorf("the notice reads %q", got)

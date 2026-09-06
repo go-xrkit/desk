@@ -50,8 +50,8 @@ github.com/go-macos/appicon v0.3.0 h1:hl/4khPzjKnf83C/ht/FyqJuTeZMTlkuQ5D8vGZFir
 github.com/go-macos/appicon v0.3.0/go.mod h1:mL3vebftan8SFD8fx8K2FKpY9FuBhKVEA5NrLJzPtxw=
 github.com/go-macos/appkit v0.3.0 h1:ujpAR45JfGZbitv7GiULgTWgaiDFrNWM0nCYzg56N9c=
 github.com/go-macos/appkit v0.3.0/go.mod h1:KQ+vIsZ2hBFniqFJ5Q4uQ4ylQX+MXPvJcMOzvBpJRdE=
-github.com/go-macos/avfoundation v0.10.0 h1:MAmbq3KSP6LfxftSl/f59RxFVJV8FeKsTvY6rlYLfKs=
-github.com/go-macos/avfoundation v0.10.0/go.mod h1:9jZoHgSifeX3mACQOhodATX81F1i5zlhJnSF/OQm684=
+github.com/go-macos/avfoundation v0.11.0 h1:gPARONZieRzsqDGHW8OvovO+rStKFb0XjbeDE4zy9iI=
+github.com/go-macos/avfoundation v0.11.0/go.mod h1:9jZoHgSifeX3mACQOhodATX81F1i5zlhJnSF/OQm684=
 github.com/go-macos/brightness v0.1.1 h1:IrXhHJtwCEwQl2q54LW35C9+Caodwe+2h/yOqOqLcBE=
 github.com/go-macos/brightness v0.1.1/go.mod h1:YSgahQXXD66Hjv9X0/A3lWR20iaemzWm3DiK7OHpuvc=
 github.com/go-macos/coreaudio v0.2.0 h1:/8v/jxZuYG3ytOMoaoutbxLNAgRPmZBYwtJMeAth2aQ=

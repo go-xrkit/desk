@@ -41,6 +41,15 @@ type Grant struct {
 	// Needed is whether the desk cannot work without it, as against working
 	// with one thing missing.
 	Needed bool
+	// How is what to do about it, when System Settings is the wrong answer.
+	//
+	// ⛔ A PERMISSION NOBODY HAS ASKED FOR IS NOT IN SYSTEM SETTINGS AT ALL.
+	// macOS lists an application under Camera once it has asked once, and not
+	// before -- so "grant it in System Settings > Camera" sends a person to
+	// look for a row that does not exist, and the thing they actually have to
+	// do is press the key and answer the prompt. Empty means the pane is the
+	// right answer.
+	How string
 }
 
 // permissionLines is the startup report on what has been granted.
@@ -62,6 +71,9 @@ func permissionLines(gs []Grant, app string) []string {
 		mark, note := "✓", ""
 		if !g.Held {
 			mark, note = "⛔", " — grant it in System Settings > Privacy & Security > "+g.Pane
+			if g.How != "" {
+				note = " — " + g.How
+			}
 			if !g.Needed {
 				note += " (the desk starts without it)"
 			}
