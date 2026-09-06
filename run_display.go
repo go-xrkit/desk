@@ -341,7 +341,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		d.Do(ActionStereo3DOn)
 	}
 	v.Snapshot = opt.Snapshot
-	d.Badge(opt.Badge, toolkit.DefaultDark())
+	d.Badge(opt.Badge, toolkit.DefaultDark(), logf)
 	if opt.Badge > 0 {
 		logf("the screen's number shows for %v when the band moves", BadgeDuration(opt.Badge))
 	}

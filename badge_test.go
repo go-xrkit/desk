@@ -158,7 +158,7 @@ func TestTheDeskShowsTheBadgeWhenTheBandArrives(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer d.Close()
-	d.Badge(0.3, nil)
+	d.Badge(0.3, nil, nil)
 
 	// The first frame arrives somewhere, so it says so.
 	d.Render()
@@ -197,7 +197,7 @@ func TestTheDeskShowsTheBadgeWhenTheBandArrives(t *testing.T) {
 	}
 
 	// Setting it to zero turns it off through the same door.
-	d.Badge(0, nil)
+	d.Badge(0, nil, nil)
 	d.Do(ActionGalleryClose)
 	d.Do(ActionNext)
 	d.Advance(10)

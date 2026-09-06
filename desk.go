@@ -1072,11 +1072,11 @@ func (d *Desk) refresh(list func() ([]App, error), a Action) {
 // Advance moves the ribbon towards where it is going, dt seconds later.
 // Badge turns the arrival badge on for this many seconds, or off at zero. It
 // must be set before the first Render.
-func (d *Desk) Badge(seconds float64, theme *toolkit.Theme) {
+func (d *Desk) Badge(seconds float64, theme *toolkit.Theme, logf func(string, ...any)) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.badge = newBadge(seconds, theme)
-	d.notice = newNotice(0, theme)
+	d.notice = newNotice(0, theme, logf)
 	d.marks = newMarks(theme)
 	d.apps = newAppsView(theme)
 }

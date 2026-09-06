@@ -330,7 +330,7 @@ func TestTheScreenGalleryIsDrawnAndCanBeLookedAt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New = %v", err)
 	}
-	d.Badge(0, nil)
+	d.Badge(0, nil, nil)
 	d.Do(ActionGalleryOpen)
 	// The adder is the last cell; selecting it is what a person does before
 	// pressing Enter, so it is what the picture should show.

@@ -36,24 +36,38 @@ const DefaultNoticeSeconds = 2.5
 // A notice that is WAITING has no life: it stays until whatever it is waiting
 // for calls clear, because a placeholder that expires before its work finishes
 // is worse than none -- it says the thing failed.
+// ⛔ AND IT IS WRITTEN DOWN AS WELL AS SHOWN. A notice lives about three
+// seconds, on a panel a hand's width from one eye -- so a sentence carrying
+// something somebody needs LATER is a sentence they had one chance to read, and
+// only if they were wearing the glasses at that moment. "photograph saved:
+// /Users/.../2026-09-06-170010.png" is exactly that: the path was said, it was
+// correct, it was gone, and the next question asked was "where was the photo
+// taken?".
 type notice struct {
 	toast  *toolkit.Toast
 	theme  *toolkit.Theme
 	frames int
+	logf   func(string, ...any)
 }
 
-// newNotice prepares it. A nil theme is the dark one, like everywhere else.
-func newNotice(seconds float64, theme *toolkit.Theme) *notice {
+// newNotice prepares it. A nil theme is the dark one, like everywhere else, and
+// a nil logf writes nowhere -- which is what a test wants and not what a desk
+// does.
+func newNotice(seconds float64, theme *toolkit.Theme, logf func(string, ...any)) *notice {
 	if !(seconds > 0) {
 		seconds = DefaultNoticeSeconds
 	}
 	if theme == nil {
 		theme = toolkit.DefaultDark()
 	}
+	if logf == nil {
+		logf = func(string, ...any) {}
+	}
 	return &notice{
 		toast:  toolkit.NewToast("", toolkit.ToastInfo),
 		theme:  theme,
 		frames: int(math.Round(seconds / FrameInterval.Seconds())),
+		logf:   logf,
 	}
 }
 
@@ -77,6 +91,13 @@ func (n *notice) waiting(text string) { n.put(text, 0) }
 func (n *notice) put(text string, life int) {
 	if n == nil {
 		return
+	}
+	// Here rather than in say: put is where a sentence ARRIVES, once per
+	// message and not once per frame, and it is the one place both say and
+	// waiting go through. A notice that only ever appeared on the panel would
+	// leave nothing behind for anyone who was not looking at that moment.
+	if text != "" && n.logf != nil {
+		n.logf("%s", text)
 	}
 	n.toast.Text = text
 	n.toast.Visible().Set(true)

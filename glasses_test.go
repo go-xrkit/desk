@@ -136,7 +136,7 @@ func TestTheGlassesKeysSayWhereTheyLanded(t *testing.T) {
 	f.install(t)
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	d.Do(ActionBrighter)
 	if text, _, _ := noticeSays(d); !strings.Contains(text, "brightness 5 of 8") {
@@ -165,7 +165,7 @@ func TestAHeadsetThatIsNotThereSaysSo(t *testing.T) {
 	f.install(t)
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionBrighter)
 	text, up, _ := noticeSays(d)
 	if !up || text == "" {
@@ -185,7 +185,7 @@ func TestQuieterAndAnActionThatIsNotOne(t *testing.T) {
 	f.install(t)
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 	d.Do(ActionQuieter)
 	if text, _, _ := noticeSays(d); !strings.Contains(text, "volume 4 of 8") {
 		t.Errorf("quieter says %q", text)
@@ -226,7 +226,7 @@ func TestAHeldKeyIsOneIntention(t *testing.T) {
 	GlassesSet = func(byte, uint16) error { writes.Add(1); return nil }
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	done := make(chan struct{})
 	go func() { defer close(done); d.Do(ActionBrighter) }()
@@ -269,7 +269,7 @@ func TestASettingTheGlassesDoNotHaveIsSaidInWords(t *testing.T) {
 	}
 
 	d := deskAt(t, MinDistance)
-	d.Badge(1, nil)
+	d.Badge(1, nil, nil)
 
 	d.Do(ActionBrighter)
 	if got, _, _ := noticeSays(d); got != "these glasses offer no brightness" {
