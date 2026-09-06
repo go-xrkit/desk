@@ -173,15 +173,15 @@ func TestTheApplicationUnderAPointIsTheOneThatIsClicked(t *testing.T) {
 // TestTheGalleryTextGrowsWithThePicture: the same rule as the badge, because a
 // tile read at arm's length through glasses is not a tile read on a monitor.
 func TestTheGalleryTextGrowsWithThePicture(t *testing.T) {
-	small, big := appsScale(360), appsScale(2160)
+	small, big := appsInk(360), appsInk(2160)
 	if !(big > small) {
-		t.Errorf("appsScale(2160) = %d and appsScale(360) = %d; it must follow the height", big, small)
+		t.Errorf("appsInk(2160) = %d and appsInk(360) = %d; it must follow the height", big, small)
 	}
-	if got := appsScale(10); got < 1 {
-		t.Errorf("appsScale(10) = %d; a tiny picture still needs a readable font", got)
+	if got := appsInk(10); got < 1 {
+		t.Errorf("appsInk(10) = %d; a tiny picture still needs a readable font", got)
 	}
-	if got := appsScale(100000); got > 4 {
-		t.Errorf("appsScale(100000) = %d; it must stop somewhere", got)
+	if got := appsInk(100000); got > 4*overlayGlyphRows {
+		t.Errorf("appsInk(100000) = %d; it must stop somewhere", got)
 	}
 }
 

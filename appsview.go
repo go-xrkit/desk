@@ -158,7 +158,7 @@ func (v *appsView) draw(c *Canvas) {
 	// The font is restored by a defer for the same reason the badge restores it:
 	// whatever draws next asked for its own.
 	was := toolkit.CurrentFont()
-	toolkit.SetFont(toolkit.NewBitmapFont(appsScale(c.H)))
+	toolkit.SetFont(overlayFont(appsInk(c.H)))
 	defer toolkit.SetFont(was)
 
 	// The tile is sized FROM THE PICTURE, not from a constant, and this is the
@@ -218,7 +218,10 @@ func appsIconPx(h, apps int) int {
 // carry -- "Firefox (2 windows) on screens 2, 4", thirty-five characters -- fits
 // a third of a 1920-wide view. A step larger and the toolkit elided it to
 // "on screens", dropping the two numbers the tile exists to give.
-func appsScale(h int) int {
+func appsInk(h int) int {
+	// The same ladder as before, in ink rather than in bitmap scales: a
+	// seven-row glyph per step, one step per 600 rows of panel, four steps at
+	// most. The ceiling is what keeps a label the width of a tile.
 	s := h / 600
 	if s < 1 {
 		s = 1
@@ -226,5 +229,5 @@ func appsScale(h int) int {
 	if s > 4 {
 		s = 4
 	}
-	return s
+	return s * overlayGlyphRows
 }

@@ -115,7 +115,7 @@ func (n *notice) draw(c *Canvas) {
 		return
 	}
 	was := toolkit.CurrentFont()
-	toolkit.SetFont(toolkit.NewBitmapFont(noticeScale(c.H)))
+	toolkit.SetFont(overlayFont(noticeInk(c.H)))
 	defer toolkit.SetFont(was)
 
 	// AnchorIn's third argument is a STACK INDEX and not an inset: it is how
@@ -135,13 +135,13 @@ func (n *notice) draw(c *Canvas) {
 // A THIRD of the badge, from the height of the picture for the same reason: the
 // badge is one glyph a twelfth of the view tall, and a line of type at that
 // size would be a banner across the whole of it.
-func noticeScale(h int) int {
-	const glyph = 7 // the built-in bitmap is 7 rows tall at scale 1
-	s := h / 36 / glyph
-	if s < 1 {
-		s = 1
+func noticeInk(h int) int {
+	// A thirty-sixth of the view, as before, without the rounding down to a
+	// multiple of seven that an integer-scaled bitmap forced.
+	if i := h / 36; i > 0 {
+		return i
 	}
-	return s
+	return 1
 }
 
 // noticeInset is how far off the bottom edge it sits: a twentieth of the view,
