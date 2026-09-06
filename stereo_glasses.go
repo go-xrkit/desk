@@ -119,3 +119,6 @@ var glassesBusy atomic.Bool
 // cannot tell a refusal from a command that never arrived. Nineteen writes were
 // lost learning it. This is only the desk's name for the result.
 var headsetRefused = fmt.Errorf("%w: the headset refused", ErrNoGlasses3D)
+
+// errNoSideBySide is the sentence behind [ErrNoSideBySide].
+var errNoSideBySide = fmt.Errorf("%w: no side-by-side mode on this headset", ErrNoGlasses3D)
