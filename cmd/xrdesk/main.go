@@ -147,6 +147,12 @@ func run() int {
 	// somewhere to click. Choosing a row sends an action into the queue the run
 	// loop reads.
 	actions := make(chan desk.Action, desk.TrayQueue)
+	// ⛔ SAID HERE, BEFORE ANYTHING NEEDS THEM. The screen-recording grant used
+	// to be discovered at the moment of the first capture, which is after the
+	// headset has been found -- so with no glasses plugged in there was no way
+	// to learn whether the permission was there, and with them plugged in the
+	// person granted one thing, restarted, and was told about the next.
+	desk.LogPermissions(logf)
 	menuBar, err := desk.OpenTray(logf, actions)
 	if err != nil {
 		logf("%v", err)
