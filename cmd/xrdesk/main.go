@@ -654,6 +654,18 @@ func run() int {
 			// A camera held open is a camera left ON, light and all, and a
 			// desk that kept one for a session would be a headset watching the
 			// room all afternoon so that one key press could be quick.
+			// The room, on one ribbon screen. Same camera as the photograph, and
+			// the same reason: it is the one pointing where the person is looking.
+			d.OnPassthrough = func() (desk.Feed, error) {
+				cam := *photoCamera
+				if cam == "" {
+					if c := desk.HeadsetCamera(chosen.Name); c != "" {
+						cam = c
+					}
+				}
+				return desk.OpenPassthrough(cam, logf)
+			}
+
 			d.OnPhoto = func() (string, error) {
 				// ⛔ THE HEADSET'S CAMERA, NOT THE MAC'S. Empty means "the
 				// first the machine lists", which on a laptop is the one

@@ -264,6 +264,19 @@ const (
 	// and silencing what a person is actually speaking into is both the nearest
 	// thing that works and what a key called "mute the microphone" should mean.
 	ActionMic
+	// ActionPassthrough puts the headset's camera on the focused screen, or
+	// takes it away again.
+	//
+	// ⭐ ON ONE SCREEN, NOT OVER EVERYTHING. A ribbon is a row of screens and
+	// one of them can be the room: that keeps the work the desk already does
+	// -- placing, turning, promoting -- and makes passthrough a source like any
+	// other, rather than a mode with its own rules.
+	//
+	// ⚠ THE LIGHT IS ON WHILE IT RUNS. On every Mac with a camera indicator the
+	// hardware wires the light to the sensor's power, so this cannot be quietly
+	// left on: pressing it again closes the camera, and so does ending the
+	// session.
+	ActionPassthrough
 )
 
 // screenOf reports which screen an action goes to, counting from zero, and
@@ -360,6 +373,8 @@ func (a Action) String() string {
 		return "put the glasses down"
 	case ActionMic:
 		return "mute the microphone"
+	case ActionPassthrough:
+		return "show the room"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -516,8 +531,18 @@ type Desk struct {
 	// badge says which screen the viewer has arrived at, for a moment. Nil when
 	// it has been turned off.
 	badge *badge
+	// roomAt remembers, per ribbon position, the feed the camera displaced.
+	//
+	// ⛔ KEPT RATHER THAN CLOSED: a screen showing an application still has
+	// that application behind it, and a desk that closed its capture would
+	// hand back a black rectangle.
+	roomAt map[int]Feed
 	// notice is the sentence a shortcut leaves behind -- see [notice].
 	notice *notice
+
+	// OnPassthrough opens the room as a feed. Nil means this desk has no
+	// camera, and the row says so rather than doing nothing.
+	OnPassthrough func() (Feed, error)
 
 	// OnPhoto takes a photograph and reports where it was written.
 	//
@@ -638,7 +663,7 @@ func (d *Desk) InGallery() bool {
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
-	var mic bool
+	var mic, pass bool
 	var photo func() (string, error)
 	glasses := ActionNone
 	var stereo3D func(bool)
@@ -840,6 +865,11 @@ func (d *Desk) Do(a Action) {
 		point, pos = d.OnPoint, d.nav.Focus()
 	case ActionMic:
 		mic = true
+	case ActionPassthrough:
+		// Outside the lock, like every handler that talks to hardware: opening
+		// a camera takes long enough to stall the frame loop, and the light
+		// coming on is not something to do while nothing can be drawn.
+		pass, pos = true, d.nav.Focus()
 	case ActionDimmer, ActionBrighter, ActionMute, ActionQuieter, ActionLouder:
 		// Outside the lock, like every handler that talks to hardware: this
 		// opens the headset's control interface and waits for its answer.
@@ -905,6 +935,9 @@ func (d *Desk) Do(a Action) {
 	}
 	if mic {
 		d.toggleMic()
+	}
+	if pass {
+		d.togglePassthrough(pos)
 	}
 	if glasses != ActionNone {
 		d.adjustGlasses(glasses)
@@ -1676,4 +1709,71 @@ func (d *Desk) WantedStereo3D() bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.stereoWanted
+}
+
+// togglePassthrough puts the room on this screen, or takes it away again.
+//
+// ⛔ THE DISPLACED FEED IS KEPT, NOT CLOSED. A screen showing an application
+// still has that application behind it; closing its capture to show the room
+// would mean the person gets a black rectangle back when they press again, and
+// the desk would have thrown away something it cannot recreate. [Desk.SetFeed]
+// hands the old one over for exactly this.
+//
+// ⚠ AND THE LIGHT IS ON WHILE IT RUNS. On every Mac with a camera indicator
+// the hardware wires the light to the sensor's power, so this cannot be quietly
+// left on: pressing again closes the camera, and so does ending the session.
+func (d *Desk) togglePassthrough(pos int) {
+	d.mu.Lock()
+	was, showing := d.roomAt[pos]
+	open := d.OnPassthrough
+	d.mu.Unlock()
+
+	if showing {
+		// Put the screen back to what it was. The camera comes out of SetFeed
+		// and is closed here, which is the only place that knows it is a
+		// camera rather than a screen.
+		cam, err := d.SetFeed(pos, was)
+		d.mu.Lock()
+		delete(d.roomAt, pos)
+		d.mu.Unlock()
+		if cam != nil {
+			_ = cam.Close()
+		}
+		if err != nil {
+			d.say(err.Error())
+			return
+		}
+		d.say(fmt.Sprintf("screen %d is back", pos+1))
+		return
+	}
+
+	if open == nil {
+		d.say("no room to show: this desk has no camera")
+		return
+	}
+	f, err := open()
+	if err != nil {
+		d.say(err.Error())
+		return
+	}
+	old, err := d.SetFeed(pos, f)
+	if err != nil {
+		_ = f.Close()
+		d.say(err.Error())
+		return
+	}
+	d.mu.Lock()
+	if d.roomAt == nil {
+		d.roomAt = map[int]Feed{}
+	}
+	d.roomAt[pos] = old
+	d.mu.Unlock()
+	d.say(fmt.Sprintf("screen %d shows the room", pos+1))
+}
+
+// say puts a sentence on the picture, taking the lock.
+func (d *Desk) say(text string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.notice.say(text)
 }
