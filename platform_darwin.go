@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-macos/appbundle"
 	"github.com/go-macos/screencapture"
 	"github.com/go-macos/virtualdisplay"
 )
@@ -386,13 +387,14 @@ func OpenOffer(ctx context.Context, plan Plan, o Offer) (Feed, error) {
 // errPermission is the one message about the screen-recording grant, said once.
 //
 // It names what to do rather than what failed, because "permission denied" sends
-// a person to the wrong place: the grant belongs to whatever LAUNCHED this, not
-// to this.
+// a person to the wrong place: the grant belongs to whatever the system holds
+// responsible for the capture, not to this.
 func errPermission() error {
-	return errors.New("desk: screen recording is not permitted. " +
-		"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording " +
-		"to the application that launched this program — for a program started from a shell " +
-		"that is the terminal or editor, not the program itself — then restart it")
+	var app string
+	if b, ok := appbundle.Running(); ok {
+		app = b.Path
+	}
+	return errors.New(permissionMessage(app))
 }
 
 // settledDisplayIDs is the display list once it has stopped changing.
