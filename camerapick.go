@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -66,4 +67,48 @@ func wantedHeadset(display string) uint16 {
 		return beastProduct
 	}
 	return lumaUltraProd
+}
+
+// ErrNoRoomCamera is returned when the room cannot be shown or photographed
+// because the headset's own camera was not found.
+var ErrNoRoomCamera = errors.New("desk: the headset's camera was not found")
+
+// headsetCamera is [HeadsetCamera], named so a test can stand in for it. The
+// real one reads the USB tree, which a test cannot arrange.
+var headsetCamera = HeadsetCamera
+
+// RoomCamera is the camera that sees what the person is looking at.
+//
+// ⛔⛔ IT REFUSES RATHER THAN FALL BACK TO THE MAC'S OWN, and that is the whole
+// point of it. An empty camera name means "the first one the machine lists" to
+// AVFoundation, which on a laptop is the one pointing at the person's FACE. So
+// a passthrough that failed to find the headset's camera would put the viewer's
+// face on a ribbon screen where they asked for the room, and the photograph key
+// would photograph them instead of what they were looking at.
+//
+// ⛔ AND THAT IS EXACTLY WHAT HAPPENED. Both call sites carried a comment
+// saying "the headset's camera, not the Mac's" -- and then fell through to the
+// empty string when the lookup came back empty. A rule written in a comment
+// that the code does not enforce is not a rule. Measured 2026-09-06: with the
+// Beast attached the lookup works and passthrough delivers 1920x1080 from the
+// glasses; the silent fallback was one unplugged headset away.
+//
+// named wins whenever it is set: a person who names a camera means that camera,
+// including the Mac's if that is what they typed. display is the headset's
+// display name, which is how [HeadsetCamera] tells one headset from another.
+func RoomCamera(named, display string) (string, error) {
+	if named != "" {
+		return named, nil
+	}
+	if c := headsetCamera(display); c != "" {
+		return c, nil
+	}
+	which := display
+	if which == "" {
+		which = "the headset"
+	}
+	return "", fmt.Errorf("%w: %s has none. The camera hangs off the same USB hub as "+
+		"the glasses, so a headset attached for its picture only -- over a display "+
+		"cable -- does not present one. Name a camera with -photo-camera to override",
+		ErrNoRoomCamera, which)
 }

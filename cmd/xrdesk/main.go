@@ -663,11 +663,9 @@ func run() int {
 			// The room, on one ribbon screen. Same camera as the photograph, and
 			// the same reason: it is the one pointing where the person is looking.
 			d.OnPassthrough = func() (desk.Feed, error) {
-				cam := *photoCamera
-				if cam == "" {
-					if c := desk.HeadsetCamera(chosen.Name); c != "" {
-						cam = c
-					}
+				cam, err := desk.RoomCamera(*photoCamera, chosen.Name)
+				if err != nil {
+					return nil, err
 				}
 				return desk.OpenPassthrough(cam, logf)
 			}
@@ -686,17 +684,16 @@ func run() int {
 			}
 
 			d.OnPhoto = func() (string, error) {
-				// ⛔ THE HEADSET'S CAMERA, NOT THE MAC'S. Empty means "the
-				// first the machine lists", which on a laptop is the one
-				// pointing at the person's face -- so the photograph key
-				// photographed the viewer instead of what they were looking
-				// at. The flag still wins when somebody sets it: a person who
-				// names a camera means that camera.
-				cam := *photoCamera
-				if cam == "" {
-					if c := desk.HeadsetCamera(chosen.Name); c != "" {
-						cam = c
-					}
+				// ⛔ THE HEADSET'S CAMERA, NOT THE MAC'S -- and [desk.RoomCamera]
+				// REFUSES rather than fall back to it. Empty means "the first
+				// the machine lists" to AVFoundation, which on a laptop is the
+				// one pointing at the person's face, so the photograph key would
+				// photograph the viewer instead of what they were looking at.
+				// The flag still wins when somebody sets it: a person who names
+				// a camera means that camera.
+				cam, err := desk.RoomCamera(*photoCamera, chosen.Name)
+				if err != nil {
+					return "", err
 				}
 				return desk.TakePhoto(cam, logf)
 			}
