@@ -142,6 +142,27 @@ func TrayRows() []TrayRow {
 			// The pair the system itself uses, so the row says which of the two
 			// the picture is in rather than only that it could be either.
 			Symbol: "view.2d", SymbolOn: "view.3d"},
+		{},
+		// ⛔ THREE ROWS WITH A TICK, NOT ONE THAT CYCLES -- the same argument the
+		// 3D row above makes, landing the other way round. A key is pressed
+		// blind, so cycling is right for a key. A MENU is read while somebody
+		// chooses, so three rows say where they are AND where they can go, and
+		// the tick says which is in force. One cycling row would say neither.
+		//
+		// ⭐ THE GLASSES DO THE TRACKING THEMSELVES. Nothing here computes a
+		// pose and no camera is opened: a VITURE Beast holds its own
+		// orientation and composites the host's video where that says. It is a
+		// command, which is why it is three rows rather than a project.
+		{Title: "Anchor the picture in the room", Action: ActionTrackAnchored,
+			Toggle: true, Symbol: "pin", SymbolOn: "pin.fill"},
+		{Title: "Let it follow smoothly", Action: ActionTrackSmooth,
+			Toggle: true, Symbol: "arrow.trianglehead.2.clockwise.rotate.90"},
+		{Title: "Fix it to the glasses", Action: ActionTrackOff,
+			Toggle: true, Symbol: "person.and.background.dotted"},
+		// Not a toggle: recentring is something that HAPPENS, not a state, and a
+		// tick on it would be a tick that never turns off.
+		{Title: "Put it back in front of me", Action: ActionRecenter, Symbol: "scope"},
+		{},
 		{Title: "Show the gallery", Action: ActionGalleryOpen, Symbol: "square.grid.3x3"},
 		{Title: "Leave the gallery", Action: ActionGalleryClose,
 			Symbol: "arrow.down.right.and.arrow.up.left"},

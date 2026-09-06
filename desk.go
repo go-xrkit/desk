@@ -277,7 +277,61 @@ const (
 	// left on: pressing it again closes the camera, and so does ending the
 	// session.
 	ActionPassthrough
+
+	// The three ways the glasses can hold the picture while a head moves.
+	//
+	// ⭐ THE GLASSES DO THIS THEMSELVES, WHICH IS WHY IT IS THREE ROWS AND NOT A
+	// PROJECT. A VITURE Beast tracks its own orientation and composites the
+	// host's video where the tracking says: no camera is opened and nothing is
+	// computed here. The Luma Ultra's 6DOF is the opposite -- visual-inertial
+	// odometry on the host, from the cameras -- and is not offered.
+	//
+	// ⛔ THREE ACTIONS AND NOT ONE THAT CYCLES. A cycling row is right for a KEY,
+	// pressed blind; a menu shows the state as somebody chooses, so three rows
+	// with a tick on the one in force say where they are AND where they can go.
+	// That is the argument the 3D row already makes, from the other side.
+
+	// ActionTrackAnchored nails the picture to the room: turn your head and it
+	// stays where it was.
+	ActionTrackAnchored
+	// ActionTrackSmooth lets the picture trail the head and drift back to
+	// centre, rather than being nailed to either.
+	ActionTrackSmooth
+	// ActionTrackOff fixes the picture to the glasses, which is where it starts.
+	ActionTrackOff
+	// ActionRecenter puts an anchored picture back in front of the viewer.
+	//
+	// ⛔ IT IS A SEPARATE COMMAND, AND ANCHORING WITHOUT IT LEAVES THE PICTURE
+	// WHEREVER THE HEAD HAPPENED TO BE POINTING. Somebody who anchors while
+	// looking at their keyboard has just nailed their desk to their keyboard.
+	ActionRecenter
 )
+
+// Tracking is which of the three modes the glasses hold the picture in, and why
+// it cannot be changed when it cannot.
+type Tracking struct {
+	// Mode is 0 fixed to the glasses, 1 anchored, 2 smooth follow -- the
+	// headset's own numbering, kept rather than renamed so that a log line and
+	// the manufacturer's header say the same thing.
+	Mode int
+	// Why is empty when the rows work, and a sentence when they do not: no
+	// glasses, or glasses showing the host's video as it arrives, which have
+	// nothing to anchor.
+	Why string
+}
+
+// trackingFor reports which mode an action asks for.
+func trackingFor(a Action) (mode int, ok bool) {
+	switch a {
+	case ActionTrackOff:
+		return 0, true
+	case ActionTrackAnchored:
+		return 1, true
+	case ActionTrackSmooth:
+		return 2, true
+	}
+	return 0, false
+}
 
 // screenOf reports which screen an action goes to, counting from zero, and
 // whether it is one of those actions at all.
@@ -375,6 +429,14 @@ func (a Action) String() string {
 		return "mute the microphone"
 	case ActionPassthrough:
 		return "show the room"
+	case ActionTrackAnchored:
+		return "anchor the picture in the room"
+	case ActionTrackSmooth:
+		return "let the picture follow smoothly"
+	case ActionTrackOff:
+		return "fix the picture to the glasses"
+	case ActionRecenter:
+		return "put the picture back in front of you"
 	case ActionFlatter:
 		return "flatter"
 	case ActionRounder:
@@ -544,6 +606,21 @@ type Desk struct {
 	// camera, and the row says so rather than doing nothing.
 	OnPassthrough func() (Feed, error)
 
+	// OnTracking asks the glasses to hold the picture one of three ways, or to
+	// recentre an anchored one. Nil is a desk whose glasses do not track.
+	//
+	// ⭐ A SEAM BECAUSE THE TRACKING IS THE HEADSET'S, NOT OURS. Nothing here
+	// computes a pose and no camera is opened: a VITURE Beast holds its own
+	// orientation and composites the host's video where that says. This package
+	// decides WHEN and what is said about it; the application decides which
+	// headset and how to reach it.
+	//
+	// mode is 0 fixed to the glasses, 1 anchored, 2 smooth follow -- the
+	// headset's own numbering, kept so that a log line and the manufacturer's
+	// header say the same thing. recentre asks for the picture to be put back
+	// in front of the viewer instead, and ignores mode.
+	OnTracking func(mode int, recentre bool) error
+
 	// OnPhoto takes a photograph and reports where it was written.
 	//
 	// It is a SEAM because a camera is the platform's: this package decides
@@ -665,6 +742,9 @@ func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
 	var mic, pass bool
 	var photo func() (string, error)
+	var track func(mode int, recentre bool) error
+	var trackTo int
+	var trackRecentre bool
 	glasses := ActionNone
 	var stereo3D func(bool)
 	var stereoWant bool
@@ -679,6 +759,30 @@ func (d *Desk) Do(a Action) {
 	// screen is focused, so it is answered before the ribbon, the gallery and
 	// the application list are consulted -- and therefore works in all of them.
 	switch a {
+	case ActionTrackAnchored, ActionTrackSmooth, ActionTrackOff, ActionRecenter:
+		// ⛔ ANSWERED OUT HERE, like every other handler that talks to the
+		// hardware: this opens the headset's control interface and waits for
+		// its answer, and holding the desk shut for that stalls the frame loop.
+		track = d.OnTracking
+		trackTo, trackRecentre = 0, a == ActionRecenter
+		if m, ok := trackingFor(a); ok {
+			trackTo = m
+		}
+		d.mu.Unlock()
+		if track == nil {
+			d.say("these glasses do not track")
+			return
+		}
+		if err := track(trackTo, trackRecentre); err != nil {
+			d.say(err.Error())
+			return
+		}
+		if trackRecentre {
+			d.say("the picture is back in front of you")
+			return
+		}
+		d.say(Action(a).String())
+		return
 	case ActionStereo3D, ActionStereo3DOn, ActionStereo3DOff:
 		want := a != ActionStereo3DOff
 		if a == ActionStereo3D {
