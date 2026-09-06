@@ -93,3 +93,62 @@ func TestEachRowSaysWhatItDoes(t *testing.T) {
 		}
 	}
 }
+
+// ⛔ THE FOUR ROWS GO THROUGH THE DESK, and these are the paths they take: a
+// desk whose glasses do not track, one whose headset refuses, and one that
+// accepts. All three end in a sentence on the picture, because a key pressed
+// blind that says nothing is indistinguishable from a key that did nothing.
+func TestWhatTheDeskDoesWithEachTrackingRow(t *testing.T) {
+	newDesk := func(on func(int, bool) error) *Desk {
+		d := &Desk{OnTracking: on}
+		d.Badge(1, nil, nil)
+		return d
+	}
+
+	// No glasses that track: said, not silent.
+	d := newDesk(nil)
+	d.Do(ActionTrackAnchored)
+	if !strings.Contains(d.notice.toast.Text, "do not track") {
+		t.Errorf("a desk with no tracking said %q", d.notice.toast.Text)
+	}
+
+	// A headset that refuses: what it said is what is shown.
+	d = newDesk(func(int, bool) error { return errAsked })
+	d.Do(ActionTrackSmooth)
+	if !strings.Contains(d.notice.toast.Text, "nothing to anchor") {
+		t.Errorf("a refusal said %q", d.notice.toast.Text)
+	}
+
+	// Accepted: each of the three asks for its own mode.
+	for a, want := range map[Action]int{
+		ActionTrackOff: 0, ActionTrackAnchored: 1, ActionTrackSmooth: 2,
+	} {
+		var got int
+		var recentre bool
+		d = newDesk(func(m int, r bool) error { got, recentre = m, r; return nil })
+		d.Do(a)
+		if got != want || recentre {
+			t.Errorf("%v asked for mode %d recentre=%v, want %d false", a, got, recentre, want)
+		}
+		if !strings.Contains(d.notice.toast.Text, a.String()) {
+			t.Errorf("%v said %q", a, d.notice.toast.Text)
+		}
+	}
+
+	// Recentring asks for exactly that, and says so in its own words.
+	var recentre bool
+	d = newDesk(func(_ int, r bool) error { recentre = r; return nil })
+	d.Do(ActionRecenter)
+	if !recentre {
+		t.Error("recentring did not ask to recentre")
+	}
+	if !strings.Contains(d.notice.toast.Text, "back in front of you") {
+		t.Errorf("recentring said %q", d.notice.toast.Text)
+	}
+}
+
+var errAsked = errTracking("these glasses are passing the picture through, so there is nothing to anchor")
+
+type errTracking string
+
+func (e errTracking) Error() string { return string(e) }
