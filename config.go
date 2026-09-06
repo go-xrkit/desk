@@ -406,7 +406,9 @@ var configActions = map[string]Action{
 	// The glasses down and back up, on one name because it is one switch.
 	"glasses": ActionPause,
 	// The microphone in use, not the headset's: see [ActionMic].
-	"mic":      ActionMic,
+	"mic": ActionMic,
+	// The room on a ribbon screen: see [ActionPassthrough].
+	"room":     ActionPassthrough,
 	"flatter":  ActionFlatter,
 	"rounder":  ActionRounder,
 	"point":    ActionPoint,

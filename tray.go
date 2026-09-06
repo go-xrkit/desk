@@ -154,6 +154,9 @@ func TrayRows() []TrayRow {
 		// the headset's own cannot be silenced at all, so what is turned off is
 		// whatever else the machine listed, and a person has to be told which.
 		{Title: "Mute the microphone", Action: ActionMic, Symbol: "mic.slash"},
+		// The room, on the screen being looked at. One row: it is a switch, and
+		// the tick says which way pressing it will go.
+		{Title: "Show the room", Action: ActionPassthrough, Symbol: "video"},
 		{},
 		// ⛔ PUTTING THE GLASSES DOWN IS NOT QUITTING, and until this row
 		// existed there was no way to say so: the only thing that ended a

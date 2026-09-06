@@ -201,6 +201,8 @@ func DefaultShortcuts() []Shortcut {
 		// is most of what putting them down means; this one stays, because a
 		// key that can only put down and never pick up is half a switch.
 		{hotkey.Combo{Key: hotkey.KeyF6, Mods: mods | hotkey.Control}, ActionPause},
+		// The room, beside the camera keys it belongs with.
+		{hotkey.Combo{Key: hotkey.KeyF7, Mods: mods | hotkey.Control}, ActionPassthrough},
 		// The microphone, on the key beside the one that puts the glasses down.
 		//
 		// ⛔ WHAT IS ACTUALLY BEING SPOKEN INTO. Asked for as the VITURE
