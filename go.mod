@@ -8,7 +8,7 @@ require (
 	github.com/go-macos/accessibility v0.3.2
 	github.com/go-macos/appbundle v0.5.0
 	github.com/go-macos/appicon v0.3.0
-	github.com/go-macos/avfoundation v0.6.0
+	github.com/go-macos/avfoundation v0.10.0
 	github.com/go-macos/brightness v0.1.1
 	github.com/go-macos/coreaudio v0.2.0
 	github.com/go-macos/hotkey v0.9.0
