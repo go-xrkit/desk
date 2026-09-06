@@ -270,6 +270,18 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			// re-negotiated, so the ribbon goes with it. That is why the wish
 			// is recorded for the NEXT session rather than acted on here: there
 			// is no display left to act on.
+			// ⛔ ASK THE BUS BEFORE ASKING THE HEADSET. A Luma Ultra has no
+			// side-by-side mode at all -- measured while VITURE's own
+			// SpaceWalker built a three-screen layout on one: the panel never
+			// moved, and what appeared were VIRTUAL displays the app then
+			// composited itself. Sending it the Beast's switch would fail with
+			// a transport error, which blames the cable for a headset that
+			// simply has no such mode.
+			if why, can := canSwitchToSideBySide(opt.Screen.Name, onTheBus()); !can {
+				logf("3D        %s", why)
+				say3D(Stereo3D{Why: why})
+				return
+			}
 			logf("3D        asking the glasses to switch; the display will go and come back")
 			if err := Set3D(true); err != nil {
 				logf("3D        %v", err)
