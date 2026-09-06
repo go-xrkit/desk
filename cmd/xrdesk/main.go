@@ -655,7 +655,19 @@ func run() int {
 			// desk that kept one for a session would be a headset watching the
 			// room all afternoon so that one key press could be quick.
 			d.OnPhoto = func() (string, error) {
-				return desk.TakePhoto(*photoCamera, logf)
+				// ⛔ THE HEADSET'S CAMERA, NOT THE MAC'S. Empty means "the
+				// first the machine lists", which on a laptop is the one
+				// pointing at the person's face -- so the photograph key
+				// photographed the viewer instead of what they were looking
+				// at. The flag still wins when somebody sets it: a person who
+				// names a camera means that camera.
+				cam := *photoCamera
+				if cam == "" {
+					if c := desk.HeadsetCamera(chosen.Name); c != "" {
+						cam = c
+					}
+				}
+				return desk.TakePhoto(cam, logf)
 			}
 
 			// What is running, asked every time the gallery opens: a list read
