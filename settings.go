@@ -238,7 +238,7 @@ func shortcutRowsFrom(report string) []*toolkit.SettingRow {
 		}
 		row := &toolkit.SettingRow{Title: strings.TrimSpace(title), Subtitle: aside}
 		if w := toolkit.TextWidth(keys) + toolkit.Scaled(8); w <= valueRoom() {
-			value := toolkit.NewLabel(keys)
+			value := nativeLabel(keys)
 			value.SetBounds(toolkit.Rect{W: w, H: toolkit.Scaled(ControlH)})
 			row.Control = value
 		} else {
