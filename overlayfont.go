@@ -52,6 +52,14 @@ const overlayGlyphRows = 7
 var (
 	overlayFontMu    sync.Mutex
 	overlayFontCache = map[int]toolkit.Font{}
+
+	// openTypeFont is the toolkit's bundled face, named rather than called
+	// directly so that a test can make it fail.
+	//
+	// The bundled face never does, which is exactly the problem: the fallback
+	// below is the code that runs on the day this stops being true, and it
+	// would otherwise be the only line here nobody has ever executed.
+	openTypeFont = toolkit.DefaultOpenTypeFont
 )
 
 // overlayFont is the face the desk's own text is drawn in, sized so that ink
@@ -75,7 +83,7 @@ func overlayFont(inkPx int) toolkit.Font {
 	if f, ok := overlayFontCache[inkPx]; ok {
 		return f
 	}
-	f, err := toolkit.DefaultOpenTypeFont(overlaySizeFor(inkPx))
+	f, err := openTypeFont(overlaySizeFor(inkPx))
 	if err != nil {
 		scale := inkPx / overlayGlyphRows
 		if scale < 1 {

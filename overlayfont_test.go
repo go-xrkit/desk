@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/go-widgets/painter"
@@ -171,5 +172,39 @@ func TestTheGalleryAsksForASizeInsteadOfInheritingOne(t *testing.T) {
 	}
 	if got := markInset(0); got < 1 {
 		t.Errorf("markInset(0) = %d; a number has to sit somewhere", got)
+	}
+}
+
+// ⛔ THE FALLBACK IS THE ONLY TEXT THERE WOULD BE. A face that will not build
+// cannot leave the desk with nothing on the panel to say what went wrong, so it
+// drops to the bitmap at the nearest scale rather than to no font at all.
+//
+// The bundled face never fails, which is why this has to be made to.
+func TestAFaceThatWillNotBuildStillLeavesSomethingToReadWith(t *testing.T) {
+	was := openTypeFont
+	openTypeFont = func(int) (toolkit.Font, error) {
+		return nil, errors.New("the face would not parse")
+	}
+	t.Cleanup(func() {
+		openTypeFont = was
+		clear(overlayFontCache)
+	})
+	clear(overlayFontCache)
+
+	for _, ink := range []int{1, 7, 30, 90} {
+		f := overlayFont(ink)
+		if f == nil {
+			t.Fatalf("overlayFont(%d) gave nothing at all", ink)
+		}
+		if f.Height() < 1 {
+			t.Errorf("overlayFont(%d) fell back to a font of no height", ink)
+		}
+		// The nearest bitmap scale, floored at one: a picture too small for a
+		// magnified glyph still gets an unmagnified one.
+		scale := max(ink/overlayGlyphRows, 1)
+		if want := toolkit.NewBitmapFont(scale).Height(); f.Height() != want {
+			t.Errorf("overlayFont(%d) fell back to height %d, want %d",
+				ink, f.Height(), want)
+		}
 	}
 }
