@@ -27,6 +27,24 @@ func nativeSwitch(on bool) *toolkit.Native {
 	return n
 }
 
+// nativeLabel is the platform's own text, with the drawn one underneath.
+//
+// Text is the reason a window looks native or does not. A switch is a shape and
+// reads as one wherever it is drawn; a line of text is a typeface, a weight, a
+// baseline and the system's own antialiasing, and a person sees the difference
+// between two kinds of text in the same window long before they could say what
+// it was. So a row whose control is a word rather than a switch was the last
+// thing here that did not belong.
+//
+// It has no state to keep in step -- the shortcut a machine granted does not
+// change while the window is open -- so the fallback carries the same string and
+// nothing binds them.
+func nativeLabel(text string) *toolkit.Native {
+	n := toolkit.NewNativeLabel(text)
+	n.Fallback = toolkit.NewLabel(text)
+	return n
+}
+
 // nativeButton is the platform's own button, with the drawn one underneath.
 //
 // One handler, given to both: a button has no state to keep in step, so the
