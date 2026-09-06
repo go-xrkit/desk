@@ -562,26 +562,26 @@ func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
 // state and no other, so a row that was never meant to carry a tick does not
 // sprout one.
 func TestOnlyTheTickingRowsTick(t *testing.T) {
-	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}, false); !on {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}, false, Tracking{}); !on {
 		t.Error("the 3D row does not follow the state")
 	}
-	if on, _ := stateFor(ActionStereo3D, Stereo3D{}, false); on {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{}, false, Tracking{}); on {
 		t.Error("the 3D row is ticked with 3D off")
 	}
-	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}, false); why != "one eye" {
+	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}, false, Tracking{}); why != "one eye" {
 		t.Errorf("the reason came back %q", why)
 	}
 	// And the row that says whether the glasses are in use follows the
 	// SESSION, not the conversion: it is ticked while a desk is up, and the
 	// tick is the only thing that says which way pressing it will go.
-	if on, why := stateFor(ActionPause, Stereo3D{}, true); !on || why != "" {
+	if on, why := stateFor(ActionPause, Stereo3D{}, true, Tracking{}); !on || why != "" {
 		t.Errorf("the glasses row is %v %q with a desk up", on, why)
 	}
-	if on, _ := stateFor(ActionPause, Stereo3D{On: true}, false); on {
+	if on, _ := stateFor(ActionPause, Stereo3D{On: true}, false, Tracking{}); on {
 		t.Error("the glasses row is ticked with no desk up")
 	}
 	for _, a := range []Action{ActionQuit, ActionSettings, ActionPhoto, ActionNone} {
-		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"}, true)
+		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"}, true, Tracking{})
 		if on || why != "" {
 			t.Errorf("%v carries a state: %v %q", a, on, why)
 		}
@@ -716,4 +716,77 @@ func TestChoosingTheThreeDRowTogglesIt(t *testing.T) {
 	default:
 		t.Error("the 3D row sent nothing")
 	}
+}
+
+// ⭐ THE TICK FOLLOWS THE HEADSET, and this is the test that it does. The
+// glasses have their own tracking button: whoever presses it has changed the
+// mode without going near this menu, so the item is TOLD rather than trusting
+// what was last clicked in it.
+func TestTheTickFollowsTheHeadsetsOwnTrackingMode(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	tickedRow := func() Action {
+		_, _, m := h.Snapshot()
+		for i, r := range TrayRows() {
+			if _, ok := trackingFor(r.Action); ok && m.Items[i].Checked {
+				return r.Action
+			}
+		}
+		return ActionNone
+	}
+
+	for mode, want := range map[int]Action{
+		1: ActionTrackAnchored, 2: ActionTrackSmooth, 0: ActionTrackOff,
+	} {
+		item.ShowTracking(Tracking{Mode: mode})
+		waitFor(t, func() bool { return tickedRow() == want }, "the tick to move")
+	}
+
+	// And a headset with nothing to anchor greys all of them rather than
+	// ticking one: a menu that ticked a row it cannot honour is a menu that
+	// lies about the glasses in front of somebody.
+	item.ShowTracking(Tracking{Mode: 1, Why: "passing the picture through"})
+	waitFor(t, func() bool { return tickedRow() == ActionNone }, "the ticks to go")
+}
+
+// Telling it what it already knows rebuilds nothing, like every other Show.
+func TestShowTrackingOnNoItemAndWithNoNewsDoesNothing(t *testing.T) {
+	var none *Tray
+	none.ShowTracking(Tracking{Mode: 1})
+
+	h := headless(t)
+	item, err := OpenTray(nil, make(chan Action, TrayQueue))
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	item.ShowTracking(Tracking{Mode: 2})
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		for i, r := range TrayRows() {
+			if r.Action == ActionTrackSmooth {
+				return m.Items[i].Checked
+			}
+		}
+		return false
+	}, "the tick to arrive")
+	// The same again: the item should notice it has nothing to do.
+	item.ShowTracking(Tracking{Mode: 2})
 }

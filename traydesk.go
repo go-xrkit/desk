@@ -136,6 +136,8 @@ type Tray struct {
 	mu     sync.Mutex
 	keys   map[Action]hotkey.Combo
 	threeD Stereo3D
+	// track is which tracking mode the glasses are holding the picture in.
+	track Tracking
 	// running mirrors the state observable, for the "use the glasses" tick.
 	//
 	// ⛔ A MIRROR RATHER THAN A READ. mvvm.Observable has no lock -- it is
@@ -209,16 +211,53 @@ func (t *Tray) Show3D(s Stereo3D) {
 	t.t.SetMenu(t.buildMenu(keys))
 }
 
+// ShowTracking says which of the three tracking modes the glasses are in, so
+// the tick lands on the row in force.
+//
+// ⛔ THE HEADSET IS THE AUTHORITY, NOT THIS MENU. It has its own button, and
+// somebody who presses it has changed the mode without going anywhere near
+// here -- so the value is pushed in from whatever last asked the glasses,
+// rather than remembered from the last row clicked. A menu that remembered
+// its own clicks would be wrong from the first press of that button.
+func (t *Tray) ShowTracking(s Tracking) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	if t.track == s {
+		t.mu.Unlock()
+		return
+	}
+	t.track = s
+	keys := t.keys
+	t.mu.Unlock()
+	t.t.SetMenu(t.buildMenu(keys))
+}
+
 // stateFor reports what a toggling row should show: whether it is on, and why
 // it cannot be turned on at all.
 //
 // A function of the state rather than a field on TrayRow: a row is a
 // DESCRIPTION, written once, and what it describes changes while the menu is on
 // screen.
-func stateFor(a Action, threeD Stereo3D, running bool) (on bool, why string) {
+func stateFor(a Action, threeD Stereo3D, running bool, track Tracking) (on bool, why string) {
 	switch a {
 	case ActionStereo3D:
 		return threeD.On, threeD.Why
+	case ActionTrackAnchored, ActionTrackSmooth, ActionTrackOff:
+		// ⭐ THE TICK IS ON THE ROW THE HEADSET IS ACTUALLY IN, which is not
+		// necessarily the row last clicked: the glasses have their own button
+		// and somebody pressing it has changed the mode without touching this
+		// menu. And the reason a row is unavailable is said on EVERY one of the
+		// three rather than on the group, because macOS has no group: a
+		// disabled row with no explanation is a row somebody presses again.
+		want, _ := trackingFor(a)
+		return track.Why == "" && track.Mode == want, track.Why
+	case ActionRecenter:
+		// Never ticked -- it is not a state -- but it goes grey for the same
+		// reason the three do, and a picture that is not anchored has nothing
+		// to put back.
+		return false, track.Why
 	case ActionPause:
 		// Ticked while a desk IS up, because the row says "use the glasses"
 		// and a tick is the platform's word for "this is on". The tick is
@@ -236,7 +275,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 	// Read ONCE, under the lock. A menu half built before a change and half
 	// after would show two answers to one question.
 	t.mu.Lock()
-	threeD, running := t.threeD, t.running
+	threeD, running, track := t.threeD, t.running, t.track
 	t.mu.Unlock()
 
 	menu := tray.NewMenu()
@@ -281,7 +320,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 			// The Checked field is flipped by tray before the callback runs,
 			// and overwritten on the next rebuild by what actually happened --
 			// which matters, because turning 3D on can be refused.
-			on, why := stateFor(a, threeD, running)
+			on, why := stateFor(a, threeD, running, track)
 			sym := r.Symbol
 			if on && r.SymbolOn != "" {
 				sym = r.SymbolOn
