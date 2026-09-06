@@ -88,6 +88,14 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 	if m == nil || c == nil || g == nil || c.W <= 0 || c.H <= 0 {
 		return
 	}
+	// Restored by a defer, like every other overlay: whatever draws next asked
+	// for its own size, and a font left behind is the next thing drawing at
+	// this one's.
+	was := toolkit.CurrentFont()
+	toolkit.SetFont(overlayFont(markInk(c.H)))
+	defer toolkit.SetFont(was)
+	inset := markInset(c.H)
+
 	p := painter.NewPixelPainterBGRA(c.Pix, c.W, c.H)
 	for i := 0; i < g.Cells(); i++ {
 		// Every index below Cells has a cell, and every cell has a positive
@@ -109,7 +117,7 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 			// Bottom left. The top is where a window's own title bar is and the
 			// middle is where its content is; the bottom left of a desktop is
 			// the emptiest corner it has.
-			m.badge.SetBounds(toolkit.Rect{X: x + markInset, Y: y + h - markInset - markH})
+			m.badge.SetBounds(toolkit.Rect{X: x + inset, Y: y + h - inset - markH()})
 			m.badge.Draw(p, m.theme)
 		}
 
@@ -132,20 +140,42 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 	m.says.Draw(p, m.theme)
 }
 
-// markInset is how far a number sits from its cell's corner, and markH how tall
-// the pill is — the toolkit's own glyph height plus its padding, which is what
-// the badge would choose for itself.
+// markInk is how tall the gallery's type is: the same as a notice, because both
+// are read on the same panel from the same distance.
 //
-// Small, on purpose. A number is for telling one screen from another once the
-// border has already said which is chosen; making it large would put a label
-// over the desktop it is labelling. Legibility of the SELECTION is the border's
-// job, and a taller pill would not make the number bigger anyway — the glyphs
-// are the toolkit's font at the toolkit's size, so a tall pill is a narrow
-// capsule with a small number floating in the middle of it.
-const (
-	markInset = 8
-	markH     = 18
-)
+// ⛔ IT USED TO HAVE NO SIZE AT ALL. Nothing installed a font for this view, so
+// it drew in the toolkit's default — the 5x7 bitmap at scale one, SEVEN pixels
+// tall on a panel of 1080. That is six tenths of one per cent of the height, a
+// hand's width from an eye, and it was not a decision anybody made: it is what
+// a package-level default is when nothing overrides it.
+//
+// The old note here said the number was small on purpose, and in the same breath
+// that "a taller pill would not make the number bigger anyway — the glyphs are
+// the toolkit's font at the toolkit's size". That second sentence is the real
+// reason, and it stopped being true the moment this asked for a face.
+func markInk(h int) int { return noticeInk(h) }
+
+// markInset is how far a number sits from its cell's corner.
+//
+// A hundred and thirty-fifth of the view, which is the 8 pixels this was fixed
+// at on the 1080-row panel it was chosen on, and eight times that on a panel
+// eight times the size.
+func markInset(h int) int {
+	if i := h / 135; i > 0 {
+		return i
+	}
+	return 1
+}
+
+// markH is how tall the pill is, so that its BOTTOM lands where the inset says.
+//
+// ⛔ ASKED OF THE TOOLKIT, NOT COPIED FROM IT. This was the constant 18, which is
+// what a Badge came to at some font this no longer uses. Measured, a Badge left
+// to size itself chooses NINE at the built-in font and fifty-five at the size
+// this view now asks for — so the pill was being placed against a number that
+// was already wrong by half its own height, and nothing said so because a pill
+// nine pixels too high is still a pill in the corner of a cell.
+func markH() int { return toolkit.GlyphHeight() + 2*toolkit.Scaled(toolkit.BadgePadY) }
 
 // adderWidth is how thick the outline of the "add a screen" cell is. Thinner
 // than the selection border, so the two are never confused: one says "there

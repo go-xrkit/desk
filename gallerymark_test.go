@@ -405,8 +405,8 @@ func TestClickingThePlusAddsAScreen(t *testing.T) {
 // one screen, and the paths a refusal takes.
 func TestTheClampsAndTheEdges(t *testing.T) {
 	// A picture too small for the number to be magnified at all still gets one.
-	if got := badgeScale(1); got != 1 {
-		t.Errorf("badgeScale(1) = %d, want 1", got)
+	if got := badgeInk(1); got != 1 {
+		t.Errorf("badgeInk(1) = %d, want 1", got)
 	}
 
 	// A plan cannot have fewer than one screen.

@@ -224,7 +224,7 @@ func TestANilNoticeIsSilentAndNotACrash(t *testing.T) {
 // nothing at all still gets type at scale one and an inset of one pixel: a
 // notice that came out zero-high would be the silence it exists to prevent.
 func TestANoticeOnATinyPictureIsStillDrawn(t *testing.T) {
-	if got := noticeScale(10); got != 1 {
+	if got := noticeInk(10); got != 1 {
 		t.Errorf("a 10-row view asked for scale %d", got)
 	}
 	if got := noticeInset(0); got != 1 {

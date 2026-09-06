@@ -106,7 +106,7 @@ func (b *badge) draw(c *Canvas) {
 	// for, and a font left behind would be a five-times-too-large label in the
 	// next thing that drew.
 	was := toolkit.CurrentFont()
-	toolkit.SetFont(toolkit.NewBitmapFont(badgeScale(c.H)))
+	toolkit.SetFont(overlayFont(badgeInk(c.H)))
 	defer toolkit.SetFont(was)
 
 	// AnchorIn is what SIZES the pill to its text, and it only docks to an edge
@@ -128,13 +128,14 @@ func (b *badge) draw(c *Canvas) {
 // From the height of the picture rather than a constant, so it is the same size
 // to look at on a 1080-row panel and on a 1600-row one. A twelfth of the view
 // is about a hand's width at the distance these glasses put a screen.
-func badgeScale(h int) int {
-	const glyph = 7 // the built-in bitmap is 7 rows tall at scale 1
-	s := h / 12 / glyph
-	if s < 1 {
-		s = 1
+func badgeInk(h int) int {
+	// A twelfth of the view, as before. It used to be rounded DOWN to a
+	// multiple of seven, because an integer-scaled bitmap could only land on
+	// one; a real face can be asked for the size that was actually wanted.
+	if i := h / 12; i > 0 {
+		return i
 	}
-	return s
+	return 1
 }
 
 // badgeFrames is what a duration comes to at the loop's frame rate, exported
