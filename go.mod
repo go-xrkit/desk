@@ -6,7 +6,7 @@ require (
 	github.com/go-freedesktop/screencast v0.1.0
 	github.com/go-fsctl/outdir v0.1.0
 	github.com/go-macos/accessibility v0.3.2
-	github.com/go-macos/appbundle v0.4.0
+	github.com/go-macos/appbundle v0.5.0
 	github.com/go-macos/appicon v0.3.0
 	github.com/go-macos/avfoundation v0.6.0
 	github.com/go-macos/brightness v0.1.1
