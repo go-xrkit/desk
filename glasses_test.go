@@ -37,7 +37,7 @@ func (f *fakeGlasses) install(t *testing.T) {
 	GlassesSet = func(id byte, v uint16) error {
 		f.writes++
 		if f.refuse {
-			return statusError(4, true)
+			return headsetRefused
 		}
 		f.at[id] = v
 		return nil
@@ -106,35 +106,20 @@ func TestARefusalIsReportedWithWhatTheHeadsetSaid(t *testing.T) {
 	}
 }
 
-// TestWhatEachStatusCodeMeans, because the codes are the instrument: they tell
-// "refused" from "not understood" from "never arrived", which a display cannot.
-func TestWhatEachStatusCodeMeans(t *testing.T) {
-	if err := statusError(0, true); err != nil {
-		t.Errorf("code 0 is the one that means taken: %v", err)
+// TestARefusalStillSaysWhichPictureWasAsked.
+//
+// ⛔ THE STATUS CODES MOVED TO go-viture/beast, which is where the reason for
+// them lives: the headset answers every command, and that is worth more than
+// watching a screen. The old test of that mapping went with them. What stays
+// here is the half the LIBRARY cannot know -- which picture a person asked for
+// -- because "the headset refused" without saying refused WHAT is a sentence
+// nobody can act on.
+func TestARefusalStillSaysWhichPictureWasAsked(t *testing.T) {
+	if !errors.Is(headsetRefused, ErrNoGlasses3D) {
+		t.Errorf("a refusal is not recognisable as one: %v", headsetRefused)
 	}
-	for _, c := range []struct {
-		code uint16
-		says string
-	}{
-		{4, "refused"},
-		{6, "too short"},
-		{9, "code 9"},
-	} {
-		err := statusError(c.code, true)
-		if err == nil {
-			t.Fatalf("code %d was reported as a success", c.code)
-		}
-		if !strings.Contains(err.Error(), c.says) {
-			t.Errorf("code %d reads as %q, want it to say %q", c.code, err, c.says)
-		}
-	}
-	// And the refusal names WHICH picture was refused, since that is the thing
-	// a person asked for.
-	if got := statusError(4, true).Error(); !strings.Contains(got, "side-by-side") {
-		t.Errorf("a refused 3D reads as %q", got)
-	}
-	if got := statusError(4, false).Error(); !strings.Contains(got, "2D") {
-		t.Errorf("a refused 2D reads as %q", got)
+	if got := headsetRefused.Error(); !strings.Contains(got, "refused") {
+		t.Errorf("a refusal reads as %q", got)
 	}
 }
 
