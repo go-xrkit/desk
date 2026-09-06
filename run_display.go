@@ -176,7 +176,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// survives that; a rectangle does not.
 	screen, err := currentScreen(opt.Screen.Name)
 	if err != nil {
-		return err
+		// The same distinction the watch makes below: a name damaged in memory
+		// still names a display that is right there, and refusing to start on
+		// it would be refusing over a bug in a string.
+		var damaged errDamagedName
+		if !errors.As(err, &damaged) {
+			return err
+		}
+		logf("%v", err)
 	}
 	win, err := window.Open(window.Config{
 		Title: title,
@@ -535,6 +542,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		}
 		lookedAt = now
 		if _, err := currentScreen(opt.Screen.Name); err != nil {
+			// ⛔ A DAMAGED NAME IS NOT AN UNPLUGGED HEADSET, and treating it as
+			// one took a desk away mid-session while the headset was listed
+			// among the attached displays in the very same message.
+			var damaged errDamagedName
+			if errors.As(err, &damaged) {
+				logf("%v", err)
+				return
+			}
 			logf("%v -- stopping, and putting back everything this changed", err)
 			d.Do(ActionQuit)
 		}
@@ -668,12 +683,29 @@ func currentScreen(name string) (*window.Screen, error) {
 		}
 	}
 	names := make([]string, len(ss))
+	plain := make([]string, len(ss))
 	for i, s := range ss {
 		names[i] = strconv.Quote(s.Name)
+		plain[i] = s.Name
+	}
+	// ⛔ A NAME WITH A NUL IN IT IS A BUG, NOT AN UNPLUGGED DISPLAY. See
+	// damagedname.go: a Go string was seen losing its first four bytes four
+	// times in one day, and looking a display up by that name ended the session
+	// while the display was sitting in this very list.
+	if i, ok := undamage(name, plain); ok {
+		return &ss[i], errDamagedName{want: name, got: ss[i].Name}
 	}
 	return nil, fmt.Errorf("desk: %q is not attached any more; there is %s",
 		name, strings.Join(names, ", "))
 }
+
+// errDamagedName is a screen found in spite of a damaged name.
+//
+// It is an ERROR so that no caller can take the screen without deciding what to
+// do about it, and it carries both strings so the report can name them.
+type errDamagedName struct{ want, got string }
+
+func (e errDamagedName) Error() string { return damagedNameReport(e.want, e.got) }
 
 // act carries out an action and SAYS SO.
 //
