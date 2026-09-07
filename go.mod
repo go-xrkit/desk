@@ -20,6 +20,7 @@ require (
 	github.com/go-macos/virtualdisplay v0.3.0
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-viture/beast v0.2.0
+	github.com/go-viture/luma v0.2.0
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.314.0

@@ -92,6 +92,8 @@ github.com/go-typeset/bidi v0.3.0 h1:4fjGjejvjE2LzLNzY4si8PkVO321NcsKIiANhWT3jF4
 github.com/go-typeset/bidi v0.3.0/go.mod h1:ct3cmYT8Qt1FGJQ+2QaakrUxqaP4ZysgdQQg2ym5+Xo=
 github.com/go-viture/beast v0.2.0 h1:cW0znyA2+7G0O/bQk225LJX8o26d5HEsCYIsc575qCE=
 github.com/go-viture/beast v0.2.0/go.mod h1:R0WWZJDLTkl6H5a+P5OrYpyJoE7YRdTpBxmNWokTTHg=
+github.com/go-viture/luma v0.2.0 h1:DBY7WiF4IcCuWTyEm1Gv1exXpED3A7nf7i+AEcyANiI=
+github.com/go-viture/luma v0.2.0/go.mod h1:qxtLUrEA25fmi+sO8jJ7R6uxL36I6Z4FA68vvwlusVM=
 github.com/go-widgets/android v0.13.1 h1:lo51C5xjTEceNxK2eUDOlpWIFi+LKS5XpKMNjnJns+U=
 github.com/go-widgets/android v0.13.1/go.mod h1:MsEBpJyEUhmq4yKPXIMMf+BX21NWAPQW9lfU0deDR+g=
 github.com/go-widgets/mvvm v0.9.0 h1:NwW/hAAsJUGlxmNt0ErQ7fUrud3w5Ys1RWm7hVugdJs=

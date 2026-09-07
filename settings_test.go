@@ -77,7 +77,7 @@ func arranged(t *testing.T, cfg *Config, attached []glasses.USB) ([]toolkit.Rect
 // every one of them is inside the window.
 func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 	cfg := &Config{}
-	rects, height := arranged(t, cfg, []glasses.USB{oneS, luma})
+	rects, height := arranged(t, cfg, []glasses.USB{oneS, lumaUltra})
 	// Two is the floor and not a target: this checks that rows go DOWN the
 	// window without overlapping, which needs two of them, and the card that
 	// used to carry twenty-nine now carries one line unless something was
@@ -134,7 +134,7 @@ func TestTheSettingsAreAColumnAndNotARow(t *testing.T) {
 // at one size is not a band.
 func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 	cfg := &Config{}
-	attached := []glasses.USB{oneS, luma}
+	attached := []glasses.USB{oneS, lumaUltra}
 	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	w, h := settingsSize(*cfg, attached)
 
@@ -150,8 +150,11 @@ func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 		if len(buttons) != 2 {
 			t.Fatalf("%+v: the window has %d buttons", size, len(buttons))
 		}
+		// Three: what the glasses report, the desk, and the shortcuts that were
+		// refused. The glasses PICKER is a Frame rather than a group, so it is
+		// deliberately not in this count.
 		cards := found[*toolkit.SettingsGroup](root)
-		if len(cards) != 2 {
+		if len(cards) != 3 {
 			t.Fatalf("%+v: the window has %d cards", size, len(cards))
 		}
 
@@ -193,7 +196,7 @@ func TestTheButtonsCannotBeDrawnOverTheContent(t *testing.T) {
 // from every row to hold a scrollbar that can never appear.
 func TestTheWindowHasNothingToScroll(t *testing.T) {
 	cfg := &Config{}
-	attached := []glasses.USB{oneS, luma}
+	attached := []glasses.USB{oneS, lumaUltra}
 	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	if views := found[*toolkit.ScrollView](root); len(views) != 0 {
 		t.Errorf("the window holds %d scroll views", len(views))
@@ -207,7 +210,7 @@ func TestTheWindowHasNothingToScroll(t *testing.T) {
 // font, and the window follows.
 func TestTheWindowIsSizedToWhatItsPageMeasures(t *testing.T) {
 	cfg := &Config{}
-	attached := []glasses.USB{oneS, luma}
+	attached := []glasses.USB{oneS, lumaUltra}
 	page, _ := settingsPage(cfg, attached)
 	w, h := settingsSize(*cfg, attached)
 
@@ -232,7 +235,7 @@ func TestTheWindowIsSizedToWhatItsPageMeasures(t *testing.T) {
 // chose has to arrive in the file.
 func TestTheSettingsWindowReadsItsControlsBack(t *testing.T) {
 	cfg := &Config{}
-	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, 0, nil, func() {})
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, lumaUltra}, 0, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 
 	// Pick the second headset, the third screen count, and turn the menu bar
@@ -297,7 +300,7 @@ func TestTheSettingsWindowOpensOnWhatIsAlreadyChosen(t *testing.T) {
 		Ribbon:  &ConfigRibbon{Screens: ptr(9)},
 		Glasses: &ConfigGlasses{Model: ptr("VITURE Luma Ultra")},
 	}
-	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, 0, nil, func() {})
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, lumaUltra}, 0, nil, func() {})
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	// Read straight back without touching anything: what was there is what
 	// comes out.
@@ -318,7 +321,7 @@ func TestSaveAndCloseAreWiredUp(t *testing.T) {
 
 	closed := 0
 	cfg := &Config{}
-	root, _ := settingsRoot(cfg, []glasses.USB{luma}, 0, nil, func() { closed++ })
+	root, _ := settingsRoot(cfg, []glasses.USB{lumaUltra}, 0, nil, func() { closed++ })
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: settingsW, H: settingsH(*cfg, nil)})
 	b := buttonsOf(root)
 	if b["Save"] == nil || b["Close"] == nil {
@@ -385,7 +388,7 @@ func TestSaveSaysSoWhenItCannot(t *testing.T) {
 // and a brand is not a headset to choose.
 func TestOnlyModelsAreOfferedAsGlasses(t *testing.T) {
 	brandOnly := glasses.USB{Vendor: 0x3318, Product: 0xffff, Name: "XREAL Something"}
-	got := headsetNames([]glasses.USB{brandOnly, luma})
+	got := headsetNames([]glasses.USB{brandOnly, lumaUltra})
 	if len(got) != 1 || got[0] != "VITURE Luma Ultra" {
 		t.Errorf("headsetNames = %v, want only the one a product id names", got)
 	}
@@ -399,7 +402,7 @@ func TestOnlyModelsAreOfferedAsGlasses(t *testing.T) {
 // the frame — which is what CI found on Linux, where nothing can be claimed.
 func TestTheWindowIsTallEnoughForWhateverItHasToSay(t *testing.T) {
 	for name, attached := range map[string][]glasses.USB{
-		"two headsets": {oneS, luma},
+		"two headsets": {oneS, lumaUltra},
 		"none":         nil,
 	} {
 		cfg := &Config{}
@@ -450,13 +453,13 @@ func TestWhenToAskWhichGlasses(t *testing.T) {
 		attached []glasses.USB
 		want     bool
 	}{
-		"two attached and nobody has said":  {Config{}, "", []glasses.USB{oneS, luma}, true},
-		"a display named on the line":       {Config{}, "VITURE", []glasses.USB{oneS, luma}, false},
-		"a display named with spaces":       {Config{}, "  VITURE ", []glasses.USB{oneS, luma}, false},
-		"already written in the settings":   {chosen, "", []glasses.USB{oneS, luma}, false},
-		"only one attached":                 {Config{}, "", []glasses.USB{luma}, false},
+		"two attached and nobody has said":  {Config{}, "", []glasses.USB{oneS, lumaUltra}, true},
+		"a display named on the line":       {Config{}, "VITURE", []glasses.USB{oneS, lumaUltra}, false},
+		"a display named with spaces":       {Config{}, "  VITURE ", []glasses.USB{oneS, lumaUltra}, false},
+		"already written in the settings":   {chosen, "", []glasses.USB{oneS, lumaUltra}, false},
+		"only one attached":                 {Config{}, "", []glasses.USB{lumaUltra}, false},
 		"none attached":                     {Config{}, "", nil, false},
-		"two on the bus but one is a brand": {Config{}, "", []glasses.USB{brandOnly, luma}, false},
+		"two on the bus but one is a brand": {Config{}, "", []glasses.USB{brandOnly, lumaUltra}, false},
 	} {
 		if got := ShouldChoose(tc.cfg, tc.screen, tc.attached); got != tc.want {
 			t.Errorf("%s: ShouldChoose = %v, want %v", name, got, tc.want)
@@ -516,9 +519,9 @@ func TestSettingsScale(t *testing.T) {
 // window is given.
 func TestTheHeadsetCanBeChosenWithTheMouse(t *testing.T) {
 	cfg := &Config{}
-	root, read := settingsRoot(cfg, []glasses.USB{oneS, luma}, 0, nil, func() {})
+	root, read := settingsRoot(cfg, []glasses.USB{oneS, lumaUltra}, 0, nil, func() {})
 	top := settingsSurface(root)
-	w, h := settingsSize(*cfg, []glasses.USB{oneS, luma})
+	w, h := settingsSize(*cfg, []glasses.USB{oneS, lumaUltra})
 	top.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})
 
 	grids := found[*toolkit.IconGrid](top)

@@ -13,8 +13,8 @@ import (
 // The two pairs of glasses that were on the desk the day this was written,
 // with the numbers their own buses reported.
 var (
-	oneS = glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}
-	luma = glasses.USB{Vendor: 0x35ca, Product: 0x1104, Name: "VITURE Luma Ultra XR GLASSES"}
+	oneS      = glasses.USB{Vendor: 0x3318, Product: 0x043e, Name: "XREAL 1S"}
+	lumaUltra = glasses.USB{Vendor: 0x35ca, Product: 0x1104, Name: "VITURE Luma Ultra XR GLASSES"}
 )
 
 // TestTheBusDoesNotLendItsOpticsToAMonitor.
@@ -60,12 +60,12 @@ func TestTheBusDoesNotLendItsOpticsToAMonitor(t *testing.T) {
 // being used. Picking the first of two and saying nothing would put a guess
 // where the catalogue refuses one.
 func TestTwoHeadsetsOnOneDesk(t *testing.T) {
-	both := []glasses.USB{oneS, luma}
+	both := []glasses.USB{oneS, lumaUltra}
 
 	// The display names one of them, so the bus only says which entry it is —
 	// and it must be the RIGHT one, not the first.
 	got := EvidenceFor(glasses.Display{Name: "VITURE Luma Ultra", Width: 1920, Height: 1080}, false, both)
-	if got == nil || *got != luma {
+	if got == nil || *got != lumaUltra {
 		t.Errorf("got %v, want the Luma Ultra's own entry", got)
 	}
 	got = EvidenceFor(glasses.Display{Name: "XREAL 1S", Width: 1920, Height: 1200}, false, both)
@@ -143,8 +143,8 @@ func TestTheBusRefinesABrandIntoAModel(t *testing.T) {
 		t.Errorf("a brand gave a field of view of %g°", bare.HFOVDeg)
 	}
 
-	got := EvidenceFor(brandOnly, false, []glasses.USB{oneS, luma})
-	if got == nil || *got != luma {
+	got := EvidenceFor(brandOnly, false, []glasses.USB{oneS, lumaUltra})
+	if got == nil || *got != lumaUltra {
 		t.Fatalf("EvidenceFor = %v, want the Luma Ultra's entry", got)
 	}
 	plan, err := NewPlan(brandOnly, Options{USB: got})
@@ -160,7 +160,7 @@ func TestTheBusRefinesABrandIntoAModel(t *testing.T) {
 	// there happens to be.
 	rokid := glasses.Display{Name: "Rokid", Width: 1920, Height: 1200}
 	if p, ok := glasses.Identify(rokid.Name); ok && !p.Known() {
-		if got := EvidenceFor(rokid, false, []glasses.USB{luma}); got != nil {
+		if got := EvidenceFor(rokid, false, []glasses.USB{lumaUltra}); got != nil {
 			t.Errorf("a display naming another brand was handed %v", got)
 		}
 	}
