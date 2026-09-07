@@ -139,6 +139,13 @@ func (n *notice) draw(c *Canvas) {
 	toolkit.SetFont(overlayFont(noticeInk(c.H)))
 	defer toolkit.SetFont(was)
 
+	// The cap goes on BEFORE the anchor, because AnchorIn is what sizes the
+	// pill. It is set here, and not where the sentence is written, because this
+	// is the only place that knows both how wide the view is and which font the
+	// words will be measured in -- and a wrap computed in another font is a
+	// wrap to the wrong width.
+	n.toast.MaxW = noticeMaxW(c.W)
+
 	// AnchorIn's third argument is a STACK INDEX and not an inset: it is how
 	// many pills are already at that corner, so passing pixels there put this
 	// one thirty pills up and off the top of the view. It is anchored to be
@@ -172,4 +179,26 @@ func noticeInset(h int) int {
 		return i
 	}
 	return 1
+}
+
+// noticeMaxW is the widest the sentence may be drawn: the view less a twentieth
+// on each side, the same breathing room noticeInset leaves at the bottom.
+//
+// ⛔⛔ WITHOUT A CAP A LONG SENTENCE IS UNREADABLE, not merely untidy. A Toast
+// sizes itself to its widest line with no upper bound, and this one is docked
+// to the bottom CENTRE -- so a message wider than the view loses BOTH ENDS and
+// the reader is left with the middle of it, which does not look truncated.
+//
+// ⛔ AND IT WAS ALREADY HAPPENING. Measured on a 1920-wide view at the size
+// this draws at (30px ink, 43px body): "screen 3 is back" is 329px and fits,
+// but the camera refusal that has shipped for weeks -- "the camera was refused;
+// it is turned on again in System Settings > Privacy & Security > Camera" --
+// is 2373px, 1.2 times the width it had; and the refusal added in #146 is
+// 4975px, 2.6 times. Anybody whose camera was denied has been reading the
+// middle of that sentence.
+func noticeMaxW(w int) int {
+	if m := w - 2*(w/20); m > 0 {
+		return m
+	}
+	return w
 }

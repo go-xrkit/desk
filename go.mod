@@ -21,8 +21,8 @@ require (
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-viture/beast v0.2.0
 	github.com/go-widgets/mvvm v0.9.0
-	github.com/go-widgets/painter v0.12.0
-	github.com/go-widgets/toolkit v0.305.0
+	github.com/go-widgets/painter v0.13.0
+	github.com/go-widgets/toolkit v0.314.0
 	github.com/go-widgets/tray v0.10.0
 	github.com/go-widgets/window v0.68.0
 	github.com/go-xrkit/android v0.1.0
@@ -41,8 +41,8 @@ require (
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/ebitengine/purego v0.11.0 // indirect
-	github.com/go-crdt/collab v0.40.0 // indirect
-	github.com/go-crdt/crdt v0.42.0 // indirect
+	github.com/go-crdt/collab v0.45.0 // indirect
+	github.com/go-crdt/crdt v0.46.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
 	github.com/go-gtk/gtk4 v0.4.0 // indirect

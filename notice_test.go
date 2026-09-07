@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+
+	"github.com/go-widgets/toolkit"
 )
 
 // noticeSays reads the notice the way everything else does: UNDER THE DESK'S
@@ -275,5 +277,65 @@ func TestANoticeWithNowhereToWriteStillShows(t *testing.T) {
 	n.say("something")
 	if !n.up() {
 		t.Error("a notice with no log did not go up")
+	}
+}
+
+// TestALongNoticeIsWrappedToFitTheView.
+//
+// ⛔⛔ THE DEFECT THIS EXISTS FOR, AND IT HAD ALREADY SHIPPED. A Toast sizes
+// itself to its widest line with no upper bound, and this one is docked to the
+// bottom CENTRE -- so a sentence wider than the view is painted past both edges
+// and the reader is left with the MIDDLE of it, which does not look truncated.
+//
+// Measured on a 1920-wide view at the size a notice draws at: "the camera was
+// refused; it is turned on again in System Settings > Privacy & Security >
+// Camera" came to 2373px, 1.2 times the width it had. Anybody whose camera was
+// denied had been reading the middle of that sentence for weeks.
+func TestALongNoticeIsWrappedToFitTheView(t *testing.T) {
+	const long = "desk: the headset's camera was not found: \"VITURE Beast\" has " +
+		"none. The camera hangs off the same USB hub as the glasses, so a headset " +
+		"attached for its picture only -- over a display cable -- does not present " +
+		"one. Name a camera with -photo-camera to override"
+	c := NewCanvas(800, 600)
+
+	// THE CONTROL FIRST. If this sentence already fits the view unwrapped, the
+	// assertion below is vacuous and would pass with the cap removed.
+	was := toolkit.CurrentFont()
+	toolkit.SetFont(overlayFont(noticeInk(c.H)))
+	wide := toolkit.TextWidth(long)
+	toolkit.SetFont(was)
+	if wide <= c.W {
+		t.Fatalf("the sentence measures %dpx in a %dpx view: it already fits, so "+
+			"this test is not measuring anything", wide, c.W)
+	}
+
+	n := newNotice(1, nil, nil)
+	n.say(long)
+	n.draw(c)
+
+	r := n.toast.Bounds()
+	if r.X < 0 || r.X+r.W > c.W {
+		t.Errorf("the pill is %dpx wide at x=%d in a %dpx view: it hangs off the "+
+			"edge, so both ends of the sentence are cut", r.W, r.X, c.W)
+	}
+	if cap := noticeMaxW(c.W); r.W > cap {
+		t.Errorf("the pill is %dpx, over the %dpx it was capped at", r.W, cap)
+	}
+	// And it must have become several rows: a pill that fits by losing words
+	// would pass the width check and still be wrong.
+	if h := r.H; h <= toolkit.GlyphHeight() {
+		t.Errorf("the pill is %dpx tall: a sentence that did not fit on one line "+
+			"must have been broken across several", h)
+	}
+}
+
+// TestNoticeMaxWOnAViewTooNarrowToTrim: a view too narrow to trim gets the view
+// itself rather than a non-positive cap, which would leave the words no room.
+func TestNoticeMaxWOnAViewTooNarrowToTrim(t *testing.T) {
+	if got := noticeMaxW(0); got != 0 {
+		t.Errorf("noticeMaxW(0) = %d, want 0", got)
+	}
+	if got, want := noticeMaxW(800), 800-2*40; got != want {
+		t.Errorf("noticeMaxW(800) = %d, want %d (a twentieth off each side)", got, want)
 	}
 }
