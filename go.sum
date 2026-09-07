@@ -30,8 +30,8 @@ github.com/go-fsctl/outdir v0.1.0 h1:rGbV1leDdD84VYiP6p03tHcxK992qdOB+yb2c3c0Cq8
 github.com/go-fsctl/outdir v0.1.0/go.mod h1:UqE7FW+enp10WzgZAv8+wyMMGXmL3Ft++3ghro2+kxc=
 github.com/go-gfx/gfx v0.19.0 h1:nA2Eg8Aq2kytR5Hrm/eQ6618w4vT0+Ao8BMZiuYh84c=
 github.com/go-gfx/gfx v0.19.0/go.mod h1:VAK6hgCgkhT3j3ek2K7G8zDfkCPD3RCF45UbcRlCV8Q=
-github.com/go-gtk/gtk4 v0.4.0 h1:x2glqFEFQY+u5w46dFZYfO/HhpHeUhNcBOwNGMV3oiY=
-github.com/go-gtk/gtk4 v0.4.0/go.mod h1:+bpfPrc8PwsiQkZdNCL3LcOzj1KYgv8j2BvvL6P6Aqo=
+github.com/go-gtk/gtk4 v0.6.0 h1:piXUsvHo1FWJtgEz5ogowyvXlMskchAbiryeNJPKEmw=
+github.com/go-gtk/gtk4 v0.6.0/go.mod h1:jjaA29sFQTpy2D3N+FrnxMFZq07mG48ahgQoEEECpPA=
 github.com/go-icons/iconoir v0.2.0 h1:I5AnDEIPgYfawTmwzemDRJjlYCUbFHuS8GJXrjADhXc=
 github.com/go-icons/iconoir v0.2.0/go.mod h1:Td/M2vy4xdVv4aOudAskV0nXR9Wv0MlhWvyRIzPBz5U=
 github.com/go-images/depth v0.4.0 h1:Fy9+Q8c1eJeET4Vmjhfn86xpIWYXlxrSDWnhPSCBzNE=
@@ -48,8 +48,8 @@ github.com/go-macos/appbundle v0.5.0 h1:5B7lRfkuN3NpjQkxIcahYPTns8+lpW5N+i4Y/AbD
 github.com/go-macos/appbundle v0.5.0/go.mod h1:WIKJeLWOi2NK4JmKFrbQ1v7o2WEBrOnxMRVG78ofOjc=
 github.com/go-macos/appicon v0.3.0 h1:hl/4khPzjKnf83C/ht/FyqJuTeZMTlkuQ5D8vGZFirE=
 github.com/go-macos/appicon v0.3.0/go.mod h1:mL3vebftan8SFD8fx8K2FKpY9FuBhKVEA5NrLJzPtxw=
-github.com/go-macos/appkit v0.3.0 h1:ujpAR45JfGZbitv7GiULgTWgaiDFrNWM0nCYzg56N9c=
-github.com/go-macos/appkit v0.3.0/go.mod h1:KQ+vIsZ2hBFniqFJ5Q4uQ4ylQX+MXPvJcMOzvBpJRdE=
+github.com/go-macos/appkit v0.5.0 h1:4LeIstgHaKcoTk4Eb0qFoHmUVa7arW1NNZAO8VLJtfQ=
+github.com/go-macos/appkit v0.5.0/go.mod h1:KQ+vIsZ2hBFniqFJ5Q4uQ4ylQX+MXPvJcMOzvBpJRdE=
 github.com/go-macos/avfoundation v0.11.0 h1:gPARONZieRzsqDGHW8OvovO+rStKFb0XjbeDE4zy9iI=
 github.com/go-macos/avfoundation v0.11.0/go.mod h1:9jZoHgSifeX3mACQOhodATX81F1i5zlhJnSF/OQm684=
 github.com/go-macos/brightness v0.1.1 h1:IrXhHJtwCEwQl2q54LW35C9+Caodwe+2h/yOqOqLcBE=
@@ -102,8 +102,8 @@ github.com/go-widgets/toolkit v0.314.0 h1:ZUHWJiRM1HocAwCYJkqrwSDakeHAHzUjXHdY6L
 github.com/go-widgets/toolkit v0.314.0/go.mod h1:Mucxvqm+K+VjG+Iu5i1RExez41H2Slbc99HYOcyc1sU=
 github.com/go-widgets/tray v0.10.0 h1:LrdLLLgRwECL0x8DcJmzWCaAO4tYCvEeiSH3mUzUFZ0=
 github.com/go-widgets/tray v0.10.0/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
-github.com/go-widgets/window v0.68.0 h1:0XwQyMwiVHzTOqC3OyYveUv5RYzrl38xV3JzlqWHBrE=
-github.com/go-widgets/window v0.68.0/go.mod h1:pxeo6hcPKGYal8ATpx9qwrh7dOXWrOTAibGtnd1h16Q=
+github.com/go-widgets/window v0.73.0 h1:b8E/z2sytRPNpRt2lt80xjwcPHIjarF1QABGBjVs454=
+github.com/go-widgets/window v0.73.0/go.mod h1:96cemkkeQgHVoBGzWLyPa/1HwCF5LETehCb99+7LsLY=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
 github.com/go-xrkit/depth3d v0.1.0 h1:78w0YWvENMzrITw5V/CPhusv/Z2dKSw0UWug5CjpfqU=
