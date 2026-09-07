@@ -7,6 +7,7 @@ package desk
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-viture/luma"
 	"github.com/go-widgets/toolkit"
@@ -32,19 +33,41 @@ type GlassesInfo struct {
 	Firmware string
 	// Serial is the one the vendor labels SN.
 	Serial string
-	// Why is empty when both were read, and a sentence when they were not.
+	// Chip is the CHIP's firmware, as the bytes the headset answers.
+	//
+	// ⛔ AS BYTES, AND UNDER ITS OWN NAME. It reads "02 01 09" on a headset
+	// whose product firmware is 0.01.101_20260605, and calling those three
+	// bytes "the firmware version" is precisely the mistake that stood for a
+	// day with nothing on screen able to reveal it. Nothing says they are to be
+	// shown as 2.1.9 either -- not their order, not that all three are numbers
+	// -- so they are not dressed up.
+	//
+	// The vendor's own tools do not show this at all. It is here because a
+	// support conversation that has got past the product version has nowhere
+	// else to go.
+	Chip string
+	// Why is empty when anything was read, and a sentence when nothing was.
 	Why string
 }
 
 // readGlasses is the seam: the real one claims a USB interface, which a test
 // cannot arrange and must not need to.
-var readGlasses = func() (luma.Info, error) {
+var readGlasses = func() (luma.Info, []byte, error) {
 	g, err := luma.Open()
 	if err != nil {
-		return luma.Info{}, err
+		return luma.Info{}, nil, err
 	}
 	defer func() { _ = g.Close() }()
-	return g.Info()
+	in, err := g.Info()
+	// ⚠ ASKED SECOND, AND ITS FAILURE IS NOT THE OTHERS'. The chip version
+	// travels on the other envelope entirely -- the MCU pair rather than the
+	// data pair -- so it can be refused while the product values arrive. One
+	// row missing beats a page emptied by the least important of three reads.
+	chip, chipErr := g.ChipVersion()
+	if chipErr != nil {
+		chip = nil
+	}
+	return in, chip, err
 }
 
 // ReadGlassesInfo asks the headset who it is.
@@ -54,10 +77,14 @@ var readGlasses = func() (luma.Info, error) {
 // plugged in would be worse than an empty row. So a headset this cannot ask
 // says so.
 func ReadGlassesInfo() GlassesInfo {
-	in, err := readGlasses()
-	got := GlassesInfo{Firmware: in.FirmwareVersion, Serial: in.PackageSerial}
+	in, chip, err := readGlasses()
+	got := GlassesInfo{
+		Firmware: in.FirmwareVersion,
+		Serial:   in.PackageSerial,
+		Chip:     chipBytes(chip),
+	}
 	switch {
-	case got.Firmware != "" || got.Serial != "":
+	case got.Firmware != "" || got.Serial != "" || got.Chip != "":
 		// Something came back. A partial answer is still an answer, and the
 		// empty field speaks for itself.
 		return got
@@ -79,14 +106,14 @@ func ReadGlassesInfo() GlassesInfo {
 // glassesRows is what the settings page shows for it: one row per value, or one
 // row saying why there is none.
 func glassesRows(in GlassesInfo) []glassesRow {
-	if in.Firmware == "" && in.Serial == "" {
+	if in.Firmware == "" && in.Serial == "" && in.Chip == "" {
 		why := in.Why
 		if why == "" {
 			why = "not read"
 		}
 		return []glassesRow{{Title: "Not available", Subtitle: why}}
 	}
-	rows := make([]glassesRow, 0, 2)
+	rows := make([]glassesRow, 0, 3)
 	if in.Firmware != "" {
 		rows = append(rows, glassesRow{
 			Title: "Firmware", Subtitle: in.Firmware,
@@ -94,6 +121,15 @@ func glassesRows(in GlassesInfo) []glassesRow {
 	}
 	if in.Serial != "" {
 		rows = append(rows, glassesRow{Title: "Serial number", Subtitle: in.Serial})
+	}
+	if in.Chip != "" {
+		// ⛔ ITS OWN NAME AND ITS OWN SENTENCE. Two version numbers on one card,
+		// one of which is not the one anybody means, is how the confusion this
+		// row exists to end got started.
+		rows = append(rows, glassesRow{
+			Title:    "Chip firmware",
+			Subtitle: in.Chip + ", from the chip itself, not the version above",
+		})
 	}
 	return rows
 }
@@ -112,4 +148,20 @@ func settingRows(rows []glassesRow) []*toolkit.SettingRow {
 		out = append(out, &toolkit.SettingRow{Title: r.Title, Subtitle: r.Subtitle})
 	}
 	return out
+}
+
+// chipBytes renders the chip's answer the way it arrived: bytes, in hex.
+//
+// ⛔ NOT "2.1.9". Three bytes look like a dotted version and nothing says they
+// are one -- not their order, not that all three are numbers. A screen that
+// guessed would be a screen nobody could correct against anything.
+func chipBytes(b []byte) string {
+	if len(b) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(b))
+	for _, c := range b {
+		parts = append(parts, fmt.Sprintf("%02x", c))
+	}
+	return strings.Join(parts, " ")
 }
