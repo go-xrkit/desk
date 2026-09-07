@@ -108,6 +108,18 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	glassesCard := toolkit.NewFrame(tiles)
 	glassesCard.Title = "Glasses: which headset when several are attached"
 
+	// What the headset says it IS.
+	//
+	// ⭐ A firmware version and a serial are the first two things a support
+	// conversation asks for, and until now the only way to see them was to quit
+	// this application and open the vendor's -- which claims the USB interface
+	// exclusively, so the two cannot even be open at once.
+	//
+	// ⚠ READ ONCE, HERE. Asking opens that interface, and a page that re-asked
+	// on every repaint would hold it against everything else.
+	identityCard := toolkit.NewSettingsGroup("What the glasses report",
+		settingRows(glassesRows(ReadGlassesInfo()))...)
+
 	// How many screens is NOT here.
 	//
 	// It was a drop-down, and it is the gallery's now: the adder tile puts a
@@ -179,6 +191,7 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	// Natural, not a size: each card is as tall as its own rows say, re-measured
 	// every time the window changes shape.
 	page.Add(toolkit.Item{Widget: glassesCard, Natural: true})
+	page.Add(toolkit.Item{Widget: identityCard, Natural: true})
 	page.Add(toolkit.Item{Widget: deskCard, Natural: true})
 	page.Add(toolkit.Item{Widget: keysCard, Natural: true})
 

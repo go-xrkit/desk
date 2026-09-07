@@ -22,14 +22,14 @@ import (
 // says which headset a camera belongs to.
 func TestTheHeadsetAndItsCameraShareAHub(t *testing.T) {
 	const (
-		luma     = 0x110000
-		lumaCam  = 0x120000
-		beast    = 0x2130000
-		beastCam = 0x2110000
+		lumaUltra = 0x110000
+		lumaCam   = 0x120000
+		beast     = 0x2130000
+		beastCam  = 0x2110000
 	)
-	if parentHub(luma) != parentHub(lumaCam) {
+	if parentHub(lumaUltra) != parentHub(lumaCam) {
 		t.Errorf("the Luma (%#x) and its camera (%#x) do not share a hub: %#x vs %#x",
-			luma, lumaCam, parentHub(luma), parentHub(lumaCam))
+			lumaUltra, lumaCam, parentHub(lumaUltra), parentHub(lumaCam))
 	}
 	if parentHub(beast) != parentHub(beastCam) {
 		t.Errorf("the Beast (%#x) and its camera (%#x) do not share a hub: %#x vs %#x",
@@ -38,8 +38,8 @@ func TestTheHeadsetAndItsCameraShareAHub(t *testing.T) {
 	// ⛔ AND THE TWO HEADSETS MUST NOT SHARE ONE, or the desk photographs
 	// through the glasses somebody is not wearing -- which is the same defect
 	// as switching the wrong headset into 3D, one floor down.
-	if parentHub(luma) == parentHub(beast) {
-		t.Errorf("both headsets read as the same hub %#x", parentHub(luma))
+	if parentHub(lumaUltra) == parentHub(beast) {
+		t.Errorf("both headsets read as the same hub %#x", parentHub(lumaUltra))
 	}
 	if parentHub(lumaCam) == parentHub(beastCam) {
 		t.Error("both cameras read as the same hub")
@@ -55,14 +55,14 @@ func TestTheHeadsetAndItsCameraShareAHub(t *testing.T) {
 // comparison of raw values matches nothing and a comparison of the top byte
 // matches everything on the same bus -- including the other headset.
 func TestAPrefixComparisonWouldNotHaveWorked(t *testing.T) {
-	const luma, lumaCam, beast = 0x110000, 0x120000, 0x2130000
-	if luma == lumaCam {
+	const lumaUltra, lumaCam, beast = 0x110000, 0x120000, 0x2130000
+	if lumaUltra == lumaCam {
 		t.Fatal("the test's own premise is wrong")
 	}
-	if luma>>24 != beast>>24 {
+	if lumaUltra>>24 != beast>>24 {
 		t.Skip("the two headsets are not on the same bus here, so this says nothing")
 	}
-	if parentHub(luma) == parentHub(beast) {
+	if parentHub(lumaUltra) == parentHub(beast) {
 		t.Error("walking the path still confuses the two headsets")
 	}
 }

@@ -191,7 +191,7 @@ func f(box *toolkit.Container, n int) {
 // nobody placed, which draws nothing and hit-tests nothing, silently.
 func TestTheSettingsWindowHasNothingOutsideItsParent(t *testing.T) {
 	cfg := &Config{}
-	attached := []glasses.USB{oneS, luma}
+	attached := []glasses.USB{oneS, lumaUltra}
 	root, _ := settingsRoot(cfg, attached, 0, nil, func() {})
 	w, h := settingsSize(*cfg, attached)
 	root.SetBounds(toolkit.Rect{X: 0, Y: 0, W: w, H: h})

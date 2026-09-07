@@ -52,7 +52,7 @@ func TestTheWindowNeverOutgrowsItsScreen(t *testing.T) {
 			maxH := int(float64(visH) * SettingsRoom)
 
 			cfg := &Config{}
-			attached := []glasses.USB{oneS, luma}
+			attached := []glasses.USB{oneS, lumaUltra}
 			size := func(scale float64) (int, int) {
 				toolkit.SetMetricScale(scale)
 				return settingsSize(*cfg, attached)
@@ -132,7 +132,7 @@ func hasScrollView(w toolkit.Widget) bool {
 // the scroll view removed the first time.
 func TestAPageTallerThanTheRoomScrolls(t *testing.T) {
 	cfg := &Config{}
-	attached := []glasses.USB{oneS, luma}
+	attached := []glasses.USB{oneS, lumaUltra}
 
 	// Room enough for a couple of rows and no more.
 	said := ""

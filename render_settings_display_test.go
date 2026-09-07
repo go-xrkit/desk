@@ -102,7 +102,7 @@ func TestTheRenderDirectoryRefusesAWorkTree(t *testing.T) {
 // TestRenderTheSettingsWindow draws it and writes it out.
 func TestRenderTheSettingsWindow(t *testing.T) {
 	cfg := &Config{}
-	attached := []glasses.USB{oneS, luma}
+	attached := []glasses.USB{oneS, lumaUltra}
 	w, h := settingsW, settingsH(*cfg, attached)
 	buf := make([]byte, w*h*4)
 	p := painter.NewPixelPainter(buf, w, h)
