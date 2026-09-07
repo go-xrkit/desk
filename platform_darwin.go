@@ -116,9 +116,49 @@ func (s *Screens) Release() error {
 // afterwards: setting a mode on one leaves it on the desktop until the process
 // exits, however carefully it is released. So the size is asked for once, here,
 // and a display that comes up wrong is refused rather than corrected.
-// displayTries is how many times one virtual display is asked for before the
-// session gives up on all of them. See the loop in Provide.
-const displayTries = 3
+// displayTries is how many times one virtual display is asked for AT THE SIZE
+// PLANNED before the width is nudged. See the loop in Provide and [widthsToTry].
+const displayTries = 2
+
+// widthsToTry is the widths one screen is asked for, in order: the planned one
+// a couple of times, then one pixel either side of it.
+//
+// ⛔⛔ ASKING AGAIN AT THE SAME WIDTH IS NOT ALWAYS WORTH IT, and believing it
+// was cost a session. Measured 2026-09-07 in a bare process, with the glasses
+// off and a 7680-wide monitor attached:
+//
+//	3840 wide  refused at EVERY height tried (720, 1080, 1440, 1600, 2160, 2880)
+//	4096, 7680 refused
+//	3839, 3841, 4095  opened, in about half a second
+//	5120x1440, 6400x1440  opened -- FAR WIDER than the 3840 that was refused
+//
+// So "the window server would not create a virtual display: display N never
+// became active within 5s" is NOT about size, which is what it had been written
+// down as. Particular widths are poison and one pixel is enough to escape them.
+// The cause is unknown; what is measured is that the same width never becomes
+// acceptable by asking again, and that a neighbouring one does.
+//
+// ⭐ THE SAME-WIDTH RETRY STAYS, because its own measurement stands too: with
+// the glasses on, "display 141 never became active within 5s" on the first of
+// five, and a second ask at the same size succeeded. A busy window server is
+// real. It is simply not the only cause, and it is the cheap one to rule out
+// first -- so the planned width is asked for twice, and only then nudged.
+//
+// ⚠ SMALLER FIRST, and never by more than a pixel. The screens are laid out to
+// the planned width, so a wider one would not fit; and a size that follows a
+// headset's optics must not be "corrected" into something else. One pixel is
+// not a different size to anything that matters, and it is what was measured to
+// work.
+func widthsToTry(planned int) []int {
+	out := make([]int, 0, displayTries+2)
+	for i := 0; i < displayTries; i++ {
+		out = append(out, planned)
+	}
+	if planned > 1 {
+		out = append(out, planned-1)
+	}
+	return append(out, planned+1)
+}
 
 func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screens, error) {
 	if logf == nil {
@@ -138,6 +178,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	// from four goroutines. The window server serialises the work whoever asks,
 	// so concurrency here buys NOTHING, and it would cost the simple failure
 	// path below, which closes what it made when one is refused.
+	usedW := plan.ScreenW
 	for i := 0; i < plan.Count(); i++ {
 		// ASKED AGAIN BEFORE GIVING UP. Measured, with the glasses on: "display
 		// 141 never became active within 5s" on the first of five, and the whole
@@ -147,20 +188,46 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 		// ask costs 375ms against losing the session.
 		var d *virtualdisplay.Display
 		var err error
-		for try := 1; try <= displayTries; try++ {
+		// ⭐ FROM THE WIDTH THAT WORKED LAST, not from the planned one. Measured
+		// 2026-09-07: six screens each spent 10 s learning the same refusal over
+		// again -- a minute of startup to be told six times what the first
+		// screen had already found out. Starting from the answer costs one
+		// half-second attempt per screen instead.
+		widths := widthsToTry(usedW)
+		for try, w := range widths {
 			d, err = virtualdisplay.Open(virtualdisplay.Spec{
 				Name:   fmt.Sprintf("XR desk %d", i+1),
-				Width:  uint32(plan.ScreenW),
+				Width:  uint32(w),
 				Height: uint32(plan.ScreenH),
 				// OnTerminate is deliberately nil: the block can fire while the
 				// Go runtime is shutting down, and it has been seen to crash a
 				// process on the way out.
 			})
 			if err == nil {
+				if w != plan.ScreenW && usedW == plan.ScreenW {
+					// SAID OUT LOUD, ONCE. A screen quietly a pixel off the
+					// planned width would turn up later as an unexplained
+					// difference in somebody else's measurement -- and saying it
+					// per screen would bury it under five repeats.
+					logf("virtual display %d of %d opened at %dx%d: this machine refuses "+
+						"%d wide however many times it is asked, and one pixel is enough "+
+						"to escape it (measured 2026-09-07; the cause is not known). "+
+						"The screens after this one start there",
+						i+1, plan.Count(), w, plan.ScreenH, plan.ScreenW)
+				}
+				usedW = w
 				break
 			}
-			if try < displayTries {
-				logf("virtual display %d of %d refused (%v); asking again", i+1, plan.Count(), err)
+			if try < len(widths)-1 {
+				next := widths[try+1]
+				if next == w {
+					logf("virtual display %d of %d refused (%v); asking again",
+						i+1, plan.Count(), err)
+				} else {
+					logf("virtual display %d of %d refused at %d wide (%v); trying %d, "+
+						"because a width that is refused does not become acceptable by "+
+						"asking for it again", i+1, plan.Count(), w, err, next)
+				}
 			}
 		}
 		if err != nil {
@@ -174,7 +241,10 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 		s.IDs = append(s.IDs, uint64(d.ID()))
 	}
 	s.Virtual = true
-	s.Why = fmt.Sprintf("%d virtual displays of %dx%d", len(s.IDs), plan.ScreenW, plan.ScreenH)
+	// The width ACTUALLY used, not the one planned: when a width had to be
+	// nudged, a Why that still named the planned one would be a sentence the
+	// display list contradicts.
+	s.Why = fmt.Sprintf("%d virtual displays of %dx%d", len(s.IDs), usedW, plan.ScreenH)
 	logf("%s", s.Why)
 	// Say where they can be SEEN. A person who goes looking for these in System
 	// Settings needs to know what they are called there, and that they last
