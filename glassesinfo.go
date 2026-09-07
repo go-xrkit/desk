@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/go-viture/beast"
 	"github.com/go-viture/luma"
 	"github.com/go-widgets/toolkit"
 )
@@ -26,6 +27,9 @@ import (
 // exactly the mistake that put "2.1.9" in front of a headset running
 // 0.01.101_20260605 for a day, and nobody could have caught it from the screen.
 type GlassesInfo struct {
+	// Model names the headset these values came FROM. Both can be attached at
+	// once, so a card without it would be numbers nobody could attribute.
+	Model string
 	// Firmware is the application firmware, VERBATIM. VITURE's own updater
 	// trims its leading component -- "12.0.01.101_20260605" there reads
 	// "0.01.101_20260605" -- and this does not, so that what is on this screen
@@ -70,15 +74,70 @@ var readGlasses = func() (luma.Info, []byte, error) {
 	return in, chip, err
 }
 
-// ReadGlassesInfo asks the headset who it is.
+// readBeastGlasses is the other seam. The Beast answers a different envelope
+// on a different bus, so it is a separate call rather than a branch inside one.
+var readBeastGlasses = func() (beast.Info, error) {
+	g, err := beast.Open()
+	if err != nil {
+		return beast.Info{}, err
+	}
+	defer func() { _ = g.Close() }()
+	return g.Info()
+}
+
+// ReadGlassesInfo asks a headset who it is: the Luma first, then the Beast.
 //
-// ⚠ IT IS ONLY WIRED FOR THE LUMA. The Beast answers a different envelope
-// again, and a row that quietly showed one headset's numbers while another was
-// plugged in would be worse than an empty row. So a headset this cannot ask
-// says so.
+// ⛔ AND IT SAYS WHICH ONE ANSWERED. Both can be attached at once -- that is
+// what the picker beside this card exists for -- so numbers with no name on
+// them would be the same confusion this card was built to end, one level up.
 func ReadGlassesInfo() GlassesInfo {
+	if got, ok := readLuma(); ok {
+		return got
+	}
+	if got, ok := readBeast(); ok {
+		return got
+	}
+	// Neither answered. The Luma's reason is the more useful one to show,
+	// because it is the headset this can ask the most of.
+	return lumaInfo()
+}
+
+// readBeast asks the Beast, and reports whether it said anything.
+func readBeast() (GlassesInfo, bool) {
+	// ⚠ THE ERROR IS DROPPED ON PURPOSE. When neither headset answers it is the
+	// LUMA reason that gets shown, because it is the one this can ask the most
+	// of; a second explanation here would only compete with it.
+	in, _ := readBeastGlasses()
+	got := GlassesInfo{
+		Model:    "VITURE Beast",
+		Firmware: in.FirmwareVersion,
+		Serial:   in.PackageSerial,
+	}
+	// ⭐ THE BOARD SERIAL STANDS IN WHEN THERE IS NO PRODUCT ONE. This headset
+	// answers 0xff for its package serial, which means it has none -- and the
+	// vendor's own tool falls back the same way rather than showing nothing.
+	if got.Serial == "" {
+		got.Serial = in.BoardSerial
+	}
+	if got.Firmware == "" && got.Serial == "" {
+		return GlassesInfo{}, false
+	}
+	return got, true
+}
+
+// readLuma asks the Luma, and reports whether it said anything.
+func readLuma() (GlassesInfo, bool) {
+	got := lumaInfo()
+	if got.Firmware == "" && got.Serial == "" && got.Chip == "" {
+		return GlassesInfo{}, false
+	}
+	return got, true
+}
+
+func lumaInfo() GlassesInfo {
 	in, chip, err := readGlasses()
 	got := GlassesInfo{
+		Model:    "VITURE Luma Ultra",
 		Firmware: in.FirmwareVersion,
 		Serial:   in.PackageSerial,
 		Chip:     chipBytes(chip),
@@ -113,7 +172,10 @@ func glassesRows(in GlassesInfo) []glassesRow {
 		}
 		return []glassesRow{{Title: "Not available", Subtitle: why}}
 	}
-	rows := make([]glassesRow, 0, 3)
+	rows := make([]glassesRow, 0, 4)
+	if in.Model != "" {
+		rows = append(rows, glassesRow{Title: "Headset", Subtitle: in.Model})
+	}
 	if in.Firmware != "" {
 		rows = append(rows, glassesRow{
 			Title: "Firmware", Subtitle: in.Firmware,

@@ -16,15 +16,15 @@ import (
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
-// beast is the headset most of this was measured on.
-func beast() glasses.Display {
+// beastUSB is the headset most of this was measured on.
+func beastUSB() glasses.Display {
 	return glasses.Display{Name: "VITURE Beast", Width: 1920, Height: 1200}
 }
 
 // galleryOf opens a gallery of n screens and returns the desk and its picture.
 func galleryOf(t *testing.T, n int) (*Desk, *Canvas) {
 	t.Helper()
-	p, err := NewPlan(beast(), Options{Screens: n})
+	p, err := NewPlan(beastUSB(), Options{Screens: n})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,7 +244,7 @@ func TestClickingTheBackgroundDoesNothing(t *testing.T) {
 // A click on a captured desktop is not this application's to interpret: the
 // desktop under the cursor will have its own idea of what was clicked.
 func TestOnTheBandAClickIsNotOurs(t *testing.T) {
-	p, err := NewPlan(beast(), Options{Screens: 6})
+	p, err := NewPlan(beastUSB(), Options{Screens: 6})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -320,7 +320,7 @@ func TestTheGalleryOffersOneMoreScreen(t *testing.T) {
 // Adding a seventh screen must not move the band: somebody who added one to put
 // something on it would otherwise find themselves somewhere else.
 func TestGrowingKeepsTheScreenTheViewerIsFacing(t *testing.T) {
-	p, err := NewPlan(beast(), Options{Screens: 6})
+	p, err := NewPlan(beastUSB(), Options{Screens: 6})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -410,7 +410,7 @@ func TestTheClampsAndTheEdges(t *testing.T) {
 	}
 
 	// A plan cannot have fewer than one screen.
-	p, err := NewPlan(beast(), Options{Screens: 3})
+	p, err := NewPlan(beastUSB(), Options{Screens: 3})
 	if err != nil {
 		t.Fatal(err)
 	}

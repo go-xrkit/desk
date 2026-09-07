@@ -24,21 +24,21 @@ func TestTheHeadsetAndItsCameraShareAHub(t *testing.T) {
 	const (
 		lumaUltra = 0x110000
 		lumaCam   = 0x120000
-		beast     = 0x2130000
+		beastUSB  = 0x2130000
 		beastCam  = 0x2110000
 	)
 	if parentHub(lumaUltra) != parentHub(lumaCam) {
 		t.Errorf("the Luma (%#x) and its camera (%#x) do not share a hub: %#x vs %#x",
 			lumaUltra, lumaCam, parentHub(lumaUltra), parentHub(lumaCam))
 	}
-	if parentHub(beast) != parentHub(beastCam) {
+	if parentHub(beastUSB) != parentHub(beastCam) {
 		t.Errorf("the Beast (%#x) and its camera (%#x) do not share a hub: %#x vs %#x",
-			beast, beastCam, parentHub(beast), parentHub(beastCam))
+			beastUSB, beastCam, parentHub(beastUSB), parentHub(beastCam))
 	}
 	// ⛔ AND THE TWO HEADSETS MUST NOT SHARE ONE, or the desk photographs
 	// through the glasses somebody is not wearing -- which is the same defect
 	// as switching the wrong headset into 3D, one floor down.
-	if parentHub(lumaUltra) == parentHub(beast) {
+	if parentHub(lumaUltra) == parentHub(beastUSB) {
 		t.Errorf("both headsets read as the same hub %#x", parentHub(lumaUltra))
 	}
 	if parentHub(lumaCam) == parentHub(beastCam) {
@@ -55,14 +55,14 @@ func TestTheHeadsetAndItsCameraShareAHub(t *testing.T) {
 // comparison of raw values matches nothing and a comparison of the top byte
 // matches everything on the same bus -- including the other headset.
 func TestAPrefixComparisonWouldNotHaveWorked(t *testing.T) {
-	const lumaUltra, lumaCam, beast = 0x110000, 0x120000, 0x2130000
+	const lumaUltra, lumaCam, beastUSB = 0x110000, 0x120000, 0x2130000
 	if lumaUltra == lumaCam {
 		t.Fatal("the test's own premise is wrong")
 	}
-	if lumaUltra>>24 != beast>>24 {
+	if lumaUltra>>24 != beastUSB>>24 {
 		t.Skip("the two headsets are not on the same bus here, so this says nothing")
 	}
-	if parentHub(lumaUltra) == parentHub(beast) {
+	if parentHub(lumaUltra) == parentHub(beastUSB) {
 		t.Error("walking the path still confuses the two headsets")
 	}
 }
@@ -87,7 +87,7 @@ func TestTheDisplayNameSaysWhichHeadsetToLookFor(t *testing.T) {
 	if got := wantedHeadset("VITURE Beast"); got != beastProduct {
 		t.Errorf("a Beast display wants %#04x", got)
 	}
-	if got := wantedHeadset("viture beast xr"); got != beastProduct {
+	if got := wantedHeadset("viture beastUSB xr"); got != beastProduct {
 		t.Errorf("case should not matter: %#04x", got)
 	}
 	if got := wantedHeadset("VITURE"); got != lumaUltraProd {
