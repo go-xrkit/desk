@@ -594,3 +594,47 @@ func TestThePlusHasAFloor(t *testing.T) {
 		t.Error("nothing orange was drawn in a tiny gallery: the plus vanished")
 	}
 }
+
+// TestTheGalleryLineFitsTheViewAndIsCapped.
+//
+// ⚠ A TRIPWIRE, NOT A REGRESSION TEST. Measured 2026-09-07, the longest line
+// the gallery can say -- "screen 40 of 40  (Enter to go there)" -- fits at every
+// view size, because its length is bounded and the type scales with the view.
+// So this passes today with or without the cap.
+//
+// It is here because the notice beside it is the SAME widget docked the SAME
+// way, and that one overflowed by 2.6 times before it was capped: a Toast grows
+// to its widest line with no upper bound. If somebody ever gives this pill a
+// longer sentence -- a screen's name, say -- this fails instead of quietly
+// painting a sentence off both edges of the view.
+func TestTheGalleryLineFitsTheViewAndIsCapped(t *testing.T) {
+	// The narrowest and the widest a ribbon screen plausibly gets, plus a
+	// deliberately mean one: the cap is a fraction of the view, so a small view
+	// is not automatically the safe case.
+	for _, view := range []struct{ w, h int }{{640, 360}, {1920, 1080}, {3456, 2234}} {
+		c := NewCanvas(view.w, view.h)
+		m := newMarks(nil)
+		// Forty screens is the most the flat desk allows, so "40 of 40" is the
+		// longest number pair the sentence can carry.
+		g, err := NewGrid(40, 1920, 1200, view.w, view.h, 0)
+		if err != nil {
+			t.Fatalf("NewGrid: %v", err)
+		}
+		if err := g.Select(39); err != nil {
+			t.Fatalf("Select: %v", err)
+		}
+		m.draw(c, g, 39)
+
+		r := m.says.Bounds()
+		if r.X < 0 || r.X+r.W > c.W {
+			t.Errorf("%dx%d: the line is %dpx at x=%d: it hangs off the edge, so "+
+				"both its ends are cut", view.w, view.h, r.W, r.X)
+		}
+		if cap := noticeMaxW(c.W); r.W > cap {
+			t.Errorf("%dx%d: the line is %dpx, over the %dpx cap", view.w, view.h, r.W, cap)
+		}
+		if m.says.MaxW == 0 {
+			t.Errorf("%dx%d: the pill was drawn with no cap at all", view.w, view.h)
+		}
+	}
+}

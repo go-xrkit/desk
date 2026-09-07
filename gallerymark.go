@@ -136,6 +136,18 @@ func (m *marks) draw(c *Canvas, g *Grid, sel int) {
 	if m.says.Text == "" {
 		return
 	}
+	// The same cap as a notice, for the same reason and at the same size: both
+	// pills are Toasts docked to the bottom centre of this same view, and a
+	// Toast grows to its widest line with no upper bound.
+	//
+	// ⚠ THIS IS INSURANCE, NOT A FIX. Measured 2026-09-07: the longest line
+	// saying() can produce -- "screen 40 of 40  (Enter to go there)" -- is
+	// 696px on a 1920-wide view, 1423px on a 3456-wide one and 246px on a
+	// 640-wide one, so it fits today at every size, because its length is
+	// bounded and the type scales with the view. It is capped anyway because
+	// the notice beside it was built the same way and DID overflow, by 2.6
+	// times; a longer sentence added here later would break in silence.
+	m.says.MaxW = noticeMaxW(c.W)
 	m.says.AnchorIn(toolkit.Rect{X: 0, Y: 0, W: c.W, H: c.H}, toolkit.BottomCenter, 0)
 	m.says.Draw(p, m.theme)
 }
