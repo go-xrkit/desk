@@ -23,7 +23,7 @@ require (
 	github.com/go-viture/luma v0.2.0
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.314.0
+	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/tray v0.10.0
 	github.com/go-widgets/window v0.68.0
 	github.com/go-xrkit/android v0.1.0

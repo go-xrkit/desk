@@ -132,11 +132,16 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 	// The menu bar, which is the thing everyone asks about.
 	//
 	// A switch rather than a check button: it is a setting that is on or off,
-	// and it sits in the trailing slot of a row whose words are the label. No
-	// apostrophe and no dashes anywhere in this window's text -- the built-in
-	// font has neither, and "the glasses' own menu bar" came out as a hole in
-	// the middle of a sentence. The system face has them, but the window falls
-	// back to the built-in one on a platform that offers no face at all.
+	// and it sits in the trailing slot of a row whose words are the label.
+	//
+	// ⛔ THE TEXT IN THIS WINDOW MUST BE DRAWABLE IN THE FALLBACK FONT, and that
+	// is now a TEST rather than a rule to remember: see
+	// TestEveryWordInTheSettingsWindowCanBeDrawn. The rule this replaces said "no
+	// apostrophe and no dashes", and it was wrong in both directions -- a plain
+	// hyphen draws fine, and the window shipped "Turn this Mac's screen off"
+	// regardless. The system face has every one of these; the built-in 5x7 font
+	// is what a platform with no system face falls back TO, and there a missing
+	// glyph is a blank cell in the middle of a word.
 	immersive := nativeSwitch(cfg.Immersive())
 	immersive.SetBounds(toolkit.Rect{
 		W: toolkit.Scaled(SwitchW), H: toolkit.Scaled(SwitchH)})
@@ -162,7 +167,7 @@ func settingsPage(cfg *Config, attached []glasses.USB) (*toolkit.Container, func
 			Control:  immersive,
 		},
 		&toolkit.SettingRow{
-			Title:    "Turn this Mac's screen off",
+			Title:    "Turn the Mac screen off",
 			Subtitle: "while the band is showing a copy of it",
 			Control:  dim,
 		},
