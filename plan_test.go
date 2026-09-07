@@ -203,16 +203,16 @@ func TestUnknownOpticsAreNoLongerAnObstacle(t *testing.T) {
 }
 
 func TestRefusesNonsense(t *testing.T) {
-	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	beastUSB := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
 	for _, tc := range []struct {
 		name string
 		d    glasses.Display
 		opts Options
 		want error
 	}{
-		{"negative screens", beast, Options{Screens: -1}, ErrScreens},
+		{"negative screens", beastUSB, Options{Screens: -1}, ErrScreens},
 		{"a display with no size", glasses.Display{Name: "VITURE Beast"}, Options{}, ErrScreens},
-		{"a field of view that is not one", beast, Options{FOVDeg: 180}, ErrFOV},
+		{"a field of view that is not one", beastUSB, Options{FOVDeg: 180}, ErrFOV},
 	} {
 		_, err := NewPlan(tc.d, tc.opts)
 		if !errors.Is(err, tc.want) {

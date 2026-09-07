@@ -12,14 +12,14 @@ require (
 	github.com/go-macos/brightness v0.1.1
 	github.com/go-macos/coreaudio v0.2.0
 	github.com/go-macos/hotkey v0.10.0
-	github.com/go-macos/iokit v0.10.0
+	github.com/go-macos/iokit v0.11.0
 	github.com/go-macos/multitouch v0.1.0
 	github.com/go-macos/objc v0.9.1
 	github.com/go-macos/pointer v0.1.0
 	github.com/go-macos/screencapture v0.1.1
 	github.com/go-macos/virtualdisplay v0.3.0
 	github.com/go-mswin/screencapture v0.2.0
-	github.com/go-viture/beast v0.2.0
+	github.com/go-viture/beast v0.3.0
 	github.com/go-viture/luma v0.2.0
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0

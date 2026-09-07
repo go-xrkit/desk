@@ -108,7 +108,7 @@ func TestARefusalIsReportedWithWhatTheHeadsetSaid(t *testing.T) {
 
 // TestARefusalStillSaysWhichPictureWasAsked.
 //
-// ⛔ THE STATUS CODES MOVED TO go-viture/beast, which is where the reason for
+// ⛔ THE STATUS CODES MOVED TO go-viture/beastUSB, which is where the reason for
 // them lives: the headset answers every command, and that is worth more than
 // watching a screen. The old test of that mapping went with them. What stays
 // here is the half the LIBRARY cannot know -- which picture a person asked for
