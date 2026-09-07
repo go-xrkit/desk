@@ -100,3 +100,27 @@ func TestSettingRowsCarryBothHalves(t *testing.T) {
 		t.Errorf("settingRows lost something: %+v", got)
 	}
 }
+
+// The two shapes ReadGlassesInfo cannot produce but glassesRows must still
+// handle, because it is called with whatever it is given.
+func TestGlassesRowsOnWhatItIsGiven(t *testing.T) {
+	t.Run("a serial without a firmware still shows the serial", func(t *testing.T) {
+		rows := glassesRows(GlassesInfo{Serial: "S154801101"})
+		if len(rows) != 1 || rows[0].Subtitle != "S154801101" {
+			t.Errorf("got %+v, want just the serial", rows)
+		}
+		if strings.Contains(rows[0].Title, "Firmware") {
+			t.Error("a firmware row appeared for a firmware that was not read")
+		}
+	})
+
+	t.Run("empty with no reason still says something", func(t *testing.T) {
+		// ⛔ A BLANK ROW IS THE ONE OUTCOME THAT TELLS A PERSON NOTHING. If a
+		// caller hands over nothing and no reason, the row says so rather than
+		// leaving a gap somebody has to interpret.
+		rows := glassesRows(GlassesInfo{})
+		if len(rows) != 1 || rows[0].Subtitle == "" {
+			t.Fatalf("got %+v, want one row that says something", rows)
+		}
+	})
+}

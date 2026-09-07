@@ -20,6 +20,7 @@ require (
 	github.com/go-macos/virtualdisplay v0.3.0
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-viture/beast v0.2.0
+	github.com/go-viture/luma v0.2.0
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.314.0
@@ -58,7 +59,6 @@ require (
 	github.com/go-opentype/shape v0.5.0 // indirect
 	github.com/go-richdoc/richdoc v0.3.0 // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
-	github.com/go-viture/luma v0.2.0 // indirect
 	github.com/go-widgets/android v0.13.1 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
