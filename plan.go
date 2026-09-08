@@ -130,8 +130,18 @@ func (p Plan) String() string {
 	if p.HFOVDeg > 0 {
 		optics = fmt.Sprintf("%.2f°x%.2f° each", p.HFOVDeg, p.VFOVDeg)
 	}
-	return fmt.Sprintf("%s: %d screens of %dx%d, %s",
-		p.Model, p.count, p.ScreenW, p.ScreenH, optics)
+	// ⛔⛔ AND IT SAYS ITS SHAPE. This used to name the model, the count, the
+	// size and the optics -- everything except the two numbers that decide
+	// what the picture LOOKS like. So "the angle is still wrong", reported
+	// from the glasses, could not be answered without rebuilding the
+	// program: nothing anywhere said which curvature was in force. A line
+	// that describes an arrangement has to describe the arrangement.
+	shape := fmt.Sprintf(", curved %.1f° at %.2fx", p.SplayDeg(), p.Distance())
+	if p.SplayDeg() <= 0 {
+		shape = fmt.Sprintf(", flat at %.2fx", p.Distance())
+	}
+	return fmt.Sprintf("%s: %d screens of %dx%d, %s%s",
+		p.Model, p.count, p.ScreenW, p.ScreenH, optics, shape)
 }
 
 // Screens is the ribbon's screens: each one a whole view of the glasses, except
