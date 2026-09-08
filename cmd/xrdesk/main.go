@@ -820,16 +820,11 @@ func run() int {
 		// already in was not chosen here, and a menu opening with no tick at all
 		// would say the glasses do not track.
 		menuBar.ShowTracking(desk.ReadTracking())
-		if *snap {
-			opts.Snapshot = func(pix []byte, w, h int) {
-				path, err := writeSnapshot(pix, w, h)
-				if err != nil {
-					fmt.Printf("snapshot: %v\n", err)
-					return
-				}
-				fmt.Printf("first frame written to %s\n", path)
-			}
-		}
+		// ⭐ ALWAYS SOMEWHERE TO WRITE, NEVER A PICTURE NOBODY ASKED FOR. The hook
+		// is what ⌃⌥⌘P needs; -snapshot is what asks for one automatically as the
+		// session opens.
+		opts.SnapshotFirst = *snap
+		opts.Snapshot = writeSnapshot
 		if err := desk.Run(ctx, plan, d, opts); err != nil {
 			fmt.Printf("%v\n", err)
 			return false, false, false, 1
@@ -926,7 +921,11 @@ func writeSnapshot(pix []byte, w, h int) (string, error) {
 		return "", err
 	}
 	img := &image.NRGBA{Pix: pix, Stride: w * 4, Rect: image.Rect(0, 0, w, h)}
-	path := filepath.Join(dir, fmt.Sprintf("xrdesk-%dx%d.png", w, h))
+	// ⭐ ONE FILE PER PRESS. A fixed name meant the second capture destroyed the
+	// first, which is exactly wrong for a key somebody presses to compare two
+	// moments -- and comparing two moments is what it is for.
+	path := filepath.Join(dir, fmt.Sprintf("xrdesk-%s-%dx%d.png",
+		time.Now().Format("2006-01-02-150405"), w, h))
 	f, err := os.Create(path)
 	if err != nil {
 		return "", err

@@ -223,6 +223,13 @@ func DefaultShortcuts() []Shortcut {
 		// key, and a test said so. A shortcut added today does not get to
 		// displace one somebody already has.
 		{hotkey.Combo{Key: hotkey.KeyR, Mods: mods | hotkey.Control}, ActionRecenter},
+		// A picture of what the glasses are showing, on P.
+		//
+		// ⛔ AND LAST FOR THE SAME REASON AS RECENTRING: the ladder hands out
+		// fallbacks in order, so anything placed above CONSUMES CANDIDATES the
+		// entries below were going to be given. A shortcut added today does not
+		// get to displace one somebody already has.
+		{hotkey.Combo{Key: hotkey.KeyP, Mods: mods | hotkey.Control}, ActionCapture},
 	}
 }
 
