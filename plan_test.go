@@ -442,3 +442,61 @@ func TestPlanSplay(t *testing.T) {
 		t.Errorf("%g steps of %g do not land on %g", steps, SplayStep, MaxSplayDeg)
 	}
 }
+
+// TestAWidePanelDoesNotBreakTheBand.
+//
+// ⛔⛔ THIS IS THE 418.5°. ribbon.Place gives screen i an arc of DensityDeg
+// times ITS aspect, and the density was derived from the GLASSES' aspect — so
+// the sum only came to a turn when every screen was the shape of the eye.
+// Mirror a wide panel onto a ribbon position, which Desk.fit does through
+// WithScreenWidth, and the whole desk was refused:
+//
+//	desk: placing 6 screens: ribbon: screens do not fit in 360°:
+//	418.5° of screens and gaps
+//
+// Reported as a CURVATURE failure, because pressing "more curved" is what
+// rebuilt the band and surfaced it. The screen was an Odyssey G95NC at
+// 3840x1080, and 3840 is the width that lands on 418.5° exactly.
+func TestAWidePanelDoesNotBreakTheBand(t *testing.T) {
+	p := Plan{ScreenW: 1920, ScreenH: 1080}.WithScreens(6)
+	if _, err := ribbon.Place(p.Screens(), p.Layout); err != nil {
+		t.Fatalf("six screens of the eye's own shape: %v", err)
+	}
+	// Every shape WithScreenWidth accepts, from a panel on its side to the
+	// widest ultrawide, on a band that is already full.
+	for _, w := range []int{270, 1920, 2560, 3440, 3840, 5120, 8640} {
+		q := p.WithScreenWidth(2, w)
+		if got := q.ScreenWidth(2); got != w {
+			t.Fatalf("WithScreenWidth(2, %d) left it %d; the case is not being tested", w, got)
+		}
+		r, err := ribbon.Place(q.Screens(), q.Layout)
+		if err != nil {
+			t.Errorf("one screen %d wide among five 1920: %v", w, err)
+			continue
+		}
+		if r.Len() != q.Count() {
+			t.Errorf("one screen %d wide: %d placed, want %d", w, r.Len(), q.Count())
+		}
+	}
+}
+
+// ⭐ AND THE UNIFORM CASE IS UNCHANGED, to the last decimal. Sharing the arc
+// among the shapes there are reduces to the old formula when every shape is the
+// same: the sum is n times one aspect, and (turn − n·gap)/(n·aspect) is
+// (pitch − gap)/aspect. A regression here would move every screen on every
+// desk, which is not a thing to discover from a photograph.
+func TestTheUniformBandIsUnmoved(t *testing.T) {
+	for _, n := range []int{1, 2, 4, 6, 9} {
+		p := Plan{ScreenW: 1920, ScreenH: 1080}.WithScreens(n)
+		const turnDeg = 360 - 1e-6
+		pitch := turnDeg / float64(n)
+		gap := pitch * DefaultGapPx / float64(1920+DefaultGapPx)
+		want := (pitch - gap) / (1920.0 / 1080.0)
+		if got := p.Layout.DensityDeg; math.Abs(got-want) > 1e-9 {
+			t.Errorf("%d screens: DensityDeg %.12f, want %.12f", n, got, want)
+		}
+		if got := p.Layout.GapDeg; math.Abs(got-gap) > 1e-9 {
+			t.Errorf("%d screens: GapDeg %.12f, want %.12f", n, got, gap)
+		}
+	}
+}

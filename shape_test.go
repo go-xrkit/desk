@@ -189,25 +189,68 @@ func TestAGalleryCellKeepsAScreensShapeInsideIt(t *testing.T) {
 	}
 }
 
-func TestAShapeTheBandCannotHoldIsRefused(t *testing.T) {
+// TestTheWidestShapeIsTakenAndTheBandRebuilds.
+//
+// ⛔⛔ THIS TEST USED TO DEMAND THE OPPOSITE, AND THE OPPOSITE COST A SESSION.
+// It was TestAShapeTheBandCannotHoldIsRefused, and its reasoning was sound as
+// far as it went: an ultrawide is a real thing, no fixed limit on one screen can
+// rule it out, so fit had to be able to say no. What it took for granted was
+// that a band which cannot hold a shape is a fact rather than a choice of
+// arithmetic.
+//
+// It was arithmetic. The arc was budgeted from the aspect of the GLASSES while
+// ribbon.Place spends it on each screen's own, so the sum only came to a turn
+// when every screen was the shape of the eye. Mirror a wide panel onto a
+// position -- one key, and something a person does -- and the desk answered
+//
+//	desk: placing 6 screens: ribbon: screens do not fit in 360°:
+//	418.5° of screens and gaps
+//
+// on a headset somebody was wearing. 418.5° is an Odyssey G95NC at 3840x1080
+// among five 1920x1080, to the decimal.
+//
+// ⭐ Plan.withBandLayout now shares the turn out among the shapes there are, so
+// a screen twice as wide takes twice the arc and the others give it up. The band
+// closes for ANY mix, which is why there is no refusal left to test.
+func TestTheWidestShapeIsTakenAndTheBandRebuilds(t *testing.T) {
 	p := testPlan(t)
 	d, err := New(p, feedsFor(p))
 	if err != nil {
 		t.Fatalf("New = %v", err)
 	}
-	// Wide enough that four screens no longer fit in 360 degrees. It is inside
-	// what a screen may be -- an ultrawide is a real thing -- so no fixed limit
-	// on one screen rules it out, and fit has to be able to say no.
-	d.SetFeed(1, &shapedFeed{w: p.ScreenH * MaxAspectNum / MaxAspectDen, h: p.ScreenH})
+	// The widest shape a screen may be at all: eight times its height.
+	widest := p.ScreenH * MaxAspectNum / MaxAspectDen
+	d.SetFeed(1, &shapedFeed{w: widest, h: p.ScreenH})
 	d.Render()
 
-	if d.Err() == nil {
-		t.Error("a band that cannot hold the shape said nothing")
+	if err := d.Err(); err != nil {
+		t.Errorf("the widest shape a screen may be was refused: %v", err)
 	}
-	// And the band is exactly as it was, rather than half rebuilt.
+	if got := d.Plan().ScreenWidth(1); got != widest {
+		t.Errorf("screen 2 is %d wide, want %d: the shape was not taken", got, widest)
+	}
+	// ⭐ AND EVERY OTHER SCREEN KEPT ITS OWN. Sharing the arc out must not
+	// reshape the screens themselves; it moves where they sit, not what they
+	// are.
 	for i := 0; i < p.Count(); i++ {
+		if i == 1 {
+			continue
+		}
 		if got := d.Plan().ScreenWidth(i); got != p.ScreenW {
-			t.Errorf("screen %d is %d wide after a refused shape, want %d", i+1, got, p.ScreenW)
+			t.Errorf("screen %d is %d wide, want %d", i+1, got, p.ScreenW)
+		}
+	}
+}
+
+// ⛔ A PLAN WITH NO SIZE GETS NO BAND, rather than one measured in NaN. The
+// density is an arc divided by a sum of aspects, and a screen of 0x0 makes both
+// halves nonsense -- which the arithmetic used to produce in silence.
+func TestAPlanWithNoSizeGetsNoBand(t *testing.T) {
+	for _, p := range []Plan{{}, {ScreenW: 1920}, {ScreenH: 1080}} {
+		q := p.WithScreens(4)
+		if d := q.Layout.DensityDeg; d != 0 {
+			t.Errorf("a plan of %dx%d got DensityDeg %v, want none",
+				p.ScreenW, p.ScreenH, d)
 		}
 	}
 }
