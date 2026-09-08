@@ -165,6 +165,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	if title == "" {
 		title = "xrdesk"
 	}
+	// What has already been said about a name damaged in memory, so that one
+	// corruption is one report rather than one a second. See damagedname.go.
+	var damageLog damagedNames
 
 	// Ask the window system for the target display NOW, rather than trusting the
 	// one the caller looked up earlier.
@@ -183,7 +186,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		if !errors.As(err, &damaged) {
 			return err
 		}
-		logf("%v", err)
+		if s := damageLog.report(time.Now(), damaged.want, damaged.got); s != "" {
+			logf("%s", s)
+		}
 	}
 	win, err := window.Open(window.Config{
 		Title: title,
@@ -547,7 +552,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			// among the attached displays in the very same message.
 			var damaged errDamagedName
 			if errors.As(err, &damaged) {
-				logf("%v", err)
+				// ⛔⛔ ONCE, NOT ONCE A SECOND. This lookup runs every second, so
+				// ONE corruption at startup printed the same 250-character
+				// sentence 3 939 times in a 66-minute session -- 82% of
+				// everything the run had to say, burying the other messages that
+				// might have named the culprit.
+				if s := damageLog.report(now, damaged.want, damaged.got); s != "" {
+					logf("%s", s)
+				}
 				return
 			}
 			logf("%v -- stopping, and putting back everything this changed", err)
