@@ -67,6 +67,28 @@ func (d *Desk) FollowHead(on bool) {
 	}
 }
 
+// RecenterHead makes wherever the viewer is looking the head tracker's origin.
+//
+// ⛔⛔ IT IS NOT THE SAME RECENTRE AS THE HEADSET'S. CmdNativeRecenter tells the
+// GLASSES to put the picture they are anchoring back in front; this puts OUR
+// tracker back to zero. Somebody asking for the picture to come back means both,
+// and would not thank anyone for being made to choose -- so ActionRecenter does
+// both and this is the half the desk owns.
+//
+// ⭐ AND IT IS WHAT BOUNDS THE DRIFT. Error accumulates only while the view is
+// moving; a person who recentres when they notice it never lets it run further
+// than one session of looking around.
+func (d *Desk) RecenterHead() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.head.src == nil {
+		return
+	}
+	d.head.src.Recenter()
+	d.head.base = d.nav.Yaw()
+	d.head.landing = false
+}
+
 // FollowingHead reports whether head tracking is on.
 func (d *Desk) FollowingHead() bool {
 	d.mu.Lock()

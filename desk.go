@@ -782,7 +782,21 @@ func (d *Desk) Do(a Action) {
 			trackTo = m
 		}
 		d.mu.Unlock()
+		if trackRecentre {
+			// ⛔⛔ OURS FIRST, AND UNCONDITIONALLY. The guard below returns for
+			// glasses that do not track, and the head tracker is not theirs --
+			// asking for the picture to come back and being told the GLASSES
+			// cannot, while our own origin stays where it drifted to, would be
+			// a key that reports a refusal and leaves the real problem alone.
+			d.RecenterHead()
+		}
+		d.mu.Unlock()
 		if track == nil {
+			if trackRecentre {
+				// Ours was done above, so this is not a failure.
+				d.say("the picture is back in front of you")
+				return
+			}
 			d.say("these glasses do not track")
 			return
 		}

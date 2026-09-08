@@ -58,6 +58,11 @@ func DefaultShortcuts() []Shortcut {
 		// outside and "close" from inside does the wrong thing every time they
 		// have lost track. Up goes in and down comes out, which is also the
 		// direction the grid is in relative to the band.
+		// ⭐ RECENTRING IS THE ONE THING WANTED WITH THE GLASSES ON AND THE HANDS
+		// ELSEWHERE. Following the head drifts about a degree per journey, so the
+		// remedy has to be reachable without finding a menu -- and asked for by
+		// the person who tested it, in those words.
+		{hotkey.Combo{Key: hotkey.KeyR, Mods: mods | hotkey.Control}, ActionRecenter},
 		{hotkey.Combo{Key: hotkey.KeyF3, Mods: mods | hotkey.Control}, ActionGalleryOpen},
 		// ↑ shows the SCREENS, ↓ shows what is RUNNING on them.
 		//
