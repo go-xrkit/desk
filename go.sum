@@ -104,8 +104,8 @@ github.com/go-widgets/toolkit v0.316.0 h1:K/8npgr8qkQDtIcfcaYTxrPHAxNWIcwhU0RcwK
 github.com/go-widgets/toolkit v0.316.0/go.mod h1:Mucxvqm+K+VjG+Iu5i1RExez41H2Slbc99HYOcyc1sU=
 github.com/go-widgets/tray v0.10.1 h1:7rmQvkS6O4Etav3fyqIJcMYurq4gSghw3iVcgKZEcGU=
 github.com/go-widgets/tray v0.10.1/go.mod h1:N85EGfHbMo1SxX6BH1tlnOJpIP26MP7rKemLNVtcDf8=
-github.com/go-widgets/window v0.73.0 h1:b8E/z2sytRPNpRt2lt80xjwcPHIjarF1QABGBjVs454=
-github.com/go-widgets/window v0.73.0/go.mod h1:96cemkkeQgHVoBGzWLyPa/1HwCF5LETehCb99+7LsLY=
+github.com/go-widgets/window v0.74.0 h1:OYWWCjJSJThgYetbex8zfhpszIozKZJUo8kqTr5wiLQ=
+github.com/go-widgets/window v0.74.0/go.mod h1:M3CiCqwwsWUHitjkYEkCtUdceAsNTp9cwecTE+Pb9Ik=
 github.com/go-xrkit/android v0.1.0 h1:sKK3UOu59aR7PCtciJBsjCdbK0pWRqpW6aRJaiyl4ug=
 github.com/go-xrkit/android v0.1.0/go.mod h1:Ee4vAwQuzA91pkQ06yjbVT03RZ99jdqpfSxGF/SGxLY=
 github.com/go-xrkit/depth3d v0.1.0 h1:78w0YWvENMzrITw5V/CPhusv/Z2dKSw0UWug5CjpfqU=
