@@ -452,6 +452,15 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				logf("%s", line)
 			}
 		}
+		// ⛔⛔ AND IT IS SAID WHERE THE PERSON IS LOOKING. The lines above go to a
+		// log, and the same facts reach the settings window; neither is in front
+		// of somebody wearing the glasses. So a shortcut the ladder MOVED was a
+		// key that silently did nothing -- reported as "le raccourci flèche gauche
+		// ne semble plus fonctionner", while the startup line had been saying
+		// "previous: ⌃⌥⇧⌘← (asked for ⌃⌥⌘←, it was taken)" all along.
+		if s := hk.Moved(); s != "" {
+			d.say(s)
+		}
 	}
 
 	// And the TRACKPAD. Three fingers sideways turn the ribbon, which is the
