@@ -562,3 +562,45 @@ func TestTheCurveIsReachable(t *testing.T) {
 		}
 	}
 }
+
+// TestTheRecentreActionReachesTheHeadTracker.
+//
+// ⛔⛔ THE TEST THAT WAS MISSING, AND CI FOUND WHAT IT WOULD HAVE. Every test
+// above called RecenterHead DIRECTLY, so the path through Do was never walked --
+// and an edit had left a SECOND d.mu.Unlock() on it. Unlocking an unlocked mutex
+// is fatal in Go, so ActionRecenter killed the process, and nothing here noticed
+// because nothing here pressed it.
+//
+// Testing a function is not testing the thing that calls it.
+func TestTheRecentreActionReachesTheHeadTracker(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true}
+	d.SetHeadSource(h)
+	d.FollowHead(true)
+	h.yaw = 0.8
+	d.Advance(0.02)
+	before := h.recenters
+
+	// With no OnTracking at all: the glasses cannot recentre, and ours still
+	// must. This is also the path that was fatal.
+	d.Do(ActionRecenter)
+	if h.recenters != before+1 {
+		t.Errorf("ActionRecenter recentred the head tracker %d time(s), want one more than %d",
+			h.recenters-before, before)
+	}
+
+	// And again with glasses that do track, so both halves run.
+	asked := 0
+	d.OnTracking = func(int, bool) error { asked++; return nil }
+	d.Do(ActionRecenter)
+	if asked != 1 {
+		t.Errorf("the glasses were asked to recentre %d times", asked)
+	}
+	if h.recenters != before+2 {
+		t.Error("the head tracker was not recentred when the glasses also could be")
+	}
+}

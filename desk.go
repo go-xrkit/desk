@@ -790,7 +790,6 @@ func (d *Desk) Do(a Action) {
 			// a key that reports a refusal and leaves the real problem alone.
 			d.RecenterHead()
 		}
-		d.mu.Unlock()
 		if track == nil {
 			if trackRecentre {
 				// Ours was done above, so this is not a failure.
