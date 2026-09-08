@@ -33,11 +33,10 @@ type CameraHead struct {
 	cancel context.CancelFunc
 	done   chan struct{}
 
-	mu   sync.Mutex
-	tr   headflow.Tracker
-	yaw  float64
-	ok   bool
-	seen int
+	mu    sync.Mutex
+	tr    headflow.Tracker
+	yaw   float64
+	sight Sight
 }
 
 // OpenCameraHead starts reading the camera that belongs to display's headset.
@@ -99,24 +98,17 @@ func (h *CameraHead) run(ctx context.Context) {
 		rgba = im
 		yaw, used := h.tr.Feed(im)
 		h.mu.Lock()
-		h.yaw, h.ok, h.seen = yaw, used, h.tr.Unusable()
+		h.yaw, h.sight = yaw, sightOf(used, h.tr.Unusable())
 		h.mu.Unlock()
 	}
 }
 
-// Yaw is radians since the last Recenter, and whether the latest frame could be
-// used at all.
-func (h *CameraHead) Yaw() (float64, bool) {
+// Yaw is radians since the last Recenter, and what the camera could see of the
+// frame it read.
+func (h *CameraHead) Yaw() (float64, Sight) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.yaw, h.ok
-}
-
-// Blind is how many frames in a row could not be used.
-func (h *CameraHead) Blind() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return h.seen
+	return h.yaw, h.sight
 }
 
 // Recenter makes the current view the origin.
