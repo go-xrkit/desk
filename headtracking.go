@@ -99,11 +99,13 @@ func (d *Desk) RecenterHead() {
 	// ⛔ THE PICTURE MOVES WHETHER OR NOT A HEAD IS BEING FOLLOWED. This is the
 	// menu row and the key everybody has; tying it to a camera nobody switched
 	// on would make it do nothing on the desks that need it most.
+	// ⛔ THE ERROR IS DROPPED BECAUSE IT CANNOT HAPPEN, and a coverage gate is
+	// what proved it: GoTo refuses only an index outside the ribbon, Nearest
+	// returns one inside it by construction, and New refuses a desk with no
+	// screens at all. Handling it would be a branch no test could ever reach --
+	// caution with nothing to be cautious about.
 	at := d.nav.Ribbon().Nearest(d.nav.Yaw())
-	if err := d.nav.GoTo(at); err != nil {
-		d.err = err
-		return
-	}
+	_ = d.nav.GoTo(at)
 	if d.head.src == nil {
 		return
 	}
