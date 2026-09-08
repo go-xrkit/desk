@@ -175,16 +175,17 @@ func settingsScreen(logf func(string, ...any)) *window.Screen {
 		logf("cannot enumerate the displays, letting the platform place the window: %v", err)
 		return nil
 	}
-	var best *window.Screen
-	for i := range ss {
-		if best == nil || ss[i].Width*ss[i].Height > best.Width*best.Height {
-			best = &ss[i]
+	// ⭐ THE LIST IS NEVER EMPTY, so there is always a candidate and the
+	// "did we find one?" branch below has gone with the slice.
+	all := ss.All()
+	best := &all[0]
+	for i := range all {
+		if all[i].Width*all[i].Height > best.Width*best.Height {
+			best = &all[i]
 		}
 	}
-	if best != nil {
-		logf("the settings window goes on %q, %dx%d with %dx%d usable",
-			best.Name, best.Width, best.Height, best.VisibleWidth, best.VisibleHeight)
-	}
+	logf("the settings window goes on %q, %dx%d with %dx%d usable",
+		best.Name, best.Width, best.Height, best.VisibleWidth, best.VisibleHeight)
 	return best
 }
 

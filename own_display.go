@@ -18,11 +18,11 @@ func OwnDisplay(name string) (uint64, bool) {
 	if err != nil {
 		return 0, false
 	}
-	for _, s := range ss {
-		if s.Name != name {
-			continue
-		}
-		return DisplayAt(float64(s.X), float64(s.Y), float64(s.Width), float64(s.Height))
+	// ⭐ ByName RATHER THAN A LOOP: window.ScreenList carries the lookup now,
+	// because every caller had written it.
+	s, ok := ss.ByName(name)
+	if !ok {
+		return 0, false
 	}
-	return 0, false
+	return DisplayAt(float64(s.X), float64(s.Y), float64(s.Width), float64(s.Height))
 }

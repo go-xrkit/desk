@@ -59,16 +59,13 @@ func (w *watcher) look(headset string) {
 	if err != nil {
 		return
 	}
-	var on *window.Screen
-	for i := range ss {
-		if ss[i].Name == headset {
-			on = &ss[i]
-		}
-	}
-	if on == nil {
+	// ⭐ ByName, because that is what this loop was.
+	s, ok := ss.ByName(headset)
+	if !ok {
 		// Unplugged, or not there yet. Nothing to say.
 		return
 	}
+	on := &s
 	at, err := pointer.Position()
 	if err != nil {
 		return

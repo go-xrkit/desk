@@ -273,8 +273,8 @@ func run() int {
 				if err != nil {
 					return nil, err
 				}
-				ds := make([]glasses.Display, len(ss))
-				for i, s := range ss {
+				ds := make([]glasses.Display, len(ss.All()))
+				for i, s := range ss.All() {
 					ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
 				}
 				return ds, nil
@@ -976,7 +976,7 @@ func tallestDisplay() int {
 		return 0 // no scaling rather than a guess
 	}
 	tallest := 0
-	for _, s := range ss {
+	for _, s := range ss.All() {
 		if s.Height > tallest {
 			tallest = s.Height
 		}

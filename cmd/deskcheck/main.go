@@ -54,6 +54,7 @@ func run() int {
 
 	fmt.Println("\ndisplays")
 	ss, err := window.Screens()
+	all := ss.All()
 	if err != nil {
 		fmt.Printf("  cannot list displays: %v\n", err)
 		return 1
@@ -64,11 +65,11 @@ func run() int {
 			fmt.Printf("  %v\n", err)
 			return 1
 		}
-		ss = append(ss, window.Screen{Name: name, Width: w, Height: h})
+		all = append(all, window.Screen{Name: name, Width: w, Height: h})
 		fmt.Printf("  SIMULATED: %q %dx%d — no such display is attached\n", name, w, h)
 	}
-	ds := make([]glasses.Display, len(ss))
-	for i, s := range ss {
+	ds := make([]glasses.Display, len(all))
+	for i, s := range all {
 		ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
 		mark := "  "
 		if p, ok := glasses.Identify(s.Name); ok {

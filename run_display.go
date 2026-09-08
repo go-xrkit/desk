@@ -697,8 +697,9 @@ func currentScreen(name string) (*window.Screen, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
 	}
-	plain := make([]string, len(ss))
-	for i, s := range ss {
+	all := ss.All()
+	plain := make([]string, len(all))
+	for i, s := range all {
 		plain[i] = s.Name
 	}
 	// Which screen, and what an absence means -- an empty list among them. See
@@ -707,7 +708,7 @@ func currentScreen(name string) (*window.Screen, error) {
 	if i < 0 {
 		return nil, err
 	}
-	return &ss[i], err
+	return &all[i], err
 }
 
 // errDamagedName is a screen found in spite of a damaged name.
