@@ -139,7 +139,16 @@ type RunOptions struct {
 	// Snapshot, when set, is handed the first frame actually drawn — the picture
 	// the glasses were shown. It is written by the caller, so this package never
 	// decides where a capture of somebody's screens lands.
-	Snapshot func(pix []byte, w, h int)
+	Snapshot func(pix []byte, w, h int) (string, error)
+
+	// SnapshotFirst takes one as the session opens, without being asked again.
+	//
+	// ⛔ SEPARATE FROM Snapshot ITSELF, because a picture of somebody at work
+	// must be DELIBERATE. Providing somewhere to write one is not asking for
+	// one: [ActionCapture] is a key, pressed when the wearer means it, and a
+	// desk that photographed every launch would be a desk that filled a disk
+	// with their desktop nobody had asked it to.
+	SnapshotFirst bool
 }
 
 // FrameInterval is how often the ribbon is advanced and redrawn.
@@ -351,7 +360,43 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// it was already on.
 		d.Do(ActionStereo3DOn)
 	}
-	v.Snapshot = opt.Snapshot
+	// pictureSaid carries the outcome back to the LOOP rather than saying it
+	// inside the renderer.
+	//
+	// ⛔ d.say TAKES THE LOCK, and the picture is handed over while a frame is
+	// being drawn. Saying it there is the deadlock this package has already met
+	// once, on a head tracker that stopped the desk the moment somebody turned
+	// the light off -- and a desk that freezes when you photograph it would be a
+	// worse bug than the one the photograph exists to find.
+	pictureSaid := make(chan string, 4)
+	takePicture := func(pix []byte, w, h int) {
+		path, err := opt.Snapshot(pix, w, h)
+		msg := "written to " + path
+		if err != nil {
+			msg = err.Error()
+			logf("picture: %v", err)
+		} else {
+			logf("picture written to %s", path)
+		}
+		select {
+		case pictureSaid <- msg:
+		default:
+		}
+	}
+	if opt.SnapshotFirst && opt.Snapshot != nil {
+		v.Snapshot = takePicture
+	}
+
+	// arm hands the NEXT frame drawn to the caller, once. The renderer clears
+	// the hook after firing -- once is evidence, every frame is a film -- so a
+	// press puts it back.
+	arm := func() {
+		if opt.Snapshot == nil {
+			logf("nowhere to write a picture: this build was given no place to put one")
+			return
+		}
+		v.Snapshot = takePicture
+	}
 	d.Badge(opt.Badge, toolkit.DefaultDark(), logf)
 	if opt.Badge > 0 {
 		logf("the screen's number shows for %v when the band moves", BadgeDuration(opt.Badge))
@@ -408,7 +453,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		switch ev.Kind {
 		case toolkit.EventKeyDown:
 			if a := KeyAction(ev.Code); a != ActionNone {
-				act(d, logf, "window", a)
+				act(d, logf, "window", a, arm)
 				sync()
 			}
 		case toolkit.EventClick:
@@ -646,16 +691,22 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				case <-deadline:
 					d.Do(ActionQuit)
 				case a := <-global:
-					act(d, logf, "shortcut", a)
+					act(d, logf, "shortcut", a, arm)
 					sync()
 				case a := <-bareC:
-					act(d, logf, "gallery key", a)
+					act(d, logf, "gallery key", a, arm)
 					sync()
 				case a := <-gestures:
-					act(d, logf, "three fingers", a)
+					act(d, logf, "three fingers", a, arm)
+					sync()
+				case m := <-pictureSaid:
+					// The path, said where the person is: they are wearing the glasses,
+					// and a photograph a program took and did not name is a photograph
+					// nobody can find.
+					d.say(m)
 					sync()
 				case a := <-opt.Actions:
-					act(d, logf, "menu bar", a)
+					act(d, logf, "menu bar", a, arm)
 					sync()
 				case now := <-t.C:
 					dt := now.Sub(last).Seconds()
@@ -739,7 +790,17 @@ func (e errDamagedName) Error() string { return damagedNameReport(e.want, e.got)
 // Refusals are printed too. Do records them in Err rather than returning them —
 // the gallery has directions it has no cell for — and a refusal nobody can see
 // is a key that silently does nothing.
-func act(d *Desk, logf func(string, ...any), from string, a Action) {
+func act(d *Desk, logf func(string, ...any), from string, a Action, capture func()) {
+	// ⭐ THE CAPTURE IS NOT THE DESK'S BUSINESS. Where a picture of somebody's
+	// screens lands is the caller's decision -- this loop only says WHEN, and
+	// arms the renderer to hand over the next frame it draws.
+	if a == ActionCapture {
+		if capture != nil {
+			capture()
+		}
+		logf("%s: %v", from, a)
+		return
+	}
 	d.Do(a)
 	if err := d.Err(); err != nil {
 		logf("%s: %v — %v", from, a, err)

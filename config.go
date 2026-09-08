@@ -405,6 +405,8 @@ var configActions = map[string]Action{
 	// even see the menu bar to find out why -- which is what the test that
 	// caught this omission exists to say.
 	"recentre": ActionRecenter,
+	// A picture of what the glasses are showing, at a moment the wearer chooses.
+	"capture": ActionCapture,
 	// What the desk shows, and how far away.
 	"apps":      ActionApps,
 	"apps-open": ActionAppsOpen,

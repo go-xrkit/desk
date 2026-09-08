@@ -223,6 +223,27 @@ const (
 	// wanted to.
 	ActionPhoto
 
+	// ActionCapture writes the picture the GLASSES are showing -- the composed
+	// ribbon, not the camera.
+	//
+	// ⛔⛔ IT EXISTS BECAUSE A DEFECT COULD NOT BE SEEN FROM OUTSIDE. "l'angle
+	// est toujours mauvais" was reported three times from inside a headset, and
+	// every attempt to settle it asked the wearer to judge a geometry that is
+	// hard to judge from within: "honnêtement je ne sais pas répondre à tes
+	// questions, il faut que tu construises un protocole de test que tu sais
+	// debuguer". A synthetic render answered part of it; the rest needs the
+	// REAL frame, at a moment the wearer chooses.
+	//
+	// ⛔ AND IT IS A PICTURE OF SOMEBODY AT WORK. Every screen on the ribbon is
+	// one of their displays, so where it lands is the caller's decision and not
+	// this package's: the desk only says WHEN. cmd/xrdesk writes it under the
+	// user's configuration directory and refuses outright if that path is
+	// inside a git work tree.
+	//
+	// ⭐ ONE FRAME PER PRESS. A key that started a film would be a key that
+	// filled a disk with somebody's desktop.
+	ActionCapture
+
 	// The headset's own settings, on the keys a Mac already uses for the same
 	// idea: F1 and F2 dim and brighten, F10 to F12 do the sound.
 	//
@@ -421,6 +442,8 @@ func (a Action) String() string {
 		return "fit"
 	case ActionPhoto:
 		return "take a photograph"
+	case ActionCapture:
+		return "photograph what the glasses show"
 	case ActionDimmer:
 		return "dim the glasses"
 	case ActionBrighter:
