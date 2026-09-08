@@ -43,8 +43,8 @@ type headTracking struct {
 	on bool
 	// lost is whether the desk is currently telling them it cannot see.
 	lost bool
-	// cam is the camera behind src, when there is one to close.
-	cam *CameraHead
+	// close puts away whatever is behind src, when there is anything.
+	close func() error
 }
 
 // FollowHead turns head tracking on or off.
@@ -148,6 +148,20 @@ func (d *Desk) toggleFollowHead() {
 	d.say("following your head, with the camera light on while it does")
 }
 
+// openCameraHead is the seam: the real one opens a camera, which a test cannot
+// arrange and must not need to.
+//
+// ⛔ THE COVERAGE GATE IS WHAT ASKED FOR IT, and it was right to. Three
+// functions here were reachable only with a headset plugged in, which means the
+// menu row nobody could test was also the menu row nobody could be sure of.
+var openCameraHead = func(display string) (HeadSource, func() error, error) {
+	h, err := OpenCameraHead(display)
+	if err != nil {
+		return nil, nil, err
+	}
+	return h, h.Close, nil
+}
+
 // openHead opens the headset camera if it is not already open.
 func (d *Desk) openHead() error {
 	d.mu.Lock()
@@ -157,12 +171,12 @@ func (d *Desk) openHead() error {
 	if already {
 		return nil
 	}
-	h, err := OpenCameraHead(display)
+	h, closer, err := openCameraHead(display)
 	if err != nil {
 		return err
 	}
 	d.mu.Lock()
-	d.head.src, d.head.cam = h, h
+	d.head.src, d.head.close = h, closer
 	d.mu.Unlock()
 	return nil
 }
@@ -170,10 +184,10 @@ func (d *Desk) openHead() error {
 // closeHead puts the camera away and turns its light off.
 func (d *Desk) closeHead() {
 	d.mu.Lock()
-	cam := d.head.cam
-	d.head.src, d.head.cam = nil, nil
+	closer := d.head.close
+	d.head.src, d.head.close = nil, nil
 	d.mu.Unlock()
-	if cam != nil {
-		_ = cam.Close()
+	if closer != nil {
+		_ = closer()
 	}
 }
