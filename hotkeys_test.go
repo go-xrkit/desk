@@ -544,3 +544,66 @@ func TestTheSettingsWindowNamesTheKeyOnTheKEYBOARD(t *testing.T) {
 		t.Errorf("F3 reads %q", got)
 	}
 }
+
+// TestAMovedShortcutSaysSo.
+//
+// ⛔⛔ THE FACT EXISTED AND NOBODY COULD SEE IT. A claim is not a grant: when a
+// combination is already held the ladder substitutes, and the key a person
+// believes they have does nothing at all. Reported as "le raccourci flèche
+// gauche ne semble plus fonctionner" -- and the startup line had been saying
+// "previous: ⌃⌥⇧⌘← (asked for ⌃⌥⌘←, it was taken)" the whole time, to a log.
+func TestAMovedShortcutSaysSo(t *testing.T) {
+	asked := hotkey.Combo{Key: hotkey.KeyLeftArrow,
+		Mods: hotkey.Control | hotkey.Option | hotkey.Command}
+	got := asked
+	got.Mods |= hotkey.Shift
+
+	// Nothing moved and nothing missing: silence. This is the common case, and a
+	// notice over somebody's work every session would be the wrong fix.
+	quiet := &Hotkeys{held: []claimed{&fakeClaim{got: asked, want: asked}},
+		does: []Action{ActionPrev}}
+	if s := quiet.Moved(); s != "" {
+		t.Errorf("a session where nothing moved said %q", s)
+	}
+
+	one := &Hotkeys{held: []claimed{&fakeClaim{got: got, want: asked}},
+		does: []Action{ActionPrev}}
+	s := one.Moved()
+	for _, want := range []string{"⇧", "settings"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("the notice %q does not contain %q", s, want)
+		}
+	}
+	// ⭐ IT NAMES BOTH COMBINATIONS. Saying only the new one leaves a person
+	// unable to tell which key they were pressing in vain.
+	if !strings.Contains(s, got.Glyphs()) || !strings.Contains(s, asked.Glyphs()) {
+		t.Errorf("the notice %q does not name both %s and %s", s, got.Glyphs(), asked.Glyphs())
+	}
+
+	// Past two, they are counted rather than listed: a notice is read in a
+	// headset, over a picture, and a third clause is a sentence nobody finishes.
+	many := &Hotkeys{}
+	for range movedEnoughToName + 1 {
+		many.held = append(many.held, &fakeClaim{got: got, want: asked})
+		many.does = append(many.does, ActionPrev)
+	}
+	if s := many.Moved(); !strings.Contains(s, "3 shortcuts moved") {
+		t.Errorf("three moved shortcuts said %q, want a count", s)
+	}
+
+	// And what could not be claimed at all is counted too, in both grammars.
+	unmet := &Hotkeys{unmet: []error{errors.New("a"), errors.New("b")}}
+	if s := unmet.Moved(); !strings.Contains(s, "2 have no key at all") {
+		t.Errorf("two unclaimable shortcuts said %q", s)
+	}
+	one1 := &Hotkeys{unmet: []error{errors.New("a")}}
+	if s := one1.Moved(); !strings.Contains(s, "1 has no key at all") {
+		t.Errorf("one unclaimable shortcut said %q", s)
+	}
+	// Both at once, in one sentence.
+	both := &Hotkeys{held: []claimed{&fakeClaim{got: got, want: asked}},
+		does: []Action{ActionPrev}, unmet: []error{errors.New("a")}}
+	if s := both.Moved(); !strings.Contains(s, ";") {
+		t.Errorf("a session with both said %q, want them joined", s)
+	}
+}

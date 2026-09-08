@@ -498,3 +498,62 @@ func AskedFor(all []Shortcut) map[Action]hotkey.Combo {
 	}
 	return m
 }
+
+// movedEnoughToName is how many moved shortcuts are named one by one before the
+// notice gives up and counts them instead.
+//
+// Two. A notice is read in a headset, over a picture somebody is working in, and
+// a third clause is a sentence nobody finishes.
+const movedEnoughToName = 2
+
+// Moved is what to SAY OUT LOUD about the shortcuts that are not the ones asked
+// for. It is empty when every one was granted exactly as requested, which is the
+// common case and must stay silent.
+//
+// ⛔⛔ THE INFORMATION EXISTED AND NOBODY COULD SEE IT. A claim is not a grant:
+// when a combination is already held, the ladder substitutes, and the key a
+// person believes they have does nothing at all. Reported as "le raccourci
+// flèche gauche ne semble plus fonctionner" -- and the startup line had said so
+// all along:
+//
+//	previous: ⌃⌥⇧⌘← (asked for ⌃⌥⌘←, it was taken)
+//
+// That line goes to a log, and the same fact reaches the settings window. Both
+// are places somebody wearing a headset is not looking. So it is said where they
+// ARE looking, once, when the session starts.
+//
+// ⭐ AND IT CANNOT BE SAID AT THE MOMENT OF PRESSING, which is the obvious wish
+// and is impossible: a key this desk does not hold produces no event here. The
+// only honest moment is the one where the substitution becomes true.
+func (h *Hotkeys) Moved() string {
+	var moved []string
+	for i, k := range h.held {
+		if k.Substituted() {
+			moved = append(moved, fmt.Sprintf("%s is on %s, not %s",
+				h.does[i], k.Combo().Glyphs(), k.Wanted().Glyphs()))
+		}
+	}
+	if len(moved) == 0 && len(h.unmet) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	switch {
+	case len(moved) == 0:
+	case len(moved) <= movedEnoughToName:
+		b.WriteString(strings.Join(moved, ", and "))
+	default:
+		fmt.Fprintf(&b, "%d shortcuts moved because something else holds them", len(moved))
+	}
+	if n := len(h.unmet); n > 0 {
+		if b.Len() > 0 {
+			b.WriteString("; ")
+		}
+		if n == 1 {
+			b.WriteString("1 has no key at all")
+		} else {
+			fmt.Fprintf(&b, "%d have no key at all", n)
+		}
+	}
+	b.WriteString(" — the settings window lists them")
+	return b.String()
+}
