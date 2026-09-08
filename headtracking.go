@@ -67,25 +67,53 @@ func (d *Desk) FollowHead(on bool) {
 	}
 }
 
-// RecenterHead makes wherever the viewer is looking the head tracker's origin.
+// RecenterHead brings the screen the viewer is facing to the middle of the
+// glasses, and makes that the head tracker's origin.
 //
-// ⛔⛔ IT IS NOT THE SAME RECENTRE AS THE HEADSET'S. CmdNativeRecenter tells the
-// GLASSES to put the picture they are anchoring back in front; this puts OUR
-// tracker back to zero. Somebody asking for the picture to come back means both,
-// and would not thank anyone for being made to choose -- so ActionRecenter does
-// both and this is the half the desk owns.
+// ⛔⛔ THE FIRST VERSION ONLY MOVED THE ORIGIN, AND THAT IS NOT WHAT ANYBODY
+// MEANS BY RECENTRING. It set the tracker's zero to wherever the view had
+// drifted to and changed NOTHING on screen -- so somebody whose screen had
+// wandered half out of sight pressed "put it back in front of me", watched it
+// stay exactly where it was, and reported the feature broken. They were right:
+// a row that says it puts the picture back has to move the picture.
+//
+// ⭐ THE SCREEN IT CHOOSES IS THE NEAREST ONE, NOT THE FOCUSED ONE. Those are
+// different facts -- glancing at a neighbour does not make it the screen new
+// windows open on -- and the one somebody wants in front of them is the one
+// they are facing, which is what [ribbon.Ribbon.Nearest] answers.
 //
 // ⭐ AND IT IS WHAT BOUNDS THE DRIFT. Error accumulates only while the view is
 // moving; a person who recentres when they notice it never lets it run further
-// than one session of looking around.
+// than one journey.
 func (d *Desk) RecenterHead() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	// ⛔ A GUARD MOVED IS A GUARD LOST. The previous version returned early when
+	// there was no head source and so never reached the navigator; this one
+	// touches the navigator FIRST, and crashed on a desk built without one. The
+	// key can be pressed at any moment, including before there is anything to
+	// recentre.
+	if d.nav == nil {
+		return
+	}
+	// ⛔ THE PICTURE MOVES WHETHER OR NOT A HEAD IS BEING FOLLOWED. This is the
+	// menu row and the key everybody has; tying it to a camera nobody switched
+	// on would make it do nothing on the desks that need it most.
+	// ⛔ THE ERROR IS DROPPED BECAUSE IT CANNOT HAPPEN, and a coverage gate is
+	// what proved it: GoTo refuses only an index outside the ribbon, Nearest
+	// returns one inside it by construction, and New refuses a desk with no
+	// screens at all. Handling it would be a branch no test could ever reach --
+	// caution with nothing to be cautious about.
+	at := d.nav.Ribbon().Nearest(d.nav.Yaw())
+	_ = d.nav.GoTo(at)
 	if d.head.src == nil {
 		return
 	}
 	d.head.src.Recenter()
-	d.head.base = d.nav.Yaw()
+	// ⭐ THE ORIGIN GOES WHERE THE TURN WILL LAND, not where the view is now:
+	// GoTo sets a target the easing has yet to reach, and anchoring to the
+	// current yaw would make the head fight the arrival.
+	d.head.base = d.nav.Target()
 	d.head.landing = false
 }
 
