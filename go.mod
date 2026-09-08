@@ -25,7 +25,7 @@ require (
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/tray v0.10.1
-	github.com/go-widgets/window v0.74.0
+	github.com/go-widgets/window v0.75.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.17.0

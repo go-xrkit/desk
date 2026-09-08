@@ -29,11 +29,11 @@ func TestOwnDisplayFindsEveryAttachedScreen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("listing screens: %v", err)
 	}
-	if len(ss) == 0 {
+	if ss.Len() == 0 {
 		t.Skip("no screens attached")
 	}
 	seen := map[uint64]string{}
-	for _, s := range ss {
+	for _, s := range ss.All() {
 		id, ok := desk.OwnDisplay(s.Name)
 		if !ok {
 			t.Errorf("OwnDisplay(%q) found nothing; it is at %d,%d %dx%d",

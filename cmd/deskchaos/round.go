@@ -335,7 +335,7 @@ func waitForDisplaysToGo() []string {
 			return nil
 		}
 		var left []string
-		for _, sc := range ss {
+		for _, sc := range ss.All() {
 			if strings.HasPrefix(sc.Name, madePrefix) {
 				left = append(left, sc.Name)
 			}
