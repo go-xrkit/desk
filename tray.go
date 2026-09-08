@@ -176,8 +176,14 @@ func TrayRows() []TrayRow {
 		// reported that one press was not enough -- which was true of the name,
 		// not of the feature. The code always called them "rounder" and
 		// "flatter", comparatives, and saying so was the whole of the fix.
-		{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
+		//
+		// ⛔ AND FLATTER COMES FIRST, BECAUSE ITS KEY IS THE LEFT ONE. The pair
+		// sits on the two keys after P, and a menu that lists the RIGHT key's
+		// row above the LEFT key's reads backwards to anybody looking at their
+		// hands: "the minus has to be to the left of the plus". Listed the other
+		// way round it was reported as inverted, and it was.
 		{Title: "Flatter", Action: ActionFlatter, Symbol: "rectangle"},
+		{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
 		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
 		// lit camera light for as long as it lasts, and a row that only promised
 		// the benefit would be a row that surprised somebody.

@@ -1050,9 +1050,9 @@ func (d *Desk) Do(a Action) {
 		d.err = d.reshape(d.plan.WithDistance(MinDistance))
 		d.notice.say("one screen, as large as these glasses show it")
 	case ActionFlatter:
-		d.err = d.reshape(d.plan.WithSplay(d.plan.SplayDeg() - SplayStep))
+		d.curveBy(-SplayStep)
 	case ActionRounder:
-		d.err = d.reshape(d.plan.WithSplay(d.plan.SplayDeg() + SplayStep))
+		d.curveBy(+SplayStep)
 	}
 	d.mu.Unlock()
 	if cycle != nil {

@@ -713,3 +713,21 @@ func TestRecentringOnADeskWithNoNavigator(t *testing.T) {
 	var d Desk
 	d.RecenterHead() // must not panic
 }
+
+// TestFlatteningStopsAtFlat, the other end of the same stepper.
+func TestFlatteningStopsAtFlat(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 40 {
+		d.Do(ActionFlatter)
+		if d.Err() != nil {
+			t.Fatalf("flattening reported %v", d.Err())
+		}
+	}
+	if got := d.Plan().SplayDeg(); got != 0 {
+		t.Errorf("the splay bottomed out at %v, not flat", got)
+	}
+}
