@@ -608,3 +608,29 @@ func TestTheDerivedSplayStopsAtTheCeiling(t *testing.T) {
 		t.Errorf("a 45° eye derived %g, which is at the ceiling", got)
 	}
 }
+
+// ⛔⛔ A LINE THAT DESCRIBES AN ARRANGEMENT HAS TO DESCRIBE THE ARRANGEMENT. The
+// description named the model, the count, the size and the optics -- everything
+// except the two numbers that decide what the picture looks like. So "l'angle
+// est toujours mauvais", reported from the glasses, could not be answered
+// without rebuilding the program: nothing said which curvature was in force.
+func TestThePlanSaysItsShape(t *testing.T) {
+	p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 51.57}.WithScreens(6)
+	p = p.WithSplay(p.FacingSplayDeg())
+	s := p.String()
+	for _, want := range []string{"curved", "51.6°", "1.00x"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("%q does not contain %q", s, want)
+		}
+	}
+	// The flat band is named rather than described as "curved 0°", which reads
+	// like a curvature that happens to be zero instead of the choice it is.
+	if got := p.WithSplay(-1).String(); !strings.Contains(got, "flat") ||
+		strings.Contains(got, "curved") {
+		t.Errorf("the flat band describes itself as %q", got)
+	}
+	// And the distance is in there, because it is the other half of the shape.
+	if got := p.WithDistance(2).String(); !strings.Contains(got, "2.00x") {
+		t.Errorf("%q does not say how far back the band is", got)
+	}
+}
