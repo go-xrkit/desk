@@ -43,6 +43,8 @@ type headTracking struct {
 	on bool
 	// lost is whether the desk is currently telling them it cannot see.
 	lost bool
+	// cam is the camera behind src, when there is one to close.
+	cam *CameraHead
 }
 
 // FollowHead turns head tracking on or off.
@@ -116,4 +118,62 @@ func (d *Desk) followHead() {
 		return
 	}
 	d.nav.SetYaw(d.head.base + yaw)
+}
+
+// toggleFollowHead turns head tracking on, opening the camera the first time,
+// and off again.
+//
+// ⛔ OUTSIDE THE LOCK, like every handler that talks to hardware. Opening a
+// camera takes long enough to stall the frame loop, and a light coming on while
+// nothing can be drawn is the worst moment for it.
+//
+// ⭐ THE CAMERA IS KEPT ONCE OPENED, and closed when the feature goes off. A
+// tracker reopened on every toggle would relearn the room each time, and the
+// light would flicker with the menu.
+func (d *Desk) toggleFollowHead() {
+	if d.FollowingHead() {
+		d.FollowHead(false)
+		d.closeHead()
+		d.say("no longer following your head")
+		return
+	}
+	if err := d.openHead(); err != nil {
+		// ⛔ SAY WHY, rather than leaving a menu item that does nothing. The
+		// commonest reason is a headset plugged in for its picture only, which
+		// presents no camera at all.
+		d.say(err.Error())
+		return
+	}
+	d.FollowHead(true)
+	d.say("following your head, with the camera light on while it does")
+}
+
+// openHead opens the headset camera if it is not already open.
+func (d *Desk) openHead() error {
+	d.mu.Lock()
+	already := d.head.src != nil
+	display := d.plan.Model
+	d.mu.Unlock()
+	if already {
+		return nil
+	}
+	h, err := OpenCameraHead(display)
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	d.head.src, d.head.cam = h, h
+	d.mu.Unlock()
+	return nil
+}
+
+// closeHead puts the camera away and turns its light off.
+func (d *Desk) closeHead() {
+	d.mu.Lock()
+	cam := d.head.cam
+	d.head.src, d.head.cam = nil, nil
+	d.mu.Unlock()
+	if cam != nil {
+		_ = cam.Close()
+	}
 }

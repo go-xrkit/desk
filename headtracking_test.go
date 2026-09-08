@@ -7,6 +7,8 @@ package desk
 import (
 	"math"
 	"testing"
+
+	"github.com/go-widgets/toolkit"
 )
 
 // fakeHead stands in for a camera, because a test cannot arrange a room.
@@ -183,4 +185,26 @@ func TestANilSourceTurnsTheFeatureOff(t *testing.T) {
 		t.Error("head tracking stayed on with no source behind it")
 	}
 	d.Advance(0.02) // must not panic on the nil source
+}
+
+// TestEveryThingHeadTrackingSaysCanBeDrawn.
+//
+// ⛔⛔ THE BUILT-IN FONT HAS NO SEMICOLON, AND THIS CAUGHT ONE. "following your
+// head; the camera light is on" was written, compiled, passed every other test,
+// and would have appeared on somebody's glasses with a hole in the middle of it.
+// A rune with no glyph still ADVANCES -- the columns stay aligned and the letter
+// is simply absent -- so nothing about the layout gives it away either.
+//
+// The existing legibility test walks the settings window. These strings go to
+// the toast instead, which is drawn with the same font and was not covered.
+func TestEveryThingHeadTrackingSaysCanBeDrawn(t *testing.T) {
+	for _, s := range []string{
+		"Too dark to follow your head",
+		"no longer following your head",
+		"following your head, with the camera light on while it does",
+	} {
+		if bad := toolkit.BitmapMissing(s); len(bad) > 0 {
+			t.Errorf("%q cannot be drawn: the font has no %q", s, string(bad))
+		}
+	}
 }

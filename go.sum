@@ -112,6 +112,8 @@ github.com/go-xrkit/depth3d v0.1.0 h1:78w0YWvENMzrITw5V/CPhusv/Z2dKSw0UWug5Cjpfq
 github.com/go-xrkit/depth3d v0.1.0/go.mod h1:MRN1X2PMSFWU4wcFXMwIiP4uowUlzfHm7cHbzVKPSMk=
 github.com/go-xrkit/xrkit v0.16.0 h1:rvBEE84NeoinjrsMB8xwVW7OHXDmfqw92HEqD8DOQjU=
 github.com/go-xrkit/xrkit v0.16.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
+github.com/go-xrkit/xrkit v0.17.0 h1:Bby2Tt+YKL1uMu8VV8xEPiqwvyEXvfhPZAMSzEsIS/c=
+github.com/go-xrkit/xrkit v0.17.0/go.mod h1:xu9ZzeaFnuMhE4gbFimqJZOAWX51Evpglu2JMD64ux4=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
 github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=

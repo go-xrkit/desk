@@ -291,6 +291,14 @@ const (
 	// with a tick on the one in force say where they are AND where they can go.
 	// That is the argument the 3D row already makes, from the other side.
 
+	// ActionFollowHead scrolls the ribbon with the head, using the headset's own
+	// camera because the headset will not lend its tracking.
+	//
+	// ⚠ IT LIGHTS THE CAMERA. On every Mac with an indicator the hardware ties
+	// it to the sensor's power, so this is a lit light for as long as somebody
+	// wants their head followed -- which is a thing to tell them plainly rather
+	// than a detail to bury.
+	ActionFollowHead
 	// ActionTrackAnchored nails the picture to the room: turn your head and it
 	// stays where it was.
 	ActionTrackAnchored
@@ -429,6 +437,8 @@ func (a Action) String() string {
 		return "mute the microphone"
 	case ActionPassthrough:
 		return "show the room"
+	case ActionFollowHead:
+		return "follow your head"
 	case ActionTrackAnchored:
 		return "anchor the picture in the room"
 	case ActionTrackSmooth:
@@ -743,7 +753,7 @@ func (d *Desk) InGallery() bool {
 // Do carries out an action.
 func (d *Desk) Do(a Action) {
 	var cycle, point func(int)
-	var mic, pass bool
+	var mic, pass, followHead bool
 	var photo func() (string, error)
 	var track func(mode int, recentre bool) error
 	var trackTo int
@@ -972,6 +982,10 @@ func (d *Desk) Do(a Action) {
 		point, pos = d.OnPoint, d.nav.Focus()
 	case ActionMic:
 		mic = true
+	case ActionFollowHead:
+		// Outside the lock, like every handler that talks to hardware: opening a
+		// camera takes long enough to stall the frame loop.
+		followHead = true
 	case ActionPassthrough:
 		// Outside the lock, like every handler that talks to hardware: opening
 		// a camera takes long enough to stall the frame loop, and the light
@@ -1045,6 +1059,9 @@ func (d *Desk) Do(a Action) {
 	}
 	if pass {
 		d.togglePassthrough(pos)
+	}
+	if followHead {
+		d.toggleFollowHead()
 	}
 	if glasses != ActionNone {
 		d.adjustGlasses(glasses)
