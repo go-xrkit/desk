@@ -1788,17 +1788,14 @@ func (d *Desk) fit() {
 	if !changed || next.sameShapes(d.plan) {
 		return
 	}
-	// ⭐ AND IT CANNOT CROWD ANY MORE. A wide enough screen used to stop the band
-	// fitting in 360 degrees -- "418.5° of screens and gaps", reported from a
-	// desk with an Odyssey G95NC mirrored onto a position -- because the arc was
-	// budgeted from the aspect of the GLASSES while ribbon.Place spends it on
-	// each screen's own. [Plan.withBandLayout] now shares the turn out among the
-	// shapes there are, so any mix closes: see TestAWidePanelDoesNotBreakTheBand.
-	//
-	// Still assigned rather than dropped, because reshape can fail for reasons
-	// that have nothing to do with shapes. The band is left exactly as it was
-	// when it does: reshape builds before it assigns.
-	d.err = d.reshape(next)
+	// Reported rather than dropped, and it really can happen: a wide enough
+	// screen stops the band fitting in 360 degrees, which is a property of the
+	// shape AND of how many screens there are, so no fixed limit on one screen
+	// can rule it out. TestAShapeTheBandCannotHoldIsRefused measures it. The
+	// band is left exactly as it was: reshape builds before it assigns.
+	if err := d.reshape(next); err != nil {
+		d.err = err
+	}
 }
 
 // toggleMic silences the microphone or brings it back, and says which.
