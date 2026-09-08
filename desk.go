@@ -470,6 +470,9 @@ func (a Action) String() string {
 // what lets the same logic run over ScreenCaptureKit, X11 and Windows, and what
 // lets it be tested against feeds that are not screens at all.
 type Desk struct {
+	// head is the desk's side of a head tracker: see [Desk.FollowHead].
+	head headTracking
+
 	plan Plan
 	nav  *ribbon.Nav
 
@@ -1188,6 +1191,10 @@ func (d *Desk) Badge(seconds float64, theme *toolkit.Theme, logf func(string, ..
 func (d *Desk) Advance(dt float64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	// ⭐ THE HEAD MOVES THE VIEW BEFORE THE EASING RUNS. Setting the yaw and
+	// then advancing towards a target would fight: SetYaw makes them equal, so
+	// the easing has nothing left to do and the head has the last word.
+	d.followHead()
 	d.nav.Advance(dt)
 	d.badge.tick()
 	d.notice.tick()
