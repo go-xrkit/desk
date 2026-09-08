@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -550,6 +549,15 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			// ⛔ A DAMAGED NAME IS NOT AN UNPLUGGED HEADSET, and treating it as
 			// one took a desk away mid-session while the headset was listed
 			// among the attached displays in the very same message.
+			// ⛔⛔ AN EMPTY LIST IS A FAILED READ, NOT AN UNPLUGGED DISPLAY,
+			// and quitting on it took a desk away from somebody wearing it
+			// twice in one day. See displaylist.go.
+			if errors.Is(err, errDisplaysUnreadable) {
+				if s := damageLog.reportOnce(now, "an empty display list", err.Error()); s != "" {
+					logf("%s", s)
+				}
+				return
+			}
 			var damaged errDamagedName
 			if errors.As(err, &damaged) {
 				// ⛔⛔ ONCE, NOT ONCE A SECOND. This lookup runs every second, so
@@ -689,26 +697,17 @@ func currentScreen(name string) (*window.Screen, error) {
 	if err != nil {
 		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
 	}
-	for i := range ss {
-		if ss[i].Name == name {
-			return &ss[i], nil
-		}
-	}
-	names := make([]string, len(ss))
 	plain := make([]string, len(ss))
 	for i, s := range ss {
-		names[i] = strconv.Quote(s.Name)
 		plain[i] = s.Name
 	}
-	// ⛔ A NAME WITH A NUL IN IT IS A BUG, NOT AN UNPLUGGED DISPLAY. See
-	// damagedname.go: a Go string was seen losing its first four bytes four
-	// times in one day, and looking a display up by that name ended the session
-	// while the display was sitting in this very list.
-	if i, ok := undamage(name, plain); ok {
-		return &ss[i], errDamagedName{want: name, got: ss[i].Name}
+	// Which screen, and what an absence means -- an empty list among them. See
+	// displaylist.go, which is where that decision is made and tested.
+	i, err := lookUpScreen(name, plain)
+	if i < 0 {
+		return nil, err
 	}
-	return nil, fmt.Errorf("desk: %q is not attached any more; there is %s",
-		name, strings.Join(names, ", "))
+	return &ss[i], err
 }
 
 // errDamagedName is a screen found in spite of a damaged name.
