@@ -7,6 +7,7 @@ package desk
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // ⭐ THE STRINGS ARE THE ONES THAT WERE ACTUALLY OBSERVED, four times on
@@ -80,5 +81,47 @@ func TestTheErrorSaysWhatTheReportSays(t *testing.T) {
 	e := errDamagedName{want: damagedBeast, got: wholeBeast}
 	if e.Error() != damagedNameReport(damagedBeast, wholeBeast) {
 		t.Error("the error and the report disagree")
+	}
+}
+
+// ⛔⛔ ONE CORRUPTION IS ONE REPORT, NOT ONE A SECOND. Measured in a live
+// session: the display lookup runs once a second, so a single damaged name at
+// startup printed the same 250-character sentence 3 939 times in 66 minutes --
+// 3 939 lines out of 4 797. The whole reason this recovery is loud is that a
+// rare fault leaves no other evidence, and a log that is 82% one sentence
+// buries exactly the other messages that might name the culprit.
+func TestADamagedNameIsSaidOnceAndThenCounted(t *testing.T) {
+	var d damagedNames
+	t0 := time.Now()
+
+	first := d.report(t0, damagedBeast, wholeBeast)
+	if !strings.Contains(first, "DAMAGED") {
+		t.Fatalf("the first report was %q, want the full sentence", first)
+	}
+	// Ten minutes of lookups, as the desk actually does them: silent.
+	for i := 1; i < 600; i++ { // up to, not including, the quiet period's end
+		if s := d.report(t0.Add(time.Duration(i)*time.Second), damagedBeast, wholeBeast); s != "" {
+			t.Fatalf("occurrence %d spoke inside the quiet %v: %q", i, damagedNameQuiet, s)
+		}
+	}
+	// ⭐ AND THEN IT SPEAKS AGAIN, WITH THE COUNT. A session that ends abruptly
+	// -- which is what this fault used to do -- must still show the damage was
+	// STILL there at the end, not only that it happened once at the start.
+	again := d.report(t0.Add(damagedNameQuiet+time.Second), damagedBeast, wholeBeast)
+	if !strings.Contains(again, "STILL") || !strings.Contains(again, "601") {
+		t.Errorf("the repeat was %q, want it to say STILL and the count 601", again)
+	}
+}
+
+// A DIFFERENT damage is a different report: two strings were seen damaged on the
+// same day, and one must never silence the other.
+func TestADifferentDamageIsSaidOnItsOwn(t *testing.T) {
+	var d damagedNames
+	t0 := time.Now()
+	if s := d.report(t0, damagedBeast, wholeBeast); s == "" {
+		t.Fatal("the first damage said nothing")
+	}
+	if s := d.report(t0, "\x00\x00\x00\x00derbird", "Thunderbird"); s == "" {
+		t.Error("a second, different damage was silenced by the first")
 	}
 }

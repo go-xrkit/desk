@@ -7,6 +7,7 @@ package desk
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ⛔⛔ A DISPLAY NAME WITH A NUL BYTE IN IT IS A BUG, NOT A DISPLAY NAME.
@@ -79,4 +80,48 @@ func damagedNameReport(want, got string) string {
 		" with its first bytes overwritten. Carrying on with that display. " +
 		"This is a real defect -- a Go string changed under the program -- and " +
 		"the run that produced it is worth keeping"
+}
+
+// damagedNameQuiet is how long the report stays silent after saying itself.
+//
+// ⛔⛔ TEN MINUTES, AND THE NUMBER CAME FROM A LOG. The desk looks its display up
+// once a second, so ONE corruption at startup printed the same 250-character
+// sentence 3 939 times in a 66-minute session -- 3 939 lines out of 4 797, which
+// is 82% of everything the run had to say. The whole reason this recovery is
+// loud is that a rare fault leaves no other evidence; a log nobody can read
+// leaves none either, and it buries the OTHER messages that might have named the
+// culprit.
+const damagedNameQuiet = 10 * time.Minute
+
+// damagedNames says a damaged name once, then holds its tongue.
+//
+// ⭐ IT STILL SPEAKS AGAIN, and that is deliberate: a session that ends abruptly
+// -- which is what this fault used to do -- must still show that the damage was
+// STILL THERE at the end, not only that it happened once at the start. So the
+// repeat carries the count, and a run of any length says how bad it was.
+//
+// The zero value is ready to use.
+type damagedNames struct {
+	seen map[string]int
+	said map[string]time.Time
+}
+
+// report is what to log for this damage, or "" to say nothing this time. Every
+// occurrence is counted whether or not it is spoken.
+func (d *damagedNames) report(now time.Time, want, got string) string {
+	if d.seen == nil {
+		d.seen, d.said = map[string]int{}, map[string]time.Time{}
+	}
+	key := want + "\x00->\x00" + got
+	d.seen[key]++
+	last, spoken := d.said[key]
+	if spoken && now.Sub(last) < damagedNameQuiet {
+		return ""
+	}
+	d.said[key] = now
+	if !spoken {
+		return damagedNameReport(want, got)
+	}
+	return "⛔ the display name is STILL damaged: " + strconv.Quote(want) +
+		", seen " + strconv.Itoa(d.seen[key]) + " times now"
 }
