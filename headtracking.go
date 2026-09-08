@@ -88,6 +88,14 @@ func (d *Desk) FollowHead(on bool) {
 func (d *Desk) RecenterHead() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	// ⛔ A GUARD MOVED IS A GUARD LOST. The previous version returned early when
+	// there was no head source and so never reached the navigator; this one
+	// touches the navigator FIRST, and crashed on a desk built without one. The
+	// key can be pressed at any moment, including before there is anything to
+	// recentre.
+	if d.nav == nil {
+		return
+	}
 	// ⛔ THE PICTURE MOVES WHETHER OR NOT A HEAD IS BEING FOLLOWED. This is the
 	// menu row and the key everybody has; tying it to a camera nobody switched
 	// on would make it do nothing on the desks that need it most.

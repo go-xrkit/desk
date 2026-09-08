@@ -702,3 +702,14 @@ func wrapTo(a float64) float64 {
 	}
 	return a
 }
+
+// TestRecentringOnADeskWithNoNavigator.
+//
+// ⛔⛔ A GUARD MOVED IS A GUARD LOST. The earlier RecenterHead returned as soon
+// as it found no head source, and so never reached the navigator. Making it
+// move the picture put the navigator FIRST -- and it crashed on a desk built
+// without one, which the package's own tests do. CI found it; nothing here did.
+func TestRecentringOnADeskWithNoNavigator(t *testing.T) {
+	var d Desk
+	d.RecenterHead() // must not panic
+}
