@@ -385,28 +385,35 @@ func TestTheDistanceSetting(t *testing.T) {
 // TestTheSplaySetting: the angle between neighbours is a preference like the
 // distance, with one difference that matters -- a ZERO in the file is a choice.
 //
-// Nil means "not said", and gets the default. Zero means the flat band, which is
-// a real thing somebody may want: one wide surface rather than a desk of angled
-// panels. A reader that treated them alike would make the flat band unreachable
-// from the settings.
+// Nil means "not said". Zero in the file means the flat band, which is a real
+// thing somebody may want: one wide surface rather than a desk of angled panels.
+// A reader that treated them alike would make the flat band unreachable.
+//
+// ⛔⛔ AND THE TWO USED TO COLLIDE ON THE SAME NUMBER. "Not said" came back as
+// DefaultSplayDeg and "flat" as zero, while NewPlan reads zero as "not said" and
+// negative as flat -- so the caller translated between the two by hand, and the
+// absence arrived as a NUMBER, which meant the plan never got to derive one. A
+// desk whose settings said nothing about curvature therefore got twenty degrees,
+// at which the neighbours miss facing the viewer by 28.3°. Both sides now speak
+// the plan's convention: negative is flat, zero is nobody saying.
 func TestTheSplaySetting(t *testing.T) {
-	if got := (Config{}).SplayDeg(); got != DefaultSplayDeg {
-		t.Errorf("an empty configuration is splayed %g, want the default %g",
-			got, DefaultSplayDeg)
+	if got := (Config{}).SplayDeg(); got != 0 {
+		t.Errorf("an empty configuration is splayed %g, want 0 meaning "+
+			"\"nobody said\" so the plan can derive it", got)
 	}
-	if got := (Config{Ribbon: &ConfigRibbon{}}).SplayDeg(); got != DefaultSplayDeg {
-		t.Errorf("a ribbon block with no splay is %g", got)
+	if got := (Config{Ribbon: &ConfigRibbon{}}).SplayDeg(); got != 0 {
+		t.Errorf("a ribbon block with no splay is %g, want 0", got)
 	}
 	flat := 0.0
-	if got := (Config{Ribbon: &ConfigRibbon{Splay: &flat}}).SplayDeg(); got != 0 {
-		t.Errorf("a splay of zero came back as %g, so the flat band cannot be "+
-			"asked for", got)
+	if got := (Config{Ribbon: &ConfigRibbon{Splay: &flat}}).SplayDeg(); got >= 0 {
+		t.Errorf("a splay of zero came back as %g, want a negative: the flat "+
+			"band has to be distinguishable from nobody saying", got)
 	}
 	// Below zero is not an angle; it reads as flat rather than as an error,
 	// because there is nothing else it could mean.
 	below := -10.0
-	if got := (Config{Ribbon: &ConfigRibbon{Splay: &below}}).SplayDeg(); got != 0 {
-		t.Errorf("a splay of %g came back as %g", below, got)
+	if got := (Config{Ribbon: &ConfigRibbon{Splay: &below}}).SplayDeg(); got >= 0 {
+		t.Errorf("a splay of %g came back as %g, want a negative (flat)", below, got)
 	}
 	some := 25.0
 	if got := (Config{Ribbon: &ConfigRibbon{Splay: &some}}).SplayDeg(); got != some {
@@ -432,8 +439,13 @@ func TestTheSplaySetting(t *testing.T) {
 
 	// And it makes the round trip through the file, zero included -- which is the
 	// case a writer that skipped empty values would lose.
-	for _, v := range []float64{0, 25} {
-		val := v
+	//
+	// ⭐ THE ZERO COMES BACK AS FLAT, NOT AS ZERO, and that is the point of the
+	// convention rather than a loss: what has to survive the file is the CHOICE
+	// -- "I asked for the flat band" -- and on the plan's side flat is negative,
+	// because zero there is reserved for nobody having asked at all.
+	for _, c := range []struct{ wrote, want float64 }{{0, -1}, {25, 25}} {
+		val := c.wrote
 		cfg := Config{Ribbon: &ConfigRibbon{Splay: &val}}
 		path := filepath.Join(t.TempDir(), "desk.hcl")
 		if err := cfg.SaveTo(path); err != nil {
@@ -443,8 +455,9 @@ func TestTheSplaySetting(t *testing.T) {
 		if err != nil {
 			t.Fatalf("what was written does not load: %v", err)
 		}
-		if got := back.SplayDeg(); got != val {
-			t.Errorf("a splay of %g came back from the file as %g", val, got)
+		if got := back.SplayDeg(); got != c.want {
+			t.Errorf("a splay of %g came back from the file as %g, want %g",
+				c.wrote, got, c.want)
 		}
 	}
 }

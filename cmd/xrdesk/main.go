@@ -858,11 +858,11 @@ func run() int {
 			dist = settings.Distance()
 		}
 		if sp == 0 {
-			// The settings' own answer, which distinguishes "not said" from "flat"
-			// -- and a flat band asked for in the file has to come through as one.
-			if sp = settings.SplayDeg(); sp == 0 {
-				sp = -1
-			}
+			// ⭐ AND IT COMES THROUGH IN THE PLAN'S OWN CONVENTION. Config.SplayDeg
+			// now answers negative for flat and zero for "nobody said", which is
+			// exactly what NewPlan reads -- so the translation that used to live
+			// here, and got one of the two numbers wrong, has nothing left to do.
+			sp = settings.SplayDeg()
 		}
 		again, wantSettings, wantPause, code := session(n, model, dist, sp, settings)
 		if !again {

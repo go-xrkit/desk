@@ -267,7 +267,10 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	default:
 		plan = plan.WithSplay(opts.SplayDeg)
 	case opts.SplayDeg == 0:
-		plan = plan.WithSplay(DefaultSplayDeg)
+		// ⭐ DERIVED, NOT CHOSEN. Nobody said, so the plan gets the angle at which
+		// its neighbours actually face the viewer -- which depends on the eye and
+		// on the distance, and so was never a constant. See [Plan.FacingSplayDeg].
+		plan = plan.WithSplay(plan.FacingSplayDeg())
 	}
 
 	// There is no panorama any more, and so nothing here to size. The screens
@@ -475,13 +478,70 @@ func (p Plan) SplayDeg() float64 { return p.splayDeg }
 // so rather than derived.
 const MaxSplayDeg = 60.0
 
-// DefaultSplayDeg is the angle a desk gets when nobody says: twenty degrees.
+// DefaultSplayDeg is the angle a desk gets when its optics are unknown: twenty
+// degrees.
 //
-// Enough to read as turned -- the keystone is visible, the neighbours face you --
-// and shallow enough that a screen two along is still squarely in front of you
-// when you turn to it. It is also close to what people set real monitors to,
-// which is the only evidence available for a number like this.
+// ⛔⛔ ITS OWN DOCUMENTATION USED TO CLAIM "the neighbours face you", AND THEY DO
+// NOT. Measured on a VITURE Beast, six screens, 51.57° per eye: at twenty
+// degrees the neighbour misses facing the viewer by 28.3°. It does not look
+// turned towards anybody -- it leans away, which is what "l'angle de cintrage
+// n'est pas au bon endroit" turned out to mean once there was a picture to look
+// at rather than a question to answer.
+//
+//	splay  the neighbour misses facing you by
+//	    0                             -44.0°
+//	   20 (this constant)             -28.3°
+//	   40                             -11.1°
+//	 51.6                               0.0°   ← [Plan.FacingSplayDeg]
+//	   60                              +8.8°
+//
+// So it is a FALLBACK now and not a default: it is what a plan gets when there
+// is no field of view to derive from. See [Plan.FacingSplayDeg], which is what a
+// plan with known optics gets instead.
 const DefaultSplayDeg = 20.0
+
+// FacingSplayDeg is the angle at which the neighbouring screens FACE the viewer
+// -- a desk of monitors, all at one distance, each turned towards the chair.
+//
+// ⭐ IT IS A FIXED POINT, and that is the whole derivation: a panel faces the
+// viewer when the angle it is turned by equals the angle it SITS at. Walking
+// s ← angle-to-panel-1(s) converges in a handful of steps, because the angle a
+// panel sits at barely moves with the splay (44° to 51.5° across the whole
+// range) while the splay it is compared against sweeps sixty degrees.
+//
+// ⛔ AND IT DEPENDS ON THE OPTICS, which is why it could never be a constant. It
+// is a function of the field of view and of how far the band is pushed back, so
+// a headset with a wider eye and a desk pushed further away want different
+// numbers. Twenty degrees was chosen once and applied to everything.
+//
+// A plan with no field of view returns [DefaultSplayDeg]: there is nothing to
+// derive from, and a fallback that is honest about being one is better than a
+// number invented from a default FOV.
+func (p Plan) FacingSplayDeg() float64 {
+	if p.HFOVDeg <= 0 || p.ScreenW <= 0 || p.ScreenH <= 0 {
+		return DefaultSplayDeg
+	}
+	hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
+	d := p.Distance()
+	s := 0.0
+	for range 24 {
+		next := deg(math.Atan2(hw*(1+math.Cos(rad(s))), d-hw*math.Sin(rad(s))))
+		if math.Abs(next-s) < 1e-9 {
+			s = next
+			break
+		}
+		s = next
+	}
+	// ⛔ ONLY THE CEILING IS GUARDED, because only the ceiling can happen: the
+	// numerator is hw(1+cos s), which is never negative, so the arc-tangent lands
+	// in [0°, 180°] and a floor of zero would be a branch no test could reach. A
+	// wide eye at a close distance really does ask for more than MaxSplayDeg, and
+	// gets it clamped like every other angle in this package.
+	if s > MaxSplayDeg {
+		return MaxSplayDeg
+	}
+	return s
+}
 
 // SplayStep is how much one press changes the angle: five degrees, so the whole
 // range is twelve presses and each one is visible.

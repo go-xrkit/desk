@@ -335,17 +335,28 @@ func (c Config) Distance() float64 {
 	return *c.Ribbon.Distance
 }
 
-// SplayDeg is the angle between one screen and the next, or [DefaultSplayDeg]
-// when the settings do not say. See [Plan.SplayDeg].
+// SplayDeg is the angle between one screen and the next, in the convention
+// [NewPlan] reads: NEGATIVE is the flat band, ZERO is nobody saying, and
+// anything else is the angle asked for. See [Plan.SplayDeg].
 //
-// A zero in the file is honoured: it means the flat band, which is a real choice
-// and not an absence. Nil is the absence, and that is what gets the default.
+// ⛔⛔ THE TWO CONVENTIONS USED TO COLLIDE ON THE SAME NUMBER. This returned zero
+// for "the file says flat" while NewPlan reads zero as "nobody said", so the
+// caller translated one into the other by hand. And it returned DefaultSplayDeg
+// for the absence, which meant the plan was handed a number and never got to
+// derive one -- so a desk whose settings said nothing about curvature got twenty
+// degrees, at which the neighbouring screens miss facing the viewer by 28.3°.
+// Measured, and then LOOKED AT, on a synthetic render: the fold between two
+// screens came out lopsided instead of a symmetric V. See [Plan.FacingSplayDeg].
+//
+// A zero in the file is still honoured as the flat band -- a real choice, not an
+// absence -- it simply comes back as -1, which is what flat is called on the
+// other side of the seam.
 func (c Config) SplayDeg() float64 {
 	if c.Ribbon == nil || c.Ribbon.Splay == nil {
-		return DefaultSplayDeg
+		return 0 // nobody said; the plan derives it from its own optics
 	}
-	if *c.Ribbon.Splay < 0 {
-		return 0
+	if *c.Ribbon.Splay <= 0 {
+		return -1 // the file asked for the flat band
 	}
 	return *c.Ribbon.Splay
 }

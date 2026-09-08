@@ -400,9 +400,21 @@ func TestPlanSplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := p.SplayDeg(); got != DefaultSplayDeg {
-		t.Errorf("a plan nobody splayed is %g, want the default %g",
-			got, DefaultSplayDeg)
+	// ⛔⛔ THIS USED TO DEMAND DefaultSplayDeg, AND A PICTURE SETTLED IT. Twenty
+	// degrees is a chosen number: on these optics the neighbouring screens miss
+	// facing the viewer by 28.3°, and a synthetic render of the fold between two
+	// screens came out lopsided instead of the symmetric V a desk of monitors
+	// makes. A plan nobody splayed now gets the angle DERIVED from its own eye
+	// and its own distance. See Plan.FacingSplayDeg.
+	if want := p.FacingSplayDeg(); p.SplayDeg() != want {
+		t.Errorf("a plan nobody splayed is %g, want the derived %g", p.SplayDeg(), want)
+	}
+	// ⭐ AND IT IS NOT THE FALLBACK BY ACCIDENT: if the derivation quietly gave
+	// up and returned the constant, the assertion above would pass having proved
+	// nothing.
+	if p.SplayDeg() == DefaultSplayDeg {
+		t.Errorf("the derived angle is exactly the fallback %g; nothing was derived",
+			DefaultSplayDeg)
 	}
 
 	for _, c := range []struct {
@@ -498,5 +510,101 @@ func TestTheUniformBandIsUnmoved(t *testing.T) {
 		if got := p.Layout.GapDeg; math.Abs(got-gap) > 1e-9 {
 			t.Errorf("%d screens: GapDeg %.12f, want %.12f", n, got, gap)
 		}
+	}
+}
+
+// TestTheDerivedSplayMakesTheNeighbourFaceYou.
+//
+// ⛔⛔ THE OLD DEFAULT DID NOT, AND ITS OWN DOCUMENTATION CLAIMED IT DID:
+// "Enough to read as turned -- the keystone is visible, the neighbours face
+// you". Measured on a VITURE Beast, six screens, 51.57° per eye, the neighbour
+// misses facing the viewer by 28.3° at twenty degrees. Reported from the glasses
+// as "le pli n'est toujours pas bien situé", and settled by rendering the fold
+// with synthetic screens and looking at it: at 20° the two panels lean the SAME
+// way, at the derived angle they make the symmetric V a desk of monitors makes.
+//
+// ⭐ FACING IS A GEOMETRIC TEST, NOT A JUDGEMENT: a panel faces the viewer when
+// its surface is perpendicular to the line of sight to its own centre. That is
+// what this measures, and it is why the fix needed nobody to squint at a
+// headset.
+func TestTheDerivedSplayMakesTheNeighbourFaceYou(t *testing.T) {
+	for _, c := range []struct {
+		fov  float64
+		n    int
+		dist float64
+	}{
+		{51.57, 6, 1}, {51.57, 6, 2}, {45.6, 6, 1}, {51.57, 9, 1}, {40, 4, 1.5},
+	} {
+		p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: c.fov}.
+			WithScreens(c.n).WithDistance(c.dist).WithSplay(0)
+		s := p.FacingSplayDeg()
+		p = p.WithSplay(s)
+		hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
+		lx, lz, rx, rz := slantChain(1, p.SplayDeg(), hw, p.Distance(), 0)
+		sight := math.Atan2((lx+rx)/2, (lz+rz)/2)
+		surf := math.Atan2(rx-lx, rz-lz)
+		if miss := deg(surf-sight) - 90; math.Abs(miss) > 0.05 {
+			t.Errorf("fov %g, %d screens, distance %g: at the derived %.2f° the "+
+				"neighbour misses facing you by %+.2f°", c.fov, c.n, c.dist, s, miss)
+		}
+		// ⛔ AND THE OLD CONSTANT MISSES BADLY, which is what makes the assertion
+		// above worth making rather than a tautology.
+		q := p.WithSplay(DefaultSplayDeg)
+		lx, lz, rx, rz = slantChain(1, q.SplayDeg(), hw, q.Distance(), 0)
+		sight = math.Atan2((lx+rx)/2, (lz+rz)/2)
+		surf = math.Atan2(rx-lx, rz-lz)
+		if miss := deg(surf-sight) - 90; math.Abs(miss) < 5 {
+			t.Errorf("fov %g: the chosen %g° already faces the viewer (%+.2f°), so "+
+				"this test proves nothing", c.fov, DefaultSplayDeg, miss)
+		}
+	}
+}
+
+// ⭐ AT DISTANCE ONE THE ANSWER IS THE FIELD OF VIEW ITSELF, exactly. One screen
+// fills the eye there, so the next one sits one field away and has to be turned
+// by one field to face you. It is a check on the derivation rather than a
+// separate rule: a fixed point that landed anywhere else would be wrong.
+func TestTheDerivedSplayAtDistanceOneIsTheFieldOfView(t *testing.T) {
+	for _, fov := range []float64{30, 40, 45.6, 51.57, 55} {
+		p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: fov}.WithScreens(6)
+		if got := p.FacingSplayDeg(); math.Abs(got-fov) > 1e-6 {
+			t.Errorf("fov %g at distance 1: derived %g, want the fov itself", fov, got)
+		}
+	}
+	// Pushed back, the neighbour subtends less and wants less turning.
+	p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 51.57}.WithScreens(6).WithDistance(2)
+	if got := p.FacingSplayDeg(); got >= 51.57 || got <= 0 {
+		t.Errorf("at distance 2 the derived splay is %g, want less than the fov", got)
+	}
+}
+
+// ⛔ AND A PLAN WITH NO OPTICS SAYS SO by falling back to the constant, rather
+// than deriving a number from a field of view it does not have.
+func TestAPlanWithNoOpticsFallsBackToTheChosenAngle(t *testing.T) {
+	for _, p := range []Plan{
+		{ScreenW: 1920, ScreenH: 1080},
+		{ScreenW: 1920, HFOVDeg: 50},
+		{ScreenH: 1080, HFOVDeg: 50},
+	} {
+		if got := p.WithScreens(6).FacingSplayDeg(); got != DefaultSplayDeg {
+			t.Errorf("a plan of %dx%d fov %g derived %g, want the fallback %g",
+				p.ScreenW, p.ScreenH, p.HFOVDeg, got, DefaultSplayDeg)
+		}
+	}
+}
+
+// ⛔ A WIDE EYE CLOSE UP ASKS FOR MORE THAN THE PACKAGE ALLOWS, and gets it
+// clamped like every other angle here. Past MaxSplayDeg a chain wraps round past
+// the viewer's own shoulders, which is not a desk whatever the arithmetic wants.
+func TestTheDerivedSplayStopsAtTheCeiling(t *testing.T) {
+	p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 120}.WithScreens(3)
+	if got := p.FacingSplayDeg(); got != MaxSplayDeg {
+		t.Errorf("a 120° eye derived %g, want it clamped to %g", got, MaxSplayDeg)
+	}
+	// And just under the ceiling it is NOT clamped, or the test above would pass
+	// for a function that always returned the ceiling.
+	q := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 45}.WithScreens(6)
+	if got := q.FacingSplayDeg(); got >= MaxSplayDeg {
+		t.Errorf("a 45° eye derived %g, which is at the ceiling", got)
 	}
 }
