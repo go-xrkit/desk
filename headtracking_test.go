@@ -8,6 +8,8 @@ import (
 	"math"
 	"testing"
 
+	"github.com/go-macos/hotkey"
+
 	"github.com/go-widgets/toolkit"
 )
 
@@ -470,4 +472,135 @@ func plainStart(t *testing.T, p Plan) float64 {
 		t.Fatal(err)
 	}
 	return d.Nav().Yaw()
+}
+
+// TestRecentringPutsTheHeadOriginBackToo.
+//
+// ⛔⛔ THERE ARE TWO RECENTRES AND THEY ARE NOT THE SAME. CmdNativeRecenter tells
+// the GLASSES to put the picture they anchor back in front; this puts OUR
+// tracker back to zero. Somebody asking for the picture to come back means both
+// and would not thank anyone for being made to choose.
+func TestRecentringPutsTheHeadOriginBackToo(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true}
+	d.SetHeadSource(h)
+	d.FollowHead(true)
+	h.yaw = 0.8
+	d.Advance(0.02)
+	drifted := d.Nav().Yaw()
+	before := h.recenters
+
+	d.RecenterHead()
+	if h.recenters != before+1 {
+		t.Error("recentring did not reach the head tracker")
+	}
+	// The head is now at its origin, so the next frame must not move the view.
+	d.Advance(0.02)
+	if got := d.Nav().Yaw(); math.Abs(got-drifted) > 1e-9 {
+		t.Errorf("the view moved to %v after recentring, from %v", got, drifted)
+	}
+}
+
+// TestRecentringWithNoHeadSourceIsHarmless, because the key is system-wide and
+// works on a desk that has never followed anything.
+func TestRecentringWithNoHeadSourceIsHarmless(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.RecenterHead() // must not panic
+}
+
+// TestRecentringIsOnAKeyThatCanBePressedBlind.
+//
+// ⭐ ASKED FOR AT THE GLASSES, IN THOSE WORDS. Following the head drifts about a
+// degree per journey, so the remedy has to be reachable with the glasses on and
+// the hands nowhere near a menu.
+func TestRecentringIsOnAKeyThatCanBePressedBlind(t *testing.T) {
+	var found bool
+	for _, s := range DefaultShortcuts() {
+		if s.Does == ActionRecenter {
+			found = true
+			if s.Want.Key != hotkey.KeyR {
+				t.Errorf("recentring is on key %v, want R", s.Want.Key)
+			}
+			const want = hotkey.Control | hotkey.Option | hotkey.Command
+			if s.Want.Mods != want {
+				t.Errorf("recentring carries mods %v, want control-option-command", s.Want.Mods)
+			}
+		}
+	}
+	if !found {
+		t.Error("recentring has no system-wide shortcut at all")
+	}
+}
+
+// TestTheCurveIsReachable.
+//
+// ⛔ THE ACTIONS EXISTED AND WERE REACHABLE FROM NOWHERE. On a flat band the
+// screens off to the side recede -- a plane seen obliquely is further away --
+// and the further the head turns the worse it gets, which is what following the
+// head made obvious. A capability nobody can invoke is not a capability.
+func TestTheCurveIsReachable(t *testing.T) {
+	want := map[Action]bool{ActionRounder: false, ActionFlatter: false}
+	for _, row := range TrayRows() {
+		if _, ok := want[row.Action]; ok {
+			want[row.Action] = true
+			if row.Title == "" {
+				t.Errorf("%v has a menu row with no title", row.Action)
+			}
+		}
+	}
+	for a, seen := range want {
+		if !seen {
+			t.Errorf("%v is in no menu row, so nothing can invoke it", a)
+		}
+	}
+}
+
+// TestTheRecentreActionReachesTheHeadTracker.
+//
+// ⛔⛔ THE TEST THAT WAS MISSING, AND CI FOUND WHAT IT WOULD HAVE. Every test
+// above called RecenterHead DIRECTLY, so the path through Do was never walked --
+// and an edit had left a SECOND d.mu.Unlock() on it. Unlocking an unlocked mutex
+// is fatal in Go, so ActionRecenter killed the process, and nothing here noticed
+// because nothing here pressed it.
+//
+// Testing a function is not testing the thing that calls it.
+func TestTheRecentreActionReachesTheHeadTracker(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true}
+	d.SetHeadSource(h)
+	d.FollowHead(true)
+	h.yaw = 0.8
+	d.Advance(0.02)
+	before := h.recenters
+
+	// With no OnTracking at all: the glasses cannot recentre, and ours still
+	// must. This is also the path that was fatal.
+	d.Do(ActionRecenter)
+	if h.recenters != before+1 {
+		t.Errorf("ActionRecenter recentred the head tracker %d time(s), want one more than %d",
+			h.recenters-before, before)
+	}
+
+	// And again with glasses that do track, so both halves run.
+	asked := 0
+	d.OnTracking = func(int, bool) error { asked++; return nil }
+	d.Do(ActionRecenter)
+	if asked != 1 {
+		t.Errorf("the glasses were asked to recentre %d times", asked)
+	}
+	if h.recenters != before+2 {
+		t.Error("the head tracker was not recentred when the glasses also could be")
+	}
 }

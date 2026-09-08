@@ -162,6 +162,13 @@ func TrayRows() []TrayRow {
 		// Not a toggle: recentring is something that HAPPENS, not a state, and a
 		// tick on it would be a tick that never turns off.
 		{Title: "Put it back in front of me", Action: ActionRecenter, Symbol: "scope"},
+		// ⭐ THE CURVE, ASKED FOR AT THE GLASSES. On a flat band the screens off to
+		// the side recede -- a plane seen obliquely is further away -- and the
+		// further the head turns the worse it gets. Turning each screen towards
+		// the viewer keeps them all at one distance. The actions existed and were
+		// reachable from nowhere.
+		{Title: "Curve the screens towards me", Action: ActionRounder, Symbol: "arrow.left.and.right"},
+		{Title: "Flatten the screens", Action: ActionFlatter, Symbol: "rectangle"},
 		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
 		// lit camera light for as long as it lasts, and a row that only promised
 		// the benefit would be a row that surprised somebody.
