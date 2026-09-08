@@ -167,8 +167,17 @@ func TrayRows() []TrayRow {
 		// further the head turns the worse it gets. Turning each screen towards
 		// the viewer keeps them all at one distance. The actions existed and were
 		// reachable from nowhere.
-		{Title: "Curve the screens towards me", Action: ActionRounder, Symbol: "arrow.left.and.right"},
-		{Title: "Flatten the screens", Action: ActionFlatter, Symbol: "rectangle"},
+		//
+		// ⛔⛔ AND THEY ARE STEPS, WHICH THE FIRST NAMES DENIED. These were
+		// "Curve the screens towards me" and "Flatten the screens" -- both
+		// imperatives, both promising a STATE. They move by [SplayStep], five
+		// degrees of the sixty available: twelve presses from flat to fully
+		// turned. Somebody chose "Flatten the screens", got five degrees, and
+		// reported that one press was not enough -- which was true of the name,
+		// not of the feature. The code always called them "rounder" and
+		// "flatter", comparatives, and saying so was the whole of the fix.
+		{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
+		{Title: "Flatter", Action: ActionFlatter, Symbol: "rectangle"},
 		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
 		// lit camera light for as long as it lasts, and a row that only promised
 		// the benefit would be a row that surprised somebody.

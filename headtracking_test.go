@@ -491,17 +491,30 @@ func TestRecentringPutsTheHeadOriginBackToo(t *testing.T) {
 	d.FollowHead(true)
 	h.yaw = 0.8
 	d.Advance(0.02)
-	drifted := d.Nav().Yaw()
 	before := h.recenters
 
 	d.RecenterHead()
 	if h.recenters != before+1 {
 		t.Error("recentring did not reach the head tracker")
 	}
-	// The head is now at its origin, so the next frame must not move the view.
+
+	// ⛔⛔ THIS TEST ONCE DEMANDED THE DEFECT. It asserted the view must NOT
+	// move -- "the head is now at its origin, so the next frame must not move
+	// the view" -- which is exactly the behaviour reported broken from the
+	// glasses: a recentre that changes nothing on screen. Recentring moves the
+	// picture; what must not move is the picture AFTER it has arrived.
+	for range 80 {
+		d.Advance(0.02)
+	}
+	landed := d.Nav().Yaw()
+	want := d.Nav().Ribbon().At(d.Nav().Focus()).Centre
+	if math.Abs(wrapTo(landed-want)) > 1e-6 {
+		t.Errorf("the view settled at %v, not on the screen centred at %v", landed, want)
+	}
+	// ⭐ AND THE HEAD IS AT ITS ORIGIN THERE, so a still head leaves it alone.
 	d.Advance(0.02)
-	if got := d.Nav().Yaw(); math.Abs(got-drifted) > 1e-9 {
-		t.Errorf("the view moved to %v after recentring, from %v", got, drifted)
+	if got := d.Nav().Yaw(); math.Abs(got-landed) > 1e-9 {
+		t.Errorf("a still head moved the settled view from %v to %v", landed, got)
 	}
 }
 
@@ -603,4 +616,89 @@ func TestTheRecentreActionReachesTheHeadTracker(t *testing.T) {
 	if h.recenters != before+2 {
 		t.Error("the head tracker was not recentred when the glasses also could be")
 	}
+}
+
+// TestRecentringMovesThePicture.
+//
+// ⛔⛔ THE TEST THAT WAS MISSING, AND THE ONE A PERSON WROTE FOR ME. Every test
+// here checked that recentring moved the tracker's ORIGIN, and not one checked
+// that anything appeared to happen -- so a recentre that changed nothing on
+// screen passed the whole suite. It was reported from the glasses, in one
+// sentence: "cela doit replacer l'ecran courant au centre des lunettes".
+func TestRecentringMovesThePicture(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Look well away from any screen's centre.
+	away := d.Nav().Ribbon().At(0).Centre + 0.4
+	d.Nav().SetYaw(away)
+
+	d.RecenterHead()
+	for range 80 {
+		d.Advance(0.02)
+	}
+	want := d.Nav().Ribbon().At(d.Nav().Focus()).Centre
+	if got := d.Nav().Yaw(); math.Abs(wrapTo(got-want)) > 1e-6 {
+		t.Errorf("after recentring the view is at %v; the screen it settled on is "+
+			"centred at %v, so the picture was not brought in front", got, want)
+	}
+}
+
+// TestRecentringChoosesTheScreenInFront, which is not always the focused one:
+// somebody glances at a neighbour and then asks for the picture back.
+func TestRecentringChoosesTheScreenInFront(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := d.Nav().Ribbon().Len()
+	if n < 3 {
+		t.Skip("needs at least three screens")
+	}
+	// Focused on 0, but looking at 2.
+	if err := d.Nav().GoTo(0); err != nil {
+		t.Fatal(err)
+	}
+	d.Nav().SetYaw(d.Nav().Ribbon().At(2).Centre)
+	d.RecenterHead()
+	if got := d.Nav().Focus(); got != 2 {
+		t.Errorf("recentring settled on screen %d while the viewer faced screen 2", got)
+	}
+}
+
+// TestRecentringWorksWithNoCameraAtAll.
+//
+// ⛔ IT IS THE KEY EVERYBODY HAS. Tying it to a head source nobody switched on
+// would leave it doing nothing on exactly the desks that have no other way to
+// straighten themselves.
+func TestRecentringWorksWithNoCameraAtAll(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Nav().SetYaw(d.Nav().Ribbon().At(0).Centre + 0.5)
+	d.RecenterHead()
+	for range 80 {
+		d.Advance(0.02)
+	}
+	want := d.Nav().Ribbon().At(d.Nav().Focus()).Centre
+	if got := d.Nav().Yaw(); math.Abs(wrapTo(got-want)) > 1e-6 {
+		t.Errorf("with no head source the view is at %v, not the %v it was sent to", got, want)
+	}
+}
+
+// wrapTo folds an angle into -pi..pi so that a difference across the seam is
+// small rather than a whole turn.
+func wrapTo(a float64) float64 {
+	for a > math.Pi {
+		a -= 2 * math.Pi
+	}
+	for a < -math.Pi {
+		a += 2 * math.Pi
+	}
+	return a
 }
