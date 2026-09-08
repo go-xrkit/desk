@@ -389,6 +389,11 @@ var configActions = map[string]Action{
 	"gallery-close": ActionGalleryClose,
 	"choose":        ActionChoose,
 	"cycle":         ActionCycle,
+	// ⭐ MOVABLE BECAUSE IT IS CLAIMED SYSTEM-WIDE. A shortcut that cannot be
+	// remapped is one somebody is stuck with when it collides, and they cannot
+	// even see the menu bar to find out why -- which is what the test that
+	// caught this omission exists to say.
+	"recentre": ActionRecenter,
 	// What the desk shows, and how far away.
 	"apps":      ActionApps,
 	"apps-open": ActionAppsOpen,

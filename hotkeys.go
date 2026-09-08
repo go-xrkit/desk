@@ -58,11 +58,6 @@ func DefaultShortcuts() []Shortcut {
 		// outside and "close" from inside does the wrong thing every time they
 		// have lost track. Up goes in and down comes out, which is also the
 		// direction the grid is in relative to the band.
-		// ⭐ RECENTRING IS THE ONE THING WANTED WITH THE GLASSES ON AND THE HANDS
-		// ELSEWHERE. Following the head drifts about a degree per journey, so the
-		// remedy has to be reachable without finding a menu -- and asked for by
-		// the person who tested it, in those words.
-		{hotkey.Combo{Key: hotkey.KeyR, Mods: mods | hotkey.Control}, ActionRecenter},
 		{hotkey.Combo{Key: hotkey.KeyF3, Mods: mods | hotkey.Control}, ActionGalleryOpen},
 		// ↑ shows the SCREENS, ↓ shows what is RUNNING on them.
 		//
@@ -217,6 +212,17 @@ func DefaultShortcuts() []Shortcut {
 		// and NAMES it on the picture, because muting a different microphone
 		// than the one somebody meant is worse than saying you cannot.
 		{hotkey.Combo{Key: hotkey.KeyF5, Mods: mods | hotkey.Control}, ActionMic},
+		// Recentring, wanted with the glasses on and the hands nowhere near a
+		// menu. Following the head drifts about a degree per journey, so the
+		// remedy has to be reachable blind -- asked for in those words by the
+		// person who first wore it.
+		//
+		// ⛔ AND LAST, NOT IN THE MIDDLE. The ladder hands out fallbacks in
+		// order, so an entry placed higher CONSUMES CANDIDATES the ones below it
+		// were going to be given -- put here first, it moved the gallery off its
+		// key, and a test said so. A shortcut added today does not get to
+		// displace one somebody already has.
+		{hotkey.Combo{Key: hotkey.KeyR, Mods: mods | hotkey.Control}, ActionRecenter},
 	}
 }
 
