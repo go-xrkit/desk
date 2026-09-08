@@ -7,6 +7,8 @@ package desk
 import (
 	"math"
 	"testing"
+
+	"github.com/go-widgets/toolkit"
 )
 
 // fakeHead stands in for a camera, because a test cannot arrange a room.
@@ -183,4 +185,155 @@ func TestANilSourceTurnsTheFeatureOff(t *testing.T) {
 		t.Error("head tracking stayed on with no source behind it")
 	}
 	d.Advance(0.02) // must not panic on the nil source
+}
+
+// TestEveryThingHeadTrackingSaysCanBeDrawn.
+//
+// ⛔⛔ THE BUILT-IN FONT HAS NO SEMICOLON, AND THIS CAUGHT ONE. "following your
+// head; the camera light is on" was written, compiled, passed every other test,
+// and would have appeared on somebody's glasses with a hole in the middle of it.
+// A rune with no glyph still ADVANCES -- the columns stay aligned and the letter
+// is simply absent -- so nothing about the layout gives it away either.
+//
+// The existing legibility test walks the settings window. These strings go to
+// the toast instead, which is drawn with the same font and was not covered.
+func TestEveryThingHeadTrackingSaysCanBeDrawn(t *testing.T) {
+	for _, s := range []string{
+		"Too dark to follow your head",
+		"no longer following your head",
+		"following your head, with the camera light on while it does",
+	} {
+		if bad := toolkit.BitmapMissing(s); len(bad) > 0 {
+			t.Errorf("%q cannot be drawn: the font has no %q", s, string(bad))
+		}
+	}
+}
+
+// standCamera replaces the seam that would otherwise open a real camera.
+func standCamera(t *testing.T, src HeadSource, err error) *int {
+	t.Helper()
+	closes := 0
+	was := openCameraHead
+	openCameraHead = func(string) (HeadSource, func() error, error) {
+		if err != nil {
+			return nil, nil, err
+		}
+		return src, func() error { closes++; return nil }, nil
+	}
+	t.Cleanup(func() { openCameraHead = was })
+	return &closes
+}
+
+// TestTheMenuRowOpensTheCameraAndPutsItAway.
+//
+// ⭐ THE CAMERA IS KEPT ONCE OPENED, AND CLOSED WHEN THE FEATURE GOES OFF. One
+// reopened per toggle would relearn the room each time, and the light would
+// flicker with the menu.
+func TestTheMenuRowOpensTheCameraAndPutsItAway(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true}
+	closes := standCamera(t, h, nil)
+
+	d.toggleFollowHead()
+	if !d.FollowingHead() {
+		t.Fatal("the row did not switch it on")
+	}
+	if *closes != 0 {
+		t.Errorf("the camera was closed %d times while still in use", *closes)
+	}
+	d.toggleFollowHead()
+	if d.FollowingHead() {
+		t.Error("the row did not switch it off")
+	}
+	if *closes != 1 {
+		t.Errorf("the camera was closed %d times, want once", *closes)
+	}
+}
+
+// TestARowThatCannotOpenACameraSaysWhy.
+//
+// ⛔⛔ THE COMMONEST FAILURE IN THE ROOM, and the one a silent menu row would
+// hide: a headset attached for its picture only, over a display cable, presents
+// no camera at all. Switching on must not report success with nothing behind it.
+func TestARowThatCannotOpenACameraSaysWhy(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	standCamera(t, nil, ErrNoRoomCamera)
+	d.toggleFollowHead()
+	if d.FollowingHead() {
+		t.Error("head tracking switched on with no camera behind it")
+	}
+}
+
+// TestOpeningTwiceKeepsTheFirstCamera: openHead is called on every switch-on,
+// and a second open would leak the first and relight the room for nothing.
+func TestOpeningTwiceKeepsTheFirstCamera(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	opens := 0
+	was := openCameraHead
+	openCameraHead = func(string) (HeadSource, func() error, error) {
+		opens++
+		return &fakeHead{ok: true}, func() error { return nil }, nil
+	}
+	t.Cleanup(func() { openCameraHead = was })
+
+	if err := d.openHead(); err != nil {
+		t.Fatalf("openHead: %v", err)
+	}
+	if err := d.openHead(); err != nil {
+		t.Fatalf("openHead twice: %v", err)
+	}
+	if opens != 1 {
+		t.Errorf("the camera was opened %d times, want once", opens)
+	}
+}
+
+// TestClosingWithNothingOpenIsHarmless, because the row can be switched off by
+// a desk that never managed to switch it on.
+func TestClosingWithNothingOpenIsHarmless(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.closeHead() // must not panic on the nil closer
+}
+
+// TestTheActionReachesTheCamera: the menu row goes through Do like every other,
+// and the handler runs OUTSIDE the lock because opening a camera is slow enough
+// to stall the frame loop.
+func TestTheActionReachesTheCamera(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	standCamera(t, &fakeHead{ok: true}, nil)
+	d.Do(ActionFollowHead)
+	if !d.FollowingHead() {
+		t.Error("ActionFollowHead did not reach the camera")
+	}
+	d.Do(ActionFollowHead)
+	if d.FollowingHead() {
+		t.Error("a second ActionFollowHead did not switch it off")
+	}
+}
+
+// TestTheActionHasAName, because a row with no name is a row nobody can be told
+// about when it fails.
+func TestTheActionHasAName(t *testing.T) {
+	if got := ActionFollowHead.String(); got == "" || got == "ActionFollowHead" {
+		t.Errorf("ActionFollowHead is called %q", got)
+	}
 }

@@ -162,6 +162,11 @@ func TrayRows() []TrayRow {
 		// Not a toggle: recentring is something that HAPPENS, not a state, and a
 		// tick on it would be a tick that never turns off.
 		{Title: "Put it back in front of me", Action: ActionRecenter, Symbol: "scope"},
+		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
+		// lit camera light for as long as it lasts, and a row that only promised
+		// the benefit would be a row that surprised somebody.
+		{Title: "Follow my head (camera on)", Action: ActionFollowHead,
+			Toggle: true, Symbol: "eye", SymbolOn: "eye.fill"},
 		{},
 		{Title: "Show the gallery", Action: ActionGalleryOpen, Symbol: "square.grid.3x3"},
 		{Title: "Leave the gallery", Action: ActionGalleryClose,

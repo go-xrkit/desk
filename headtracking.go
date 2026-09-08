@@ -43,6 +43,8 @@ type headTracking struct {
 	on bool
 	// lost is whether the desk is currently telling them it cannot see.
 	lost bool
+	// close puts away whatever is behind src, when there is anything.
+	close func() error
 }
 
 // FollowHead turns head tracking on or off.
@@ -116,4 +118,76 @@ func (d *Desk) followHead() {
 		return
 	}
 	d.nav.SetYaw(d.head.base + yaw)
+}
+
+// toggleFollowHead turns head tracking on, opening the camera the first time,
+// and off again.
+//
+// ⛔ OUTSIDE THE LOCK, like every handler that talks to hardware. Opening a
+// camera takes long enough to stall the frame loop, and a light coming on while
+// nothing can be drawn is the worst moment for it.
+//
+// ⭐ THE CAMERA IS KEPT ONCE OPENED, and closed when the feature goes off. A
+// tracker reopened on every toggle would relearn the room each time, and the
+// light would flicker with the menu.
+func (d *Desk) toggleFollowHead() {
+	if d.FollowingHead() {
+		d.FollowHead(false)
+		d.closeHead()
+		d.say("no longer following your head")
+		return
+	}
+	if err := d.openHead(); err != nil {
+		// ⛔ SAY WHY, rather than leaving a menu item that does nothing. The
+		// commonest reason is a headset plugged in for its picture only, which
+		// presents no camera at all.
+		d.say(err.Error())
+		return
+	}
+	d.FollowHead(true)
+	d.say("following your head, with the camera light on while it does")
+}
+
+// openCameraHead is the seam: the real one opens a camera, which a test cannot
+// arrange and must not need to.
+//
+// ⛔ THE COVERAGE GATE IS WHAT ASKED FOR IT, and it was right to. Three
+// functions here were reachable only with a headset plugged in, which means the
+// menu row nobody could test was also the menu row nobody could be sure of.
+var openCameraHead = func(display string) (HeadSource, func() error, error) {
+	h, err := OpenCameraHead(display)
+	if err != nil {
+		return nil, nil, err
+	}
+	return h, h.Close, nil
+}
+
+// openHead opens the headset camera if it is not already open.
+func (d *Desk) openHead() error {
+	d.mu.Lock()
+	already := d.head.src != nil
+	display := d.plan.Model
+	d.mu.Unlock()
+	if already {
+		return nil
+	}
+	h, closer, err := openCameraHead(display)
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	d.head.src, d.head.close = h, closer
+	d.mu.Unlock()
+	return nil
+}
+
+// closeHead puts the camera away and turns its light off.
+func (d *Desk) closeHead() {
+	d.mu.Lock()
+	closer := d.head.close
+	d.head.src, d.head.close = nil, nil
+	d.mu.Unlock()
+	if closer != nil {
+		_ = closer()
+	}
 }
