@@ -106,22 +106,48 @@ type damagedNames struct {
 	said map[string]time.Time
 }
 
-// report is what to log for this damage, or "" to say nothing this time. Every
-// occurrence is counted whether or not it is spoken.
-func (d *damagedNames) report(now time.Time, want, got string) string {
+// due counts an occurrence of key and says whether it is time to speak, and how
+// many there have been. Every occurrence is counted whether or not it is spoken.
+func (d *damagedNames) due(now time.Time, key string) (int, bool) {
 	if d.seen == nil {
 		d.seen, d.said = map[string]int{}, map[string]time.Time{}
 	}
-	key := want + "\x00->\x00" + got
 	d.seen[key]++
 	last, spoken := d.said[key]
 	if spoken && now.Sub(last) < damagedNameQuiet {
-		return ""
+		return d.seen[key], false
 	}
 	d.said[key] = now
-	if !spoken {
+	return d.seen[key], true
+}
+
+// report is what to log for this damage, or "" to say nothing this time.
+func (d *damagedNames) report(now time.Time, want, got string) string {
+	n, speak := d.due(now, want+"\x00->\x00"+got)
+	switch {
+	case !speak:
+		return ""
+	case n == 1:
 		return damagedNameReport(want, got)
 	}
 	return "⛔ the display name is STILL damaged: " + strconv.Quote(want) +
-		", seen " + strconv.Itoa(d.seen[key]) + " times now"
+		", seen " + strconv.Itoa(n) + " times now"
+}
+
+// reportOnce is the same throttle for a sentence that is already written: it
+// the first time, then a short line carrying the count.
+//
+// ⭐ IT EXISTS BECAUSE A SECOND CASE ARRIVED. An empty display list is a failed
+// read rather than an unplugged screen (displaylist.go); it repeats once a
+// second exactly as a damaged name does, and it needs the same treatment --
+// said, then counted -- rather than a second copy of this logic.
+func (d *damagedNames) reportOnce(now time.Time, key, msg string) string {
+	n, speak := d.due(now, key)
+	switch {
+	case !speak:
+		return ""
+	case n == 1:
+		return msg
+	}
+	return "⛔ " + key + " is STILL happening, seen " + strconv.Itoa(n) + " times now"
 }
