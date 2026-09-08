@@ -107,9 +107,35 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// angle to the one they are moving towards. Rotating by it brings that point
 	// of the chain to the middle of the view, which is what scrolling means.
 	//
-	// Panel 0 of the chain is always the FOCUSED screen, so the chain is rebuilt
+	// Panel 0 of the chain is the screen BEING LOOKED AT, so the chain is rebuilt
 	// around wherever the navigator says the desk is -- which is why nothing here
 	// needs the band to close, or the screens to be in any particular order on it.
+	//
+	// ⛔⛔ IT USED TO BE THE FOCUSED SCREEN, AND HEAD TRACKING BROKE THAT WITHOUT
+	// SAYING SO. It was true while the only thing that moved the band was a
+	// deliberate turn: the navigator eased to a screen and `toward` came back to
+	// zero. followHead sets the yaw and leaves the focus alone ON PURPOSE, so
+	// somebody who turns their head one screen to the right sits at toward = 1
+	// for as long as they look there -- and at toward = 1 the chain drew the
+	// wrong shape.
+	//
+	// ⭐ MEASURED, six screens at a splay of twenty degrees: the screen in front
+	// was centred but TURNED 23.6° AWAY, so its trapezoid ran x 92..1612 of 1920
+	// instead of filling the view, and the hinge to its neighbour landed at
+	// x 1612 -- inside the picture rather than at its edge. Reported in exactly
+	// those words: "l'angle de cintrage n'est pas au bon endroit et tombe a
+	// l'interieur de l'ecran en face". Further out it was worse: at toward = 2
+	// the screen was not even centred (x 420), because `turn` below extrapolates
+	// the FIRST step linearly and a chain's steps are not equal angles.
+	//
+	// Taking the whole screens off `toward` and giving them to `focus` leaves a
+	// residue in [-0.5, 0.5]: the panel in front is the one being looked at,
+	// square on when it is squarely looked at, and the extrapolation never runs
+	// beyond half a step. screenAt wraps, so a focus off either end is a screen.
+	whole := math.Round(toward)
+	focus += int(whole)
+	toward -= whole
+
 	next := 1
 	if toward < 0 {
 		next = -1

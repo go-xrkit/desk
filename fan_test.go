@@ -520,3 +520,49 @@ func TestTowardTakesTheShortWayRoundBothWays(t *testing.T) {
 		}
 	}
 }
+
+// TestTheScreenBeingLookedAtIsTheOneInFront pins the fix for a fold that landed
+// inside the picture.
+//
+// ⛔⛔ THE CHAIN USED TO BE BUILT AROUND THE FOCUSED SCREEN, and head tracking
+// decoupled the focus from where somebody is looking: followHead sets the yaw
+// and leaves the focus alone, so a head turned one screen to the right sits at
+// toward = 1 indefinitely. There the old chain drew the screen in front TURNED
+// 23.6° away -- x 92..1612 of 1920 rather than the whole view -- which put its
+// hinge at x 1612, inside the picture. Reported from the glasses as "l'angle de
+// cintrage n'est pas au bon endroit et tombe a l'interieur de l'ecran en face".
+//
+// ⭐ SO IT IS THE FULL WIDTH THAT IS ASSERTED, not merely which screen is drawn:
+// the old code centred the right screen and still drew it wrong, so a test that
+// only asked "which screen" would have passed throughout.
+func TestTheScreenBeingLookedAtIsTheOneInFront(t *testing.T) {
+	p := Plan{ScreenW: 1920, ScreenH: 1200, HFOVDeg: 45.6, VFOVDeg: 29.2}
+	p = p.WithScreens(6).WithSplay(20)
+	f, err := NewFan(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct {
+		toward float64
+		want   int
+	}{{-2, 4}, {-1, 5}, {0, 0}, {1, 1}, {2, 2}, {6, 0}} {
+		var got *Slant
+		for _, s := range f.Frame(nil, 0, c.toward) {
+			if s.Dst.W > 1 {
+				got = &s
+			}
+		}
+		if got == nil {
+			t.Fatalf("toward %+.0f: nothing drawn", c.toward)
+		}
+		if got.Screen != c.want {
+			t.Errorf("toward %+.0f: screen %d in front, want %d",
+				c.toward, got.Screen, c.want)
+		}
+		if got.Dst.X != 0 || got.Dst.W != p.ScreenW {
+			t.Errorf("toward %+.0f: screen %d spans x %d..%d, want the whole view 0..%d"+
+				" -- a screen squarely looked at is a screen squarely faced",
+				c.toward, got.Screen, got.Dst.X, got.Dst.X+got.Dst.W, p.ScreenW)
+		}
+	}
+}

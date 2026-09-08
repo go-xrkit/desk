@@ -4,7 +4,9 @@
 
 package desk
 
-import "github.com/go-xrkit/xrkit/ribbon"
+import (
+	"github.com/go-xrkit/xrkit/ribbon"
+)
 
 // HeadSource is where a head's yaw comes from, and the seam that keeps a camera
 // out of this file.
@@ -263,4 +265,20 @@ func (d *Desk) closeHead() {
 	if closer != nil {
 		_ = closer()
 	}
+}
+
+// curveBy turns every screen a little further towards the viewer, or a little
+// flatter. The caller holds the lock.
+//
+// ⭐ A STEPPER AT ITS STOP DOES NOTHING, QUIETLY. Nobody expects a volume key to
+// report anything at maximum; they expect it to stop. [Plan.WithSplay] clamps to
+// 0..[MaxSplayDeg], so a press past either end asks for the shape the desk is
+// already in -- and rebuilding the band, the gallery and the fan to arrive back
+// where it started is work nobody asked for, once per press, held.
+func (d *Desk) curveBy(deg float64) {
+	want := d.plan.WithSplay(d.plan.SplayDeg() + deg)
+	if want.SplayDeg() == d.plan.SplayDeg() {
+		return
+	}
+	d.err = d.reshape(want)
 }
