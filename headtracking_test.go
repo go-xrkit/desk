@@ -337,3 +337,137 @@ func TestTheActionHasAName(t *testing.T) {
 		t.Errorf("ActionFollowHead is called %q", got)
 	}
 }
+
+// TestTheKeyboardStillWorksWhileFollowingTheHead.
+//
+// ⛔⛔ IT DID NOT, AND THE FAILURE WAS THE WORST SHAPE ONE CAN HAVE. followHead
+// wrote the yaw every frame, which makes yaw and target equal, so Advance had
+// nothing left to ease and a keyboard turn never moved the picture. Measured:
+// the focus went from 0 to 1 while the view stayed exactly where it was --
+// AN ACTIVE SCREEN NOBODY IS LOOKING AT, with new windows opening on it.
+//
+// It was found by checking a remark rather than agreeing with it: "we still have
+// the keyboard" was an assumption, and it was false.
+func TestTheKeyboardStillWorksWhileFollowingTheHead(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true}
+	d.SetHeadSource(h)
+	d.FollowHead(true)
+	d.Advance(0.02)
+
+	was := d.Nav().Focus()
+	d.Nav().Next()
+	target := d.Nav().Target()
+	for range 60 {
+		d.Advance(0.02)
+	}
+	if d.Nav().Focus() == was {
+		t.Fatalf("the focus never left screen %d", was)
+	}
+	if got := d.Nav().Yaw(); math.Abs(got-target) > 1e-9 {
+		t.Errorf("the focus moved to %d but the view is at %v, not the %v it "+
+			"was sent to: that is an active screen nobody is looking at",
+			d.Nav().Focus(), got, target)
+	}
+}
+
+// TestTheHeadTakesOverAgainWhereTheKeyboardLeftOff.
+//
+// ⭐ THE ORIGIN MOVES WITH THE TURN. Without that, the first frame after a
+// keyboard move would apply the old offset and drag the view straight back to
+// where it came from -- a key that appears to work and then undoes itself.
+func TestTheHeadTakesOverAgainWhereTheKeyboardLeftOff(t *testing.T) {
+	p := stereoPlan(t)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true}
+	d.SetHeadSource(h)
+	d.FollowHead(true)
+	h.yaw = 0.3 // the head is not at its origin when the key is pressed
+	d.Advance(0.02)
+
+	d.Nav().Next()
+	for range 60 {
+		d.Advance(0.02)
+	}
+	landed := d.Nav().Yaw()
+	if h.recenters < 2 {
+		t.Errorf("the origin was retaken %d time(s): once for switching on, once "+
+			"for the turn landing", h.recenters)
+	}
+
+	// The head now moves a little from its new origin.
+	h.yaw = 0.1
+	d.Advance(0.02)
+	if got := d.Nav().Yaw(); math.Abs(got-(landed+0.1)) > 1e-9 {
+		t.Errorf("the head moved 0.1 from %v and the view went to %v", landed, got)
+	}
+}
+
+// TestSwitchingItOffGivesTheKeyboardBackExACTLY.
+//
+// ⭐ THE COMPARISON IS AGAINST A DESK THAT HAS NEVER HEARD OF A HEAD, not
+// against an idea of how the keyboard used to behave. Advance now calls
+// followHead on every frame of every desk, so "off" has to mean the same
+// numbers as "absent" -- and the only way to know that is to run both.
+func TestSwitchingItOffGivesTheKeyboardBackExACTLY(t *testing.T) {
+	turn := func(d *Desk) (int, float64) {
+		for range 3 {
+			d.Nav().Next()
+			for range 40 {
+				d.Advance(0.02)
+			}
+		}
+		d.Nav().Prev()
+		for range 40 {
+			d.Advance(0.02)
+		}
+		return d.Nav().Focus(), d.Nav().Yaw()
+	}
+
+	p := stereoPlan(t)
+	plain, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantFocus, wantYaw := turn(plain)
+
+	// The same desk, with a head source that was switched on and then off.
+	used, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &fakeHead{ok: true, yaw: 0.9}
+	used.SetHeadSource(h)
+	used.FollowHead(true)
+	used.Advance(0.02)
+	used.FollowHead(false)
+	used.Nav().SetYaw(plainStart(t, p))
+
+	gotFocus, gotYaw := turn(used)
+	if gotFocus != wantFocus {
+		t.Errorf("focus %d with head tracking switched off, %d on a desk without it",
+			gotFocus, wantFocus)
+	}
+	if math.Abs(gotYaw-wantYaw) > 1e-9 {
+		t.Errorf("yaw %v with head tracking switched off, %v on a desk without it",
+			gotYaw, wantYaw)
+	}
+}
+
+// plainStart is where a fresh desk's yaw sits, so the two can be compared from
+// the same place.
+func plainStart(t *testing.T, p Plan) float64 {
+	t.Helper()
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return d.Nav().Yaw()
+}

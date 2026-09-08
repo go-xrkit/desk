@@ -43,6 +43,9 @@ type headTracking struct {
 	on bool
 	// lost is whether the desk is currently telling them it cannot see.
 	lost bool
+	// landing is set while a deliberate turn is in flight, so that its arrival
+	// can move the head's origin to meet it.
+	landing bool
 	// close puts away whatever is behind src, when there is anything.
 	close func() error
 }
@@ -91,6 +94,26 @@ func (d *Desk) SetHeadSource(src HeadSource) {
 // [ribbon.Ribbon.Nearest] reconciles them where that is wanted.
 func (d *Desk) followHead() {
 	if !d.head.on || d.head.src == nil || d.nav.Mode() == ribbon.ModeGallery {
+		return
+	}
+	// ⛔⛔ A DELIBERATE TURN IS NOT FOUGHT. Next, Prev and GoTo set a target and
+	// let Advance ease towards it; writing the yaw every frame makes yaw and
+	// target equal, so the easing never runs and the keyboard appears dead --
+	// measured: the focus moved from 0 to 1 and the view did not move at all,
+	// which leaves an ACTIVE SCREEN NOBODY IS LOOKING AT and new windows opening
+	// on it. So the head stands aside while a turn is in flight.
+	if d.nav.Moving() {
+		d.head.landing = true
+		return
+	}
+	if d.head.landing {
+		// ⭐ AND THE ORIGIN MOVES WITH IT. The turn has arrived somewhere the
+		// head did not take it, so carrying on from the old offset would drag
+		// the view straight back. Here becomes zero, and the head continues
+		// from wherever the keyboard left off.
+		d.head.landing = false
+		d.head.src.Recenter()
+		d.head.base = d.nav.Yaw()
 		return
 	}
 	yaw, ok := d.head.src.Yaw()
