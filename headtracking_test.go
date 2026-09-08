@@ -21,9 +21,12 @@ type fakeHead struct {
 	recenters int
 }
 
-func (f *fakeHead) Yaw() (float64, bool) { return f.yaw, f.ok }
-func (f *fakeHead) Blind() int           { return f.blind }
-func (f *fakeHead) Recenter()            { f.recenters++; f.yaw = 0 }
+// ⭐ THE FAKE STILL HOLDS THE RAW CAMERA FACTS -- a usable flag and a run of
+// refused frames -- and turns them into a Sight through sightOf, the same
+// function the real camera uses. So the tests below go on exercising the
+// run-length rule end to end instead of asserting a state they set themselves.
+func (f *fakeHead) Yaw() (float64, Sight) { return f.yaw, sightOf(f.ok, f.blind) }
+func (f *fakeHead) Recenter()             { f.recenters++; f.yaw = 0 }
 
 // deskForHead builds the smallest desk these tests need.
 func deskForHead(t *testing.T) (*Desk, *fakeHead) {
@@ -729,5 +732,78 @@ func TestFlatteningStopsAtFlat(t *testing.T) {
 	}
 	if got := d.Plan().SplayDeg(); got != 0 {
 		t.Errorf("the splay bottomed out at %v, not flat", got)
+	}
+}
+
+// TestTheThreeSightsAreThreeAnswers.
+//
+// ⛔⛔ THE THIRD STATE USED TO LIVE IN A SEPARATE METHOD. Yaw returned a bool
+// and Blind() an int, so a caller had to remember to consult the second and
+// compare it against a constant to tell "one dark frame" from "a dark room".
+// It had exactly one caller, which did it correctly; nothing made it. And the
+// platform with no camera had to RETURN THE CONSTANT from Blind() to say "lost"
+// at all -- a number invented to encode a state the type would not hold.
+func TestTheThreeSightsAreThreeAnswers(t *testing.T) {
+	for _, c := range []struct {
+		used  bool
+		blind int
+		want  Sight
+	}{
+		{true, 0, SightSeen},
+		// ⭐ A USABLE FRAME IS SEEN WHATEVER THE RUN BEHIND IT: the count is
+		// what came before, and the answer is about this frame.
+		{true, blindEnoughToSaySo + 3, SightSeen},
+		{false, 1, SightBlinked},
+		{false, blindEnoughToSaySo - 1, SightBlinked},
+		{false, blindEnoughToSaySo, SightLost},
+		{false, blindEnoughToSaySo + 10, SightLost},
+	} {
+		if got := sightOf(c.used, c.blind); got != c.want {
+			t.Errorf("sightOf(%v, %d) = %v, want %v", c.used, c.blind, got, c.want)
+		}
+	}
+	// ⛔ AND THEY ARE DISTINCT VALUES. Two of them collapsing into one is
+	// exactly the defect this type exists to prevent, and it would otherwise
+	// pass every case above that does not name the pair.
+	if SightSeen == SightBlinked || SightBlinked == SightLost || SightSeen == SightLost {
+		t.Fatal("two of the three sights are the same value")
+	}
+	// Named, because a log line and a test failure both have to be readable
+	// without counting iota.
+	for s, want := range map[Sight]string{
+		SightSeen: "seen", SightBlinked: "blinked", SightLost: "lost",
+	} {
+		if got := s.String(); got != want {
+			t.Errorf("Sight(%d).String() = %q, want %q", int(s), got, want)
+		}
+	}
+	if got := Sight(9).String(); got != "Sight(9)" {
+		t.Errorf("an unknown Sight prints %q", got)
+	}
+}
+
+// ⭐ A BLINK DOES NOT SAY ANYTHING, AND A DARK ROOM DOES. The same fact the
+// interface now carries, exercised through the desk rather than the helper.
+func TestABlinkIsSilentAndADarkRoomIsNot(t *testing.T) {
+	d, h := deskForHead(t)
+	d.SetHeadSource(h)
+	d.FollowHead(true)
+
+	h.ok, h.blind = false, blindEnoughToSaySo-1
+	d.mu.Lock()
+	d.followHead()
+	lost := d.head.lost
+	d.mu.Unlock()
+	if lost {
+		t.Errorf("%d refused frames read as a dark room; that is a blink", h.blind)
+	}
+
+	h.blind = blindEnoughToSaySo
+	d.mu.Lock()
+	d.followHead()
+	lost = d.head.lost
+	d.mu.Unlock()
+	if !lost {
+		t.Errorf("%d refused frames in a row did not read as lost", h.blind)
 	}
 }

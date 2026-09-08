@@ -5,23 +5,62 @@
 package desk
 
 import (
+	"strconv"
+
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
+// Sight is what a head tracker could see of the frame it has just read.
+//
+// ⛔⛔ THREE STATES, AND THE TYPE CARRIES ALL THREE. This used to be a bool
+// beside the yaw, with the third state in a SEPARATE METHOD -- Blind() int --
+// that a caller had to remember to consult and compare against a constant. It
+// had exactly one caller, which did it correctly; nothing made it. And the
+// platform with no camera had to RETURN THE CONSTANT from Blind() to say "lost"
+// at all, which is a value invented to encode a state the type would not hold.
+//
+// It is the same collapse that cost two sessions on 2026-09-08 in two other
+// places: an empty display list read as a Mac with no screens
+// (displaylist.go), and a name damaged in memory read as an unplugged headset
+// (damagedname.go). Found, absent, and could-not-tell are three answers.
+type Sight int
+
+const (
+	// SightSeen: the frame was usable, and the yaw beside it means something.
+	SightSeen Sight = iota
+	// SightBlinked: this frame could not be used, and that is not news -- a
+	// blur, a hand across the lens, one dark frame in a lit room. The yaw
+	// means nothing and nothing is wrong.
+	//
+	// ⛔ IT IS NOT STILLNESS. "The head did not move" and "I could not see
+	// whether it moved" are the same number and opposite facts, and treating
+	// the second as the first is what makes a desk drift silently instead of
+	// saying it is lost.
+	SightBlinked
+	// SightLost: enough frames in a row could not be used to say so out loud.
+	SightLost
+)
+
+// String names a Sight, for a log line and for a test failure that has to be
+// readable without counting iota.
+func (s Sight) String() string {
+	switch s {
+	case SightSeen:
+		return "seen"
+	case SightBlinked:
+		return "blinked"
+	case SightLost:
+		return "lost"
+	}
+	return "Sight(" + strconv.Itoa(int(s)) + ")"
+}
+
 // HeadSource is where a head's yaw comes from, and the seam that keeps a camera
 // out of this file.
-//
-// ⛔ ok IS NOT "THE HEAD DID NOT MOVE". It means this could not see whether it
-// did -- a dark room, a blank wall, a scene that changed entirely. The two are
-// the same number and opposite facts, and treating a blind moment as stillness
-// is what makes a desk drift silently instead of saying it is lost.
 type HeadSource interface {
 	// Yaw is radians since the source was last recentred, positive to the
-	// right, and whether the latest frame could be used at all.
-	Yaw() (float64, bool)
-	// Blind is how many frames in a row could not be used. One or two is a
-	// blur; a steady count is a room with nothing to see in it.
-	Blind() int
+	// right, and what the source could see of the frame it read.
+	Yaw() (float64, Sight)
 	// Recenter makes the current view the source's origin.
 	Recenter()
 }
@@ -33,6 +72,23 @@ type HeadSource interface {
 // second of not being able to see, which is longer than a blink past a blank
 // wall and far shorter than somebody would sit wondering why nothing moves.
 const blindEnoughToSaySo = 5
+
+// sightOf is the one place that decides how long a blink lasts, from whether
+// the latest frame was usable and how many in a row were not.
+//
+// ⭐ ONE IMPLEMENTATION, NOT ONE PER SOURCE. Handing every tracker the run
+// length to apply for itself would be handing each of them a chance to disagree
+// about what "lost" means, and a desk that says it is lost at different moments
+// depending on which camera is plugged in is a desk nobody can describe.
+func sightOf(used bool, blind int) Sight {
+	switch {
+	case used:
+		return SightSeen
+	case blind >= blindEnoughToSaySo:
+		return SightLost
+	}
+	return SightBlinked
+}
 
 // headTracking is the desk's side of a head tracker: where the yaw was when it
 // was switched on, and what it has been told since.
@@ -168,13 +224,13 @@ func (d *Desk) followHead() {
 		d.head.base = d.nav.Yaw()
 		return
 	}
-	yaw, ok := d.head.src.Yaw()
-	if !ok {
+	yaw, sight := d.head.src.Yaw()
+	if sight != SightSeen {
 		// ⛔ THE VIEW STAYS WHERE IT WAS. Not moving is the only honest thing to
 		// do with no information, and it is also what looks right: a picture
 		// that held still while somebody moved reads as a lost tracker, while
 		// one that snapped home reads as a broken desk.
-		if !d.head.lost && d.head.src.Blind() >= blindEnoughToSaySo {
+		if sight == SightLost && !d.head.lost {
 			d.head.lost = true
 			// ⛔ notice.say, NOT d.say: that one takes the lock this already
 			// holds, and the deadlock would be a desk that stops the moment

@@ -21,11 +21,9 @@ type CameraHead struct{}
 // OpenCameraHead refuses on platforms with no camera support.
 func OpenCameraHead(string) (*CameraHead, error) { return nil, ErrNoCameraHead }
 
-// Yaw never moves, and says so.
-func (h *CameraHead) Yaw() (float64, bool) { return 0, false }
-
-// Blind is large enough that a caller treats it as lost rather than as a blink.
-func (h *CameraHead) Blind() int { return blindEnoughToSaySo }
+// Yaw never moves, and says so -- LOST rather than blinked, because a platform
+// with no camera is not going to see one in a moment.
+func (h *CameraHead) Yaw() (float64, Sight) { return 0, SightLost }
 
 // Recenter has nothing to recentre.
 func (h *CameraHead) Recenter() {}
