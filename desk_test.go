@@ -14,6 +14,7 @@ import (
 	"github.com/go-macos/hotkey"
 	"github.com/go-xrkit/xrkit/glasses"
 	"github.com/go-xrkit/xrkit/ribbon"
+	"github.com/go-xrkit/xrkit/stereo"
 )
 
 // fakeFeed is a screen filled with one colour, so a pixel in the panorama says
@@ -1459,5 +1460,79 @@ func TestAPictureSaysWhichRendererDrewIt(t *testing.T) {
 	// And on a real one the position is a number somebody can read.
 	if got := d.towardNow(); got != got || got > 1e9 || got < -1e9 {
 		t.Errorf("towardNow() = %v", got)
+	}
+}
+
+// TestACaptureNamesWhichScreenIsWhere.
+//
+// ⛔⛔ A PICTURE AND A COMPUTATION DISAGREED AND NEITHER COULD BE CHECKED
+// AGAINST THE OTHER. A capture taken at "focus 0, -0.53 screens along" showed
+// this Mac's own screen -- unmistakable, it carries the menu bar -- on the LEFT.
+// Rendering the same state with synthetic screens put that ribbon position on
+// the RIGHT. Two pictures of one state, and nothing said which screen the
+// renderer thought it was drawing where.
+func TestACaptureNamesWhichScreenIsWhere(t *testing.T) {
+	p := testPlan(t).WithSplay(30)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	defer func() { _ = d.Close() }()
+	d.Render()
+
+	got := d.bandsNow()
+	if !strings.Contains(got, "screen ") || !strings.Contains(got, " at x ") {
+		t.Errorf("bandsNow() = %q, want it to name screens and their stretches", got)
+	}
+	// ⭐ THE NUMBERS ARE THE ONES A PERSON READS, so screen 1 is the first
+	// position and not the zeroth: every other line the desk prints counts from
+	// one, and a diagnostic that counts differently is a diagnostic that misleads.
+
+	if strings.Contains(got, "screen 0 ") {
+		t.Errorf("bandsNow() counts from zero: %q", got)
+	}
+
+	// The flat band draws through blits and leaves no slants, and says so rather
+	// than reporting an empty band.
+	flat := testPlan(t).WithSplay(0)
+	f, err := New(flat, feedsFor(flat))
+	if err != nil {
+		t.Fatalf("New flat = %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	f.Render()
+	if got := f.bandsNow(); !strings.Contains(got, "flat band") {
+		t.Errorf("the flat band's bands read %q", got)
+	}
+}
+
+// ⭐ A PANEL CLIPPED TO NOTHING IS NOT A BAND. At the edge of the canvas the
+// band leaves a panel one column wide: that says where the picture ENDS, not
+// what is on it, and listing it would put a screen in the report nobody can
+// see. Driven directly, because arranging the clip through a real frame depends
+// on how many screens happen to be on the band.
+func TestBandsNowSkipsAPanelClippedToAColumn(t *testing.T) {
+	p := testPlan(t).WithSplay(30)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	defer func() { _ = d.Close() }()
+
+	d.mu.Lock()
+	d.slants = []Slant{
+		{Screen: 4, Dst: stereo.Rect{X: 0, Y: 0, W: 1, H: 1080}},
+		{Screen: 0, Dst: stereo.Rect{X: 0, Y: 0, W: 960, H: 1080}},
+		{Screen: 1, Dst: stereo.Rect{X: 960, Y: 0, W: 960, H: 1080}},
+	}
+	d.mu.Unlock()
+
+	got := d.bandsNow()
+	if strings.Contains(got, "screen 5") {
+		t.Errorf("bandsNow() = %q, and it lists a panel one column wide", got)
+	}
+	if !strings.Contains(got, "screen 1 at x 0..960") ||
+		!strings.Contains(got, "screen 2 at x 960..1920") {
+		t.Errorf("bandsNow() = %q, want both visible bands with their stretches", got)
 	}
 }
