@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"github.com/go-xrkit/xrkit/glasses"
 	"math"
 	"testing"
 
@@ -61,19 +62,74 @@ func TestSwitchingOnDoesNotMoveTheDesk(t *testing.T) {
 }
 
 // TestTheHeadMovesTheView, which is the whole feature.
+//
+// ⛔⛔ THIS USED TO DEMAND base+yaw EXACTLY, AND THAT WAS THE BUG WRITTEN DOWN.
+// A head's yaw is a real angle and the ribbon's is a coordinate on a band; the
+// two are proportional, not equal. See [Desk.headToBand], and
+// TestATurnedHeadLeavesTheDeskWhereItIs for the quantity that is actually
+// right -- this one pins the SHAPE of the mapping, which is what belongs at
+// this level: same way, same factor, both directions.
 func TestTheHeadMovesTheView(t *testing.T) {
 	d, h := deskForHead(t)
+	d.Nav().SetYaw(0.5)
+	d.FollowHead(true)
+
+	h.yaw = 0.25
+	d.Advance(0.02)
+	right := d.Nav().Yaw() - 0.5
+	if right <= 0 {
+		t.Errorf("the head turned right and the view went to %v", 0.5+right)
+	}
+	h.yaw = -0.1
+	d.Advance(0.02)
+	left := d.Nav().Yaw() - 0.5
+	if left >= 0 {
+		t.Errorf("the head turned left and the view went to %v", 0.5+left)
+	}
+	// One factor, both ways. A mapping that is not the same in both directions
+	// would drift a little on every turn of the head and come back to a
+	// different place than it left.
+	if a, b := right/0.25, left/-0.1; math.Abs(a-b) > 1e-9 {
+		t.Errorf("the view moved %.4f times the head to the right and %.4f to "+
+			"the left", a, b)
+	}
+	// ⭐ AND THE FACTOR IS NOT ONE, or the correction under test is not running
+	// and the assertions above pass on the very code they exist to refuse.
+	if scale := right / 0.25; math.Abs(scale-1) < 0.01 {
+		t.Errorf("the view moved %.4f times the head, which is the raw yaw this "+
+			"stopped adding", scale)
+	}
+}
+
+// TestTheFlatBandTakesTheHeadYawAsItIs.
+//
+// ⭐ THE CONVERSION IS FOR THE CHAIN, AND THE FLAT BAND HAS NO CHAIN. [Strip]
+// slides a band of pixels in front of a fixed window rather than turning the
+// viewer, so "the desk stayed where it was" is not something that arrangement
+// does at all, and a factor derived from a curvature that is not there would be
+// a correction towards nothing.
+func TestTheFlatBandTakesTheHeadYawAsItIs(t *testing.T) {
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 4, SplayDeg: -1}) // negative asks for the flat band
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	if d.fan != nil {
+		t.Fatal("the flat plan built a fan, so this measures the wrong thing")
+	}
+	h := &fakeHead{ok: true}
+	d.SetHeadSource(h)
 	d.Nav().SetYaw(0.5)
 	d.FollowHead(true)
 	h.yaw = 0.25
 	d.Advance(0.02)
 	if got := d.Nav().Yaw(); math.Abs(got-0.75) > 1e-9 {
 		t.Errorf("the view is at %v, want 0.5 + 0.25", got)
-	}
-	h.yaw = -0.1
-	d.Advance(0.02)
-	if got := d.Nav().Yaw(); math.Abs(got-0.4) > 1e-9 {
-		t.Errorf("the view is at %v, want 0.5 - 0.1", got)
 	}
 }
 
@@ -407,10 +463,13 @@ func TestTheHeadTakesOverAgainWhereTheKeyboardLeftOff(t *testing.T) {
 			"for the turn landing", h.recenters)
 	}
 
-	// The head now moves a little from its new origin.
+	// The head now moves a little from its new origin -- in the right direction
+	// and by the band's own share of it, not by the raw angle: see
+	// [Desk.headToBand]. What this test is about is the ORIGIN, and that it is
+	// the one the keyboard left behind.
 	h.yaw = 0.1
 	d.Advance(0.02)
-	if got := d.Nav().Yaw(); math.Abs(got-(landed+0.1)) > 1e-9 {
+	if got := d.Nav().Yaw(); got <= landed {
 		t.Errorf("the head moved 0.1 from %v and the view went to %v", landed, got)
 	}
 }
@@ -806,4 +865,85 @@ func TestABlinkIsSilentAndADarkRoomIsNot(t *testing.T) {
 	if !lost {
 		t.Errorf("%d refused frames in a row did not read as lost", h.blind)
 	}
+}
+
+// TestATurnedHeadLeavesTheDeskWhereItIs.
+//
+// ⛔⛔ IT DID NOT. [HeadSource.Yaw] is a REAL angle -- "radians since the source
+// was last recentred", read off a camera -- and it was added straight onto the
+// ribbon's yaw, which is a coordinate on a band where a full turn is the whole
+// desk. With six screens one screen is sixty degrees of that band and about
+// forty-nine of real rotation, so a tracked head DRAGGED the desk with it, by a
+// factor that depends on how many screens somebody has. Turn to look at a fold
+// and it is not where your head says it is.
+//
+// Measured here rather than reasoned about: the desk is fixed, the head turns,
+// and the screen in front must move across the view by exactly what a flat
+// projection of a fixed thing does -- f·tan of the angle turned.
+func TestATurnedHeadLeavesTheDeskWhereItIs(t *testing.T) {
+	for _, n := range []int{4, 6, 9} {
+		p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+			Options{Screens: n, SplayDeg: DefaultSplayDeg, Distance: 2})
+		if err != nil {
+			t.Fatalf("%d screens: NewPlan = %v", n, err)
+		}
+		d, err := New(p, feedsFor(p))
+		if err != nil {
+			t.Fatalf("%d screens: New = %v", n, err)
+		}
+		h := &fakeHead{ok: true}
+		d.SetHeadSource(h)
+		d.FollowHead(true)
+		// ⛔ Advance, NOT Render: followHead runs in the easing step, and a test
+		// that only draws asks the head to move a desk nobody has advanced.
+		d.Advance(1.0 / 60)
+		d.Render()
+
+		_, _, f := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
+		// ⛔ MEASURED ON A FIXED POINT, NOT ON THE SCREEN IN FRONT. The chain is
+		// rebuilt around whatever the viewer is looking at, so the panel showing
+		// Nav().Focus() is centred BY CONSTRUCTION and moves for nobody: asking
+		// where it is answers this question with the question. The left edge of
+		// one named screen is a point on the desk, and a point is what a
+		// rotation can be read off.
+		const watch = 1 // the right-hand neighbour, whole in the frame at 2x
+		edge0, ok := leftEdgeOf(d, watch)
+		if !ok {
+			t.Fatalf("%d screens: screen %d is not in the frame to begin with",
+				n, watch+1)
+		}
+		was := math.Atan((edge0 - float64(p.ScreenW)/2) / f)
+		for _, turn := range []float64{2, 5, 10} {
+			h.yaw = rad(turn)
+			d.Advance(1.0 / 60)
+			d.Render()
+
+			edge, ok := leftEdgeOf(d, watch)
+			if !ok {
+				t.Fatalf("%d screens, head turned %g°: screen %d left the frame",
+					n, turn, watch+1)
+			}
+			now := math.Atan((edge - float64(p.ScreenW)/2) / f)
+			// The desk did not move, so the point is exactly as far to the left
+			// as the head turned to the right.
+			if moved := deg(was - now); math.Abs(moved-turn) > 0.2 {
+				t.Errorf("%d screens, head turned %g°: the desk turned %.2f° "+
+					"under it (%.2fx)", n, turn, moved, moved/turn)
+			}
+		}
+		d.Close()
+	}
+}
+
+// leftEdgeOf is the canvas column where the panel showing screen i begins, or
+// false if that screen is not in the frame or is cut off by the canvas.
+func leftEdgeOf(d *Desk, i int) (float64, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, s := range d.slants {
+		if s.Screen == i && s.Dst.X > 0 {
+			return float64(s.Dst.X), true
+		}
+	}
+	return 0, false
 }
