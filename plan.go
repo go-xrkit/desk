@@ -277,10 +277,22 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	default:
 		plan = plan.WithSplay(opts.SplayDeg)
 	case opts.SplayDeg == 0:
-		// ⭐ DERIVED, NOT CHOSEN. Nobody said, so the plan gets the angle at which
-		// its neighbours actually face the viewer -- which depends on the eye and
-		// on the distance, and so was never a constant. See [Plan.FacingSplayDeg].
-		plan = plan.WithSplay(plan.FacingSplayDeg())
+		// ⛔⛔ THE DERIVED ANGLE WAS TRIED HERE AND TAKEN BACK OUT, at the request
+		// of the person wearing it: "en gros il faut remettre ce qu'on avait avant
+		// que je signale ce problème".
+		//
+		// [Plan.FacingSplayDeg] is the angle at which each neighbour EXACTLY faces
+		// the viewer -- 51.6° on a Beast -- and it is therefore the STRONGEST
+		// curvature that has a geometric meaning, not the most comfortable one.
+		// Worn, it reads as a deep crease with heavily stretched outer edges,
+		// because a rectilinear projection magnifies everything off-axis: a screen
+		// 1920 pixels wide square-on came out 917.
+		//
+		// So the default is a chosen twenty degrees again, and the derivation
+		// stays available as a method for anybody who wants the strong version.
+		// A number that is principled is not thereby pleasant, and the person
+		// looking through the glasses is the only instrument for that.
+		plan = plan.WithSplay(DefaultSplayDeg)
 	}
 
 	// There is no panorama any more, and so nothing here to size. The screens
@@ -543,10 +555,19 @@ func (p Plan) FacingSplayDeg() float64 {
 		return DefaultSplayDeg
 	}
 	hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
+	gap := slantGap(hw, p.ScreenW)
 	d := p.Distance()
 	s := 0.0
 	for range 24 {
-		next := deg(math.Atan2(hw*(1+math.Cos(rad(s))), d-hw*math.Sin(rad(s))))
+		// Where the centre of panel 1 is: the fold, then the panel's own extent
+		// along its own direction, with half the gap in each panel's plane --
+		// which is exactly what [slantChain] walks. ⛔ THE GAP BELONGS IN THE
+		// FIXED POINT TOO: left out, the derived angle missed facing the viewer
+		// by 0.84°, and only the test that pins the derivation caught it.
+		a := rad(s)
+		next := deg(math.Atan2(
+			hw*(1+math.Cos(a))+gap*math.Cos(a/2),
+			d-hw*math.Sin(a)-gap*math.Sin(a/2)))
 		if math.Abs(next-s) < 1e-9 {
 			s = next
 			break

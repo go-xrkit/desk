@@ -6,6 +6,7 @@ package desk
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -400,19 +401,24 @@ func TestPlanSplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// ⛔⛔ THIS USED TO DEMAND DefaultSplayDeg, AND A PICTURE SETTLED IT. Twenty
-	// degrees is a chosen number: on these optics the neighbouring screens miss
-	// facing the viewer by 28.3°, and a synthetic render of the fold between two
-	// screens came out lopsided instead of the symmetric V a desk of monitors
-	// makes. A plan nobody splayed now gets the angle DERIVED from its own eye
-	// and its own distance. See Plan.FacingSplayDeg.
-	if want := p.FacingSplayDeg(); p.SplayDeg() != want {
-		t.Errorf("a plan nobody splayed is %g, want the derived %g", p.SplayDeg(), want)
+	// ⛔⛔ THIS HAS BEEN BOTH WAYS AND THE WEARER SETTLED IT. It demanded
+	// DefaultSplayDeg, then for a while the DERIVED angle -- Plan.FacingSplayDeg,
+	// the curvature at which each neighbour exactly faces you, 51.6° on these
+	// optics. That is the strongest curvature with a geometric meaning, which is
+	// not the same as a comfortable one: worn, it reads as a deep crease, and a
+	// screen 1920 pixels wide square-on came out 917. Reported as "en gros il
+	// faut remettre ce qu'on avait avant que je signale ce problème".
+	//
+	// So a plan nobody splayed is twenty degrees, a chosen number, and the
+	// derivation stays a method for whoever wants the strong version.
+	if p.SplayDeg() != DefaultSplayDeg {
+		t.Errorf("a plan nobody splayed is %g, want %g", p.SplayDeg(), DefaultSplayDeg)
 	}
-	// ⭐ AND IT IS NOT THE FALLBACK BY ACCIDENT: if the derivation quietly gave
-	// up and returned the constant, the assertion above would pass having proved
-	// nothing.
-	if p.SplayDeg() == DefaultSplayDeg {
+	// ⭐ AND THE DERIVATION IS STILL NOT THE FALLBACK IN DISGUISE: it is exercised
+	// by TestTheDerivedSplayMakesTheNeighbourFaceYou, and a derivation that
+	// quietly gave up and returned the constant would make that test pass having
+	// proved nothing.
+	if p.FacingSplayDeg() == DefaultSplayDeg {
 		t.Errorf("the derived angle is exactly the fallback %g; nothing was derived",
 			DefaultSplayDeg)
 	}
@@ -540,7 +546,7 @@ func TestTheDerivedSplayMakesTheNeighbourFaceYou(t *testing.T) {
 		s := p.FacingSplayDeg()
 		p = p.WithSplay(s)
 		hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
-		lx, lz, rx, rz := slantChain(1, p.SplayDeg(), hw, p.Distance(), 0)
+		lx, lz, rx, rz := slantChain(1, p.SplayDeg(), hw, gapOf(p), p.Distance(), 0)
 		sight := math.Atan2((lx+rx)/2, (lz+rz)/2)
 		surf := math.Atan2(rx-lx, rz-lz)
 		if miss := deg(surf-sight) - 90; math.Abs(miss) > 0.05 {
@@ -550,7 +556,7 @@ func TestTheDerivedSplayMakesTheNeighbourFaceYou(t *testing.T) {
 		// ⛔ AND THE OLD CONSTANT MISSES BADLY, which is what makes the assertion
 		// above worth making rather than a tautology.
 		q := p.WithSplay(DefaultSplayDeg)
-		lx, lz, rx, rz = slantChain(1, q.SplayDeg(), hw, q.Distance(), 0)
+		lx, lz, rx, rz = slantChain(1, q.SplayDeg(), hw, gapOf(q), q.Distance(), 0)
 		sight = math.Atan2((lx+rx)/2, (lz+rz)/2)
 		surf = math.Atan2(rx-lx, rz-lz)
 		if miss := deg(surf-sight) - 90; math.Abs(miss) < 5 {
@@ -560,15 +566,41 @@ func TestTheDerivedSplayMakesTheNeighbourFaceYou(t *testing.T) {
 	}
 }
 
-// ⭐ AT DISTANCE ONE THE ANSWER IS THE FIELD OF VIEW ITSELF, exactly. One screen
-// fills the eye there, so the next one sits one field away and has to be turned
-// by one field to face you. It is a check on the derivation rather than a
-// separate rule: a fixed point that landed anywhere else would be wrong.
+// ⭐ AT DISTANCE ONE THE ANSWER IS THE FIELD OF VIEW, PLUS THE GAP, in closed
+// form -- and the closed form is an independent check on the iteration rather
+// than a restatement of it.
+//
+// The reason there is one at all: when every panel faces the viewer, the viewer
+// is on each panel's perpendicular bisector, so both of its corners are the same
+// distance away -- and since consecutive panels share a fold, EVERY corner of
+// the chain is on one circle, of radius sec(fov/2) at distance one. The panels
+// are then equal chords of that circle, each subtending the field of view
+// exactly, and the gaps are the chords between them.
+//
+// ⭐⭐ WHICH IS ALSO WHY THE GAP GOES ON THE BISECTOR. A chord leaving a point of
+// a circle makes the same angle with the chord arriving there as half its own
+// arc, so the chord of the gap lies at half the splay from the panel -- the
+// bisector of the fold, which is where [slantChain] puts it, arrived at
+// independently from a demand for left-right symmetry.
+//
+// So the splay is one panel's arc plus one gap's arc: fov + 2·asin(g/2R). It was
+// the fov exactly while the panels were jointive, and that identity is the
+// ancestor of this one.
 func TestTheDerivedSplayAtDistanceOneIsTheFieldOfView(t *testing.T) {
 	for _, fov := range []float64{30, 40, 45.6, 51.57, 55} {
 		p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: fov}.WithScreens(6)
-		if got := p.FacingSplayDeg(); math.Abs(got-fov) > 1e-6 {
-			t.Errorf("fov %g at distance 1: derived %g, want the fov itself", fov, got)
+		hw := math.Tan(rad(fov) / 2)
+		r := math.Hypot(hw, 1)
+		g := 2 * hw * float64(DefaultGapPx) / 1920
+		want := fov + 2*deg(math.Asin(g/(2*r)))
+		if got := p.FacingSplayDeg(); math.Abs(got-want) > 1e-9 {
+			t.Errorf("fov %g at distance 1: derived %g, want %g (the fov plus %g "+
+				"for the gap)", fov, got, want, want-fov)
+		}
+		// And the gap really is what separates the two, rather than a term small
+		// enough to hide a mistake in: it is worth about a degree here.
+		if want-fov < 0.5 || want-fov > 2 {
+			t.Errorf("fov %g: the gap is worth %g°, which is not a gap", fov, want-fov)
 		}
 	}
 	// Pushed back, the neighbour subtends less and wants less turning.
@@ -618,7 +650,11 @@ func TestThePlanSaysItsShape(t *testing.T) {
 	p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 51.57}.WithScreens(6)
 	p = p.WithSplay(p.FacingSplayDeg())
 	s := p.String()
-	for _, want := range []string{"curved", "51.6°", "1.00x"} {
+	// ⛔ THE ANGLE IS ASKED OF THE PLAN, NOT WRITTEN DOWN HERE. A literal was,
+	// and the geometry moved under it twice: what this test is for is that the
+	// line NAMES the curvature to one decimal, not that the curvature is any
+	// particular number.
+	for _, want := range []string{"curved", fmt.Sprintf("%.1f°", p.SplayDeg()), "1.00x"} {
 		if !strings.Contains(s, want) {
 			t.Errorf("%q does not contain %q", s, want)
 		}
@@ -654,7 +690,7 @@ func TestTheDistancesAreNotEqualAndTheDocumentationSaysSo(t *testing.T) {
 
 	lo, hi := math.Inf(1), math.Inf(-1)
 	for j := -1; j <= 1; j++ {
-		_, lz, _, rz := slantChain(j, p.SplayDeg(), hw, p.Distance(), 0)
+		_, lz, _, rz := slantChain(j, p.SplayDeg(), hw, gapOf(p), p.Distance(), 0)
 		for _, z := range []float64{lz, rz} {
 			// A panel behind the viewer has no depth worth comparing; slantOf
 			// refuses it, and the band never shows it.
@@ -671,7 +707,7 @@ func TestTheDistancesAreNotEqualAndTheDocumentationSaysSo(t *testing.T) {
 	}
 	// ⭐ AND THE FLAT BAND REALLY IS FLAT, which is the one state where the two
 	// geometries must agree and the only anchor that makes either verifiable.
-	_, lz, _, rz := slantChain(0, 0, hw, p.Distance(), 0)
+	_, lz, _, rz := slantChain(0, 0, hw, gapOf(p), p.Distance(), 0)
 	if math.Abs(lz-rz) > 1e-12 {
 		t.Errorf("at a splay of nothing the edges are at %.12f and %.12f, want "+
 			"the same depth: the flat band is what the whole chain is checked against",
