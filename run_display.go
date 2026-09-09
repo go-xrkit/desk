@@ -384,8 +384,8 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// anywhere said which was which, so the pictures could be compared and
 		// not explained. A photograph taken to settle a geometry has to record
 		// the geometry it was taken in.
-		logf("  taken with the %s, %s, focus %d, %.2f screens along",
-			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow())
+		logf("  taken with the %s, %s, focus %d, %.2f screens along; %s",
+			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow(), d.bandsNow())
 		select {
 		case pictureSaid <- msg:
 		default:

@@ -7,6 +7,7 @@ package desk
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/go-widgets/toolkit"
@@ -1988,4 +1989,38 @@ func (d *Desk) towardNow() float64 {
 		return 0
 	}
 	return d.strip.Toward(d.nav.Yaw(), d.nav.Focus())
+}
+
+// bandsNow is which screen occupies which stretch of the picture, left to
+// right, as the last frame drew them.
+//
+// ⛔⛔ IT EXISTS BECAUSE A PICTURE AND A COMPUTATION DISAGREED AND NEITHER COULD
+// BE CHECKED AGAINST THE OTHER. A capture taken at "focus 0, -0.53 screens
+// along" showed this Mac's own screen -- unmistakable, it carries the menu bar
+// -- on the LEFT. Rendering the very same state with synthetic screens put that
+// same ribbon position on the RIGHT, and gave a symmetric fold where the capture
+// had a lopsided one. Two pictures of one state, and no way to tell which screen
+// the renderer thought it was drawing where.
+//
+// So the capture says. A photograph that names its subject can be argued with; a
+// photograph that does not can only be stared at.
+func (d *Desk) bandsNow() string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	var b strings.Builder
+	for _, s := range d.slants {
+		// One column wide is a panel clipped to nothing at the edge of the
+		// canvas, which says where the band runs off and not what is on it.
+		if s.Dst.W <= 1 {
+			continue
+		}
+		if b.Len() > 0 {
+			b.WriteString(", ")
+		}
+		fmt.Fprintf(&b, "screen %d at x %d..%d", s.Screen+1, s.Dst.X, s.Dst.X+s.Dst.W)
+	}
+	if b.Len() == 0 {
+		return "no turned panels (the flat band draws in blits, not slants)"
+	}
+	return b.String()
 }
