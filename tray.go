@@ -165,8 +165,21 @@ func TrayRows() []TrayRow {
 		// ⭐ THE CURVE, ASKED FOR AT THE GLASSES. On a flat band the screens off to
 		// the side recede -- a plane seen obliquely is further away -- and the
 		// further the head turns the worse it gets. Turning each screen towards
-		// the viewer keeps them all at one distance. The actions existed and were
+		// the viewer faces it at you instead. The actions existed and were
 		// reachable from nowhere.
+		//
+		// ⛔⛔ IT DOES NOT PUT THEM ALL AT ONE DISTANCE, WHICH IS WHAT THIS
+		// COMMENT USED TO CLAIM -- and believing it cost three days of hunting a
+		// defect that was not there. Measured at the derived splay, six screens,
+		// 51.57° per eye: the panel edges sit between 0.667 and 1.110, a 66%
+		// spread. The panels tile edge to edge, so the chain is a polygon whose
+		// size is fixed by how wide a screen is, and the viewer is not at its
+		// centre.
+		//
+		// ⭐ AND THAT IS A CHOICE RATHER THAN A DEFECT: with tiling panels you may
+		// have any two of {a free curvature dial, tiling, equal distance} and
+		// never all three. The dial and the tiling are the two kept, decided
+		// after the spread was measured. See [Plan.FacingSplayDeg].
 		//
 		// ⛔⛔ AND THEY ARE STEPS, WHICH THE FIRST NAMES DENIED. These were
 		// "Curve the screens towards me" and "Flatten the screens" -- both
