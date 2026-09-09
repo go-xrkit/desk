@@ -137,9 +137,18 @@ type RunOptions struct {
 	Showing func() []uint64
 
 	// Snapshot, when set, is handed the first frame actually drawn — the picture
-	// the glasses were shown. It is written by the caller, so this package never
-	// decides where a capture of somebody's screens lands.
-	Snapshot func(pix []byte, w, h int) (string, error)
+	// the glasses were shown, and a note saying what the desk was doing when it
+	// was drawn. It is written by the caller, so this package never decides where
+	// a capture of somebody's screens lands.
+	//
+	// ⛔⛔ THE NOTE IS AN ARGUMENT RATHER THAN A LOG LINE, and that is the whole
+	// point of it. It used to be printed: which renderer, which plan, which
+	// screen in front, how far along, and which screen occupied which band of x.
+	// The application is launched with `open`, so its standard error goes
+	// NOWHERE -- three captures were compared without any of it, and the state
+	// they were taken in had to be guessed from the pixels. A photograph taken to
+	// settle a geometry has to CARRY the geometry, not point at a stream.
+	Snapshot func(pix []byte, w, h int, note string) (string, error)
 
 	// SnapshotFirst takes one as the session opens, without being asked again.
 	//
@@ -150,6 +159,24 @@ type RunOptions struct {
 	// with their desktop nobody had asked it to.
 	SnapshotFirst bool
 }
+
+// SnapshotSettle is how long [RunOptions.SnapshotFirst] waits before taking its
+// picture.
+//
+// ⛔⛔ NOT THE FIRST FRAME DRAWN, WHICH IS THE ONE FRAME GUARANTEED TO BE WRONG.
+// The desk learns the shape of each screen FROM THE PIXELS THAT ARRIVE (see
+// [Desk.fit]), so before the first capture lands every position is still assumed
+// to be the shape of the glasses. A picture taken there shows an Odyssey drawn
+// 1920 wide with the fold where a 1920 screen would end -- a state that lasts a
+// fraction of a second, photographed as though it were the desk.
+//
+// It was found by using the flag as an instrument: the note beside the picture
+// said "6 screens of 1920x1080" for a desk with a 3840 on it.
+//
+// Two seconds: long enough for a frame to arrive on every position at sixty a
+// second, short enough that somebody who asked for a picture is not left
+// wondering whether the key worked.
+const SnapshotSettle = 2 * time.Second
 
 // FrameInterval is how often the ribbon is advanced and redrawn.
 //
@@ -370,7 +397,18 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// worse bug than the one the photograph exists to find.
 	pictureSaid := make(chan string, 4)
 	takePicture := func(pix []byte, w, h int) {
-		path, err := opt.Snapshot(pix, w, h)
+		// ⛔⛔ AND THE PICTURE SAYS WHAT THE DESK WAS DOING. Two captures of the
+		// same session came back showing two different renderers -- one a fan of
+		// turned trapezoids, one a flat band of rectangles -- and nothing written
+		// anywhere said which was which, so the pictures could be compared and
+		// not explained. A photograph taken to settle a geometry has to record
+		// the geometry it was taken in.
+		//
+		// Built BEFORE the write and handed over as an argument, because a log
+		// line does not survive `open`: see [RunOptions.Snapshot].
+		note := fmt.Sprintf("taken with the %s, %s, focus %d, %.2f screens along\n%s",
+			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow(), d.bandsNow())
+		path, err := opt.Snapshot(pix, w, h, note)
 		msg := "written to " + path
 		if err != nil {
 			msg = err.Error()
@@ -378,23 +416,12 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		} else {
 			logf("picture written to %s", path)
 		}
-		// ⛔⛔ AND THE PICTURE SAYS WHAT THE DESK WAS DOING. Two captures of the
-		// same session came back showing two different renderers -- one a fan of
-		// turned trapezoids, one a flat band of rectangles -- and nothing written
-		// anywhere said which was which, so the pictures could be compared and
-		// not explained. A photograph taken to settle a geometry has to record
-		// the geometry it was taken in.
-		logf("  taken with the %s, %s, focus %d, %.2f screens along; %s",
-			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow(), d.bandsNow())
+		logf("  %s", note)
 		select {
 		case pictureSaid <- msg:
 		default:
 		}
 	}
-	if opt.SnapshotFirst && opt.Snapshot != nil {
-		v.Snapshot = takePicture
-	}
-
 	// arm hands the NEXT frame drawn to the caller, once. The renderer clears
 	// the hook after firing -- once is evidence, every frame is a film -- so a
 	// press puts it back.
@@ -689,6 +716,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				defer timer.Stop()
 				deadline = timer.C
 			}
+			// ⛔⛔ AND THE FIRST PICTURE IS NOT OF THE FIRST FRAME, which is the
+			// one frame guaranteed to be wrong. See [SnapshotSettle].
+			var settled <-chan time.Time
+			if opt.SnapshotFirst && opt.Snapshot != nil {
+				st := time.NewTimer(SnapshotSettle)
+				defer st.Stop()
+				settled = st.C
+			}
 			last := time.Now()
 			for {
 				select {
@@ -698,6 +733,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 					d.Do(ActionQuit)
 				case <-deadline:
 					d.Do(ActionQuit)
+				case <-settled:
+					settled = nil
+					arm()
 				case a := <-global:
 					act(d, logf, "shortcut", a, arm)
 					sync()

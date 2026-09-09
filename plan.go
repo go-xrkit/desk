@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/go-xrkit/xrkit/glasses"
 	"github.com/go-xrkit/xrkit/ribbon"
@@ -139,6 +140,20 @@ func (p Plan) String() string {
 	shape := fmt.Sprintf(", curved %.1f° at %.2fx", p.SplayDeg(), p.Distance())
 	if p.SplayDeg() <= 0 {
 		shape = fmt.Sprintf(", flat at %.2fx", p.Distance())
+	}
+	// ⛔⛔ AND IT NAMES THE SCREENS THAT ARE NOT THAT SIZE. "6 screens of
+	// 1920x1080" was written beside a photograph of a desk with a 3840 on it --
+	// an Odyssey G95NC mirrored onto position 1 -- and three defects lived
+	// behind that sentence for as long as it was believed. A description that
+	// reports the NOMINAL shape of a mixed desk is not a description of it.
+	var odd []string
+	for i := range p.count {
+		if w := p.ScreenWidth(i); w != p.ScreenW {
+			odd = append(odd, fmt.Sprintf("%d is %dx%d", i+1, w, p.ScreenH))
+		}
+	}
+	if len(odd) > 0 {
+		shape += " (screen " + strings.Join(odd, ", screen ") + ")"
 	}
 	return fmt.Sprintf("%s: %d screens of %dx%d, %s%s",
 		p.Model, p.count, p.ScreenW, p.ScreenH, optics, shape)

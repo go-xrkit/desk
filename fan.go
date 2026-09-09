@@ -180,9 +180,29 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	t := toward * float64(next)
 	turn := math.Atan2(ax+t*(bx-ax), az+t*(bz-az))
 
+	// ⛔⛔ AND NEVER MORE THAN HALF WAY ROUND THE RING. The chain is infinite and
+	// the screens repeat along it, which is what makes the band close -- but at a
+	// strong enough curvature it closes GEOMETRICALLY too: six screens at the
+	// maximum sixty degrees is exactly a turn, so panel +4 has come all the way
+	// round and lands IN FRONT of the viewer, drawn on top of the screens that
+	// are really there. Measured by the sweep in TestTheFoldProtocol: "screen 2
+	// runs to x=1920 and screen 6 starts at x=0: they overlap by 1920" -- one
+	// screen covering the whole view over another.
+	//
+	// slantOf cannot catch it: a wrapped panel is in front of the viewer and
+	// squarely enough turned to pass every test it makes. Half a turn along the
+	// chain is the far side of the desk, and the far side of a desk is not in
+	// shot.
+	reach := FanReach
+	if f.splayDeg > 0 {
+		if half := int(180 / f.splayDeg); half < reach {
+			reach = half
+		}
+	}
+
 	hwOf := f.hwOf(focus)
 	slot := 0
-	for j := -FanReach; j <= FanReach; j++ {
+	for j := -reach; j <= reach; j++ {
 		lx, lz, rx, rz := slantChain(j, f.splayDeg, hwOf, f.gap, f.distance, turn)
 		at := f.screenAt(focus + j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
