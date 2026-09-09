@@ -82,6 +82,30 @@ const MaxSlantDeg = 80
 // beside it slightly more or slightly less stretched than they should be.
 const DefaultFOVDeg = 45
 
+// edgeEps is how far off an integer a projected edge may be and still be taken
+// for that integer.
+//
+// ⛔ IT IS NOT COSMETIC, AND IT IS THE ZERO THAT NEEDS IT. At a splay of nothing
+// the chain must land exactly where the flat band puts it, and it gets there
+// through a tangent, a reciprocal and a sum: a boundary that is 228 came out
+// 227.99999999999989. Floored, that is a column the panel does not cover, with
+// no source pixel behind it -- a one-pixel background sliver down the edge of a
+// screen, drawn on every frame, for a discrepancy of 1e-13.
+//
+// A millionth of a pixel is far below anything a projection can mean and seven
+// orders of magnitude above the error being absorbed.
+const edgeEps = 1e-6
+
+// slantGap is the world-space gap the chain leaves between two panels.
+//
+// It is the flat band's own [DefaultGapPx], in the units [slantChain] works in,
+// where a screen srcW pixels wide spans 2*hw. One function rather than the same
+// three-term expression in the renderer, in the derivation and in the tests:
+// they have to agree, and a formula copied three times agrees until it doesn't.
+func slantGap(hw float64, srcW int) float64 {
+	return 2 * hw * float64(DefaultGapPx) / float64(srcW)
+}
+
 // slantChain is where panel j of the chain is, in camera space.
 //
 // The arrangement is a CHAIN, which is what a desk of monitors is: each panel
@@ -96,30 +120,66 @@ const DefaultFOVDeg = 45
 // the chain is fixed and the head moves, so everything rotates by -turn about the
 // origin. hw is the panel's half-width in world units.
 //
+// gap is the empty world-space width left between one panel and the next.
+//
+// ⛔⛔ AND WITHOUT IT A FOLD CANNOT BE FOUND. The panels used to be hinged edge
+// to edge with nothing between them, so two screens met at a seam with no seam:
+// measured on a real desk, "screen 6 at x 0..917, screen 1 at x 916..1920" --
+// they OVERLAP by a pixel. Asked for in exactly those terms from the glasses:
+// "il faut donc pouvoir detecter la fin d'un ecran sur le coté et le debut d'un
+// autre", and then "pas de probleme pour avoir un leger espace entre chaque
+// ecran".
+//
+// ⭐ AND IT MAKES THE TWO RENDERERS AGREE FOR THE FIRST TIME. [Strip] has always
+// drawn a gap -- its band is n*(ScreenW+DefaultGapPx) -- while the chain had
+// none, so the flat band and the turned one disagreed about where the NEXT
+// screen starts. Given the same gap, a panel at a splay of nothing lands exactly
+// where the strip puts it.
+//
 // The returned edges are the panel's left and right vertical edges, and panelH
 // its world height.
-func slantChain(j int, splayDeg, hw, distance, turn float64) (lx, lz, rx, rz float64) {
+func slantChain(j int, splayDeg, hw, gap, distance, turn float64) (lx, lz, rx, rz float64) {
 	// Walk out to panel j along the chain, hinge by hinge. Only |j| steps, and a
 	// desk is nine screens: the loop is cheaper than the trigonometry it would
 	// take to close the form, and it cannot drift from the definition.
+	//
+	// ⛔ TWO STEPS, NOT ONE. The step from panel to panel carries the gap; the
+	// panel's own extent does not. Folding the gap into a single step would
+	// widen every screen by it -- the pixels would stretch and nothing would
+	// look wrong enough to notice.
 	ax, az := -hw, distance
-	step := func(k int) (float64, float64) {
-		a := rad(float64(k) * splayDeg)
-		return 2 * hw * math.Cos(a), -2 * hw * math.Sin(a)
+	along := func(k, w float64) (float64, float64) {
+		a := rad(k * splayDeg)
+		return w * math.Cos(a), -w * math.Sin(a)
+	}
+	// hinge is the offset from panel k's left edge to panel k+1's left edge: the
+	// panel's own extent along its OWN direction, then the gap along the
+	// BISECTOR of the fold.
+	//
+	// ⛔ THE BISECTOR IS NOT A REFINEMENT, IT IS WHAT MAKES THE CHAIN SYMMETRIC.
+	// The walk leaves panel k going right and arrives at panel k going left, so
+	// putting the whole gap in either panel's plane gives the two sides
+	// different shapes: measured at a splay of twenty, the left neighbour came
+	// out 625 pixels wide against the right one's 624, and its edges 440/402
+	// against 438/402. Half the fold each is the only split with no side to it.
+	hinge := func(k float64) (float64, float64) {
+		sx, sz := along(k, 2*hw)
+		gx, gz := along(k+0.5, gap)
+		return sx + gx, sz + gz
 	}
 	switch {
 	case j > 0:
 		for k := range j {
-			dx, dz := step(k)
+			dx, dz := hinge(float64(k))
 			ax, az = ax+dx, az+dz
 		}
 	case j < 0:
 		for k := j; k < 0; k++ {
-			dx, dz := step(k)
+			dx, dz := hinge(float64(k))
 			ax, az = ax-dx, az-dz
 		}
 	}
-	dx, dz := step(j)
+	dx, dz := along(float64(j), 2*hw)
 	bx, bz := ax+dx, az+dz
 
 	// The viewer's rotation, applied to both edges.
@@ -163,10 +223,13 @@ func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
 
 	x0 := f*lx/lz + float64(viewW)/2
 	x1 := f*rx/rz + float64(viewW)/2
-	if x1 <= x0 {
+	if x1-x0 <= 2*edgeEps {
 		return Slant{}, false
 	}
-	left, right := int(math.Floor(x0)), int(math.Ceil(x1))
+	// Snapped inwards by edgeEps, so an edge that is a hair short of an integer
+	// does not claim the pixel before it. The guard above keeps the width above
+	// twice the snap, so the two still land at least one column apart.
+	left, right := int(math.Floor(x0+edgeEps)), int(math.Ceil(x1-edgeEps))
 	if right <= 0 || left >= viewW {
 		return Slant{}, false
 	}

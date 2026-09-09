@@ -566,3 +566,58 @@ func TestTheScreenBeingLookedAtIsTheOneInFront(t *testing.T) {
 		}
 	}
 }
+
+// TestTwoScreensSideBySideLeaveASeam.
+//
+// ⛔⛔ THE FOLD WAS INVISIBLE, AND THAT IS WHAT KEPT BEING REPORTED. The panels
+// were hinged edge to edge with NOTHING between them, so the last column of one
+// screen and the first column of the next were neighbours -- measured from the
+// glasses at "screen 6 at x 0..917, screen 1 at x 916..1920", which overlap by a
+// pixel. Three reports of "l'angle est toujours mauvais" were partly this: there
+// was no line to look at, so there was no way to say where the fold was.
+//
+// Asked for in those terms: "il faut donc pouvoir detecter la fin d'un ecran sur
+// le coté et le debut d'un autre", then "pas de probleme pour avoir un leger
+// espace entre chaque ecran".
+//
+// The gap is the flat band's own DefaultGapPx, which is what makes the two
+// renderers agree about where the next screen starts; see
+// TestASplayOfNothingIsTheFlatBand for the other half of that.
+func TestTwoScreensSideBySideLeaveASeam(t *testing.T) {
+	for _, dist := range []float64{2, 3, 4} {
+		p := fanPlan(t, 6, DefaultSplayDeg, dist)
+		f, err := NewFan(p)
+		if err != nil {
+			t.Fatalf("distance %g: NewFan = %v", dist, err)
+		}
+		panels := f.Frame(nil, 0, 0)
+
+		compared := 0
+		for i := 1; i < len(panels); i++ {
+			prev, cur := panels[i-1], panels[i]
+			// The two edges that FORM the seam have to be the panels' own, not
+			// the canvas's: a panel cut off on the right ends where the canvas
+			// does. Its other end can be clipped and the seam still means
+			// something, which at distance 2 is the only way to measure one at
+			// all -- the screen in front fills most of the view and both its
+			// neighbours run off an edge.
+			if prev.Dst.X+prev.Dst.W >= p.ScreenW || cur.Dst.X <= 0 {
+				continue
+			}
+			compared++
+			if seam := cur.Dst.X - (prev.Dst.X + prev.Dst.W); seam < 1 {
+				t.Errorf("distance %g: screen %d ends at x=%d and screen %d starts "+
+					"at x=%d -- a seam of %d",
+					dist, prev.Screen, prev.Dst.X+prev.Dst.W,
+					cur.Screen, cur.Dst.X, seam)
+			}
+		}
+		// ⛔ AND SOMETHING HAD TO BE COMPARED. Every pair being skipped as
+		// clipped would leave a green test that looked at nothing, which is the
+		// shape of failure this package keeps meeting.
+		if compared == 0 {
+			t.Fatalf("distance %g: of %d panels no pair showed both its own "+
+				"edges, so no seam was measured", dist, len(panels))
+		}
+	}
+}

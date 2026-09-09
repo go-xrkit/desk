@@ -32,7 +32,7 @@ type Fan struct {
 	n                        int
 	splayDeg                 float64
 	distance                 float64
-	hw, panelH, f            float64
+	hw, gap, panelH, f       float64
 	viewW, viewH, srcW, srcH int
 	// srcWidths is the source width of each screen that is not the shape of the
 	// band. See [Fan.SetSourceWidths].
@@ -71,9 +71,14 @@ func NewFan(plan Plan) (*Fan, error) {
 			ErrScreens, plan.SplayDeg())
 	}
 	hw, panelH, f := slantOptics(plan.HFOVDeg, plan.ScreenW, plan.ScreenW, plan.ScreenH)
+	// ⭐ THE GAP IS THE STRIPS OWN, expressed in world units. The flat band
+	// leaves DefaultGapPx between screens; the same gap here is what makes the
+	// two renderers agree about where the next screen starts, and what lets
+	// somebody find the fold at all.
+	gap := slantGap(hw, plan.ScreenW)
 	fan := &Fan{
 		n: plan.Count(), splayDeg: plan.SplayDeg(), distance: plan.Distance(),
-		hw: hw, panelH: panelH, f: f,
+		hw: hw, gap: gap, panelH: panelH, f: f,
 		viewW: plan.ScreenW, viewH: plan.ScreenH,
 		srcW: plan.ScreenW, srcH: plan.ScreenH,
 		slots: make([][]SlantCol, 2*FanReach+1),
@@ -91,7 +96,7 @@ func NewFan(plan Plan) (*Fan, error) {
 // along are further away -- so a position half way between two screens is half
 // way between their two angles and not half of a fixed pitch.
 func (f *Fan) Angle(j int) float64 {
-	lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.distance, 0)
+	lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.gap, f.distance, 0)
 	return math.Atan2((lx+rx)/2, (lz+rz)/2)
 }
 
@@ -144,7 +149,7 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 
 	slot := 0
 	for j := -FanReach; j <= FanReach; j++ {
-		lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.distance, turn)
+		lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.gap, f.distance, turn)
 		at := f.screenAt(focus + j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
 			f.panelH, f.f, f.viewW, f.viewH, f.sourceWidth(at), f.srcH)
