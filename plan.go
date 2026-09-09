@@ -511,7 +511,18 @@ const MaxSplayDeg = 60.0
 const DefaultSplayDeg = 20.0
 
 // FacingSplayDeg is the angle at which the neighbouring screens FACE the viewer
-// -- a desk of monitors, all at one distance, each turned towards the chair.
+// -- a desk of monitors, each turned towards the chair.
+//
+// ⛔⛔ NOT ALL AT ONE DISTANCE, which is what this line used to say and what
+// three days of hunting were spent believing. Measured here, six screens at
+// 51.57° per eye: even at this angle the panel edges sit between 0.667 and
+// 1.110, a 66% spread. The panels tile edge to edge, so the chain is a polygon
+// sized by how wide a screen is, and the viewer is not at its centre.
+//
+// ⭐ WITH TILING PANELS YOU MAY HAVE ANY TWO OF {a free curvature dial, tiling,
+// equal distance} AND NEVER ALL THREE. The dial and the tiling are the two
+// kept -- decided once the spread had been measured rather than assumed -- so
+// this angle is where each screen FACES you, not where they are equidistant.
 //
 // ⭐ IT IS A FIXED POINT, and that is the whole derivation: a panel faces the
 // viewer when the angle it is turned by equals the angle it SITS at. Walking

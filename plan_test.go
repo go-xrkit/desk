@@ -634,3 +634,47 @@ func TestThePlanSaysItsShape(t *testing.T) {
 		t.Errorf("%q does not say how far back the band is", got)
 	}
 }
+
+// TestTheDistancesAreNotEqualAndTheDocumentationSaysSo.
+//
+// ⛔⛔ THE COMMENT CLAIMED "all at one distance" AND THREE DAYS WERE SPENT
+// BELIEVING IT. "l'angle est toujours mauvais" was reported three times; each
+// time the expectation being tested against was a promise the geometry never
+// kept. Measuring the spread is what ended it, and pinning the measurement is
+// what stops it coming back as a bug report.
+//
+// ⭐ IT IS NOT A DEFECT, IT IS A CHOICE, made after the spread was measured:
+// with panels tiling edge to edge you may have any two of {a free curvature
+// dial, tiling, equal distance} and never all three. The dial and the tiling
+// were kept.
+func TestTheDistancesAreNotEqualAndTheDocumentationSaysSo(t *testing.T) {
+	p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 51.57}.WithScreens(6)
+	p = p.WithSplay(p.FacingSplayDeg())
+	hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
+
+	lo, hi := math.Inf(1), math.Inf(-1)
+	for j := -1; j <= 1; j++ {
+		_, lz, _, rz := slantChain(j, p.SplayDeg(), hw, p.Distance(), 0)
+		for _, z := range []float64{lz, rz} {
+			// A panel behind the viewer has no depth worth comparing; slantOf
+			// refuses it, and the band never shows it.
+			if z <= 0 {
+				continue
+			}
+			lo, hi = math.Min(lo, z), math.Max(hi, z)
+		}
+	}
+	if hi/lo < 1.5 {
+		t.Errorf("the depths run %.3f..%.3f, a spread of %.0f%%: the geometry now "+
+			"keeps the screens near enough to one distance that the comment "+
+			"saying it does NOT should be revisited", lo, hi, 100*(hi/lo-1))
+	}
+	// ⭐ AND THE FLAT BAND REALLY IS FLAT, which is the one state where the two
+	// geometries must agree and the only anchor that makes either verifiable.
+	_, lz, _, rz := slantChain(0, 0, hw, p.Distance(), 0)
+	if math.Abs(lz-rz) > 1e-12 {
+		t.Errorf("at a splay of nothing the edges are at %.12f and %.12f, want "+
+			"the same depth: the flat band is what the whole chain is checked against",
+			lz, rz)
+	}
+}
