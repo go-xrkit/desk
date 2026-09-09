@@ -714,3 +714,29 @@ func TestTheDistancesAreNotEqualAndTheDocumentationSaysSo(t *testing.T) {
 			lz, rz)
 	}
 }
+
+// TestThePlanNamesTheScreenThatIsNotLikeTheOthers.
+//
+// ⛔⛔ "6 SCREENS OF 1920x1080" WAS WRITTEN BESIDE A PHOTOGRAPH OF A DESK WITH A
+// 3840 ON IT. An Odyssey G95NC is mirrored onto position 1 here, and three
+// separate defects lived behind that sentence for as long as it was believed:
+// the chain, the band's length and Strip.Toward all assumed the nominal width,
+// and the one line that could have said otherwise reported the nominal width.
+func TestThePlanNamesTheScreenThatIsNotLikeTheOthers(t *testing.T) {
+	p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: 51.57}.WithScreens(6)
+	if s := p.String(); strings.Contains(s, "screen ") {
+		t.Errorf("%q names an odd screen on a desk that has none", s)
+	}
+	p = p.WithScreenWidth(0, 3840)
+	s := p.String()
+	if !strings.Contains(s, "screen 1 is 3840x1080") {
+		t.Errorf("%q does not say that screen 1 is 3840 wide", s)
+	}
+	// And every one of them, not just the first: a desk may mirror more than one
+	// panel, and a line that stops at the first is a line that hides the second.
+	p = p.WithScreenWidth(4, 1280)
+	if s := p.String(); !strings.Contains(s, "screen 1 is 3840x1080") ||
+		!strings.Contains(s, "screen 5 is 1280x1080") {
+		t.Errorf("%q does not name both odd screens", s)
+	}
+}

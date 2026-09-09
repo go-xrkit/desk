@@ -160,6 +160,24 @@ type RunOptions struct {
 	SnapshotFirst bool
 }
 
+// SnapshotSettle is how long [RunOptions.SnapshotFirst] waits before taking its
+// picture.
+//
+// ⛔⛔ NOT THE FIRST FRAME DRAWN, WHICH IS THE ONE FRAME GUARANTEED TO BE WRONG.
+// The desk learns the shape of each screen FROM THE PIXELS THAT ARRIVE (see
+// [Desk.fit]), so before the first capture lands every position is still assumed
+// to be the shape of the glasses. A picture taken there shows an Odyssey drawn
+// 1920 wide with the fold where a 1920 screen would end -- a state that lasts a
+// fraction of a second, photographed as though it were the desk.
+//
+// It was found by using the flag as an instrument: the note beside the picture
+// said "6 screens of 1920x1080" for a desk with a 3840 on it.
+//
+// Two seconds: long enough for a frame to arrive on every position at sixty a
+// second, short enough that somebody who asked for a picture is not left
+// wondering whether the key worked.
+const SnapshotSettle = 2 * time.Second
+
 // FrameInterval is how often the ribbon is advanced and redrawn.
 //
 // It is not tied to the display's refresh rate. The captures are change-driven
@@ -404,10 +422,6 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		default:
 		}
 	}
-	if opt.SnapshotFirst && opt.Snapshot != nil {
-		v.Snapshot = takePicture
-	}
-
 	// arm hands the NEXT frame drawn to the caller, once. The renderer clears
 	// the hook after firing -- once is evidence, every frame is a film -- so a
 	// press puts it back.
@@ -702,6 +716,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				defer timer.Stop()
 				deadline = timer.C
 			}
+			// ⛔⛔ AND THE FIRST PICTURE IS NOT OF THE FIRST FRAME, which is the
+			// one frame guaranteed to be wrong. See [SnapshotSettle].
+			var settled <-chan time.Time
+			if opt.SnapshotFirst && opt.Snapshot != nil {
+				st := time.NewTimer(SnapshotSettle)
+				defer st.Stop()
+				settled = st.C
+			}
 			last := time.Now()
 			for {
 				select {
@@ -711,6 +733,9 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 					d.Do(ActionQuit)
 				case <-deadline:
 					d.Do(ActionQuit)
+				case <-settled:
+					settled = nil
+					arm()
 				case a := <-global:
 					act(d, logf, "shortcut", a, arm)
 					sync()
