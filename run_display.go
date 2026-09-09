@@ -378,6 +378,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		} else {
 			logf("picture written to %s", path)
 		}
+		// ⛔⛔ AND THE PICTURE SAYS WHAT THE DESK WAS DOING. Two captures of the
+		// same session came back showing two different renderers -- one a fan of
+		// turned trapezoids, one a flat band of rectangles -- and nothing written
+		// anywhere said which was which, so the pictures could be compared and
+		// not explained. A photograph taken to settle a geometry has to record
+		// the geometry it was taken in.
+		logf("  taken with the %s, %s, focus %d, %.2f screens along",
+			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow())
 		select {
 		case pictureSaid <- msg:
 		default:

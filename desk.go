@@ -1944,3 +1944,48 @@ func (d *Desk) say(text string) {
 	defer d.mu.Unlock()
 	d.notice.say(text)
 }
+
+// whichRenderer names the drawing path a frame came out of.
+//
+// ⛔⛔ IT EXISTS BECAUSE TWO CAPTURES OF ONE SESSION SHOWED TWO DIFFERENT
+// RENDERERS AND NOTHING SAID SO. One came back a fan of turned trapezoids, the
+// next -- taken seconds later, after one key press -- a flat band of
+// rectangles, with a straight menu bar and a straight Dock across the full
+// width. The pictures could be compared and not explained, which is the state a
+// diagnostic must never leave somebody in.
+//
+// There are four ways a frame can be drawn and they look nothing alike: the
+// gallery's grid, one screen promoted to fill the view, the turned fan, and the
+// flat band. Naming which one produced a picture is the difference between
+// evidence and a puzzle.
+func whichRenderer(d *Desk) string {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.nav == nil {
+		return "no navigator"
+	}
+	switch d.nav.Mode() {
+	case ribbon.ModeGallery:
+		return "gallery grid"
+	case ribbon.ModeFullscreen:
+		return "one screen, promoted"
+	}
+	if d.fan == nil {
+		return "flat band (no fan: the splay is nothing)"
+	}
+	return "turned fan"
+}
+
+// towardNow is how far along the band the view is, in screens, at this instant.
+//
+// It is the number [Fan.Frame] is driven by, and the one nothing printed: a
+// picture of the band tells you where the fold LANDED, and this tells you where
+// the viewer was standing when it did.
+func (d *Desk) towardNow() float64 {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.nav == nil || d.strip == nil {
+		return 0
+	}
+	return d.strip.Toward(d.nav.Yaw(), d.nav.Focus())
+}

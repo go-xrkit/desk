@@ -777,6 +777,13 @@ func TestOpenAndLeaveTheGalleryAreSeparateKeys(t *testing.T) {
 
 	// Leaving a gallery you are not in does nothing at all.
 	d.Do(ActionGalleryClose)
+
+	// And one screen promoted to fill the view, which looks like neither.
+	d.Nav().ToggleFullscreen()
+	if got := whichRenderer(d); got != "one screen, promoted" {
+		t.Errorf("a promoted screen drew with %q", got)
+	}
+	d.Nav().ToggleFullscreen()
 	if d.Nav().Mode() != ribbon.ModeRibbon {
 		t.Fatalf("leaving from the band put the mode at %v", d.Nav().Mode())
 	}
@@ -796,10 +803,24 @@ func TestOpenAndLeaveTheGalleryAreSeparateKeys(t *testing.T) {
 
 	// Down comes out, and again does nothing.
 	d.Do(ActionGalleryClose)
+
+	// And one screen promoted to fill the view, which looks like neither.
+	d.Nav().ToggleFullscreen()
+	if got := whichRenderer(d); got != "one screen, promoted" {
+		t.Errorf("a promoted screen drew with %q", got)
+	}
+	d.Nav().ToggleFullscreen()
 	if d.Nav().Mode() != ribbon.ModeRibbon {
 		t.Fatalf("leaving did not leave: %v", d.Nav().Mode())
 	}
 	d.Do(ActionGalleryClose)
+
+	// And one screen promoted to fill the view, which looks like neither.
+	d.Nav().ToggleFullscreen()
+	if got := whichRenderer(d); got != "one screen, promoted" {
+		t.Errorf("a promoted screen drew with %q", got)
+	}
+	d.Nav().ToggleFullscreen()
 	if d.Nav().Mode() != ribbon.ModeRibbon {
 		t.Error("pressing leave twice went back in")
 	}
@@ -1378,5 +1399,65 @@ func TestFocusIsThePositionInFrontOfTheViewer(t *testing.T) {
 	d.Do(ActionNext)
 	if got := d.Focus(); got != 1 {
 		t.Errorf("Focus = %d after one turn, want 1", got)
+	}
+}
+
+// TestAPictureSaysWhichRendererDrewIt.
+//
+// ⛔⛔ TWO CAPTURES OF ONE SESSION SHOWED TWO DIFFERENT RENDERERS AND NOTHING
+// SAID SO. One came back a fan of turned trapezoids; the next, seconds later
+// after a single key press, a flat band of rectangles with a straight menu bar
+// and a straight Dock across the full width. The pictures could be compared and
+// not explained -- which is the state a diagnostic must never leave anybody in.
+func TestAPictureSaysWhichRendererDrewIt(t *testing.T) {
+	p := testPlan(t).WithSplay(30)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+	defer func() { _ = d.Close() }()
+
+	if got := whichRenderer(d); got != "turned fan" {
+		t.Errorf("a splayed desk drew with %q, want the fan", got)
+	}
+	// The gallery and a promoted screen look nothing like the band, and nothing
+	// like each other.
+	d.Do(ActionGalleryOpen)
+	if got := whichRenderer(d); got != "gallery grid" {
+		t.Errorf("the gallery drew with %q", got)
+	}
+	d.Do(ActionGalleryClose)
+
+	// And one screen promoted to fill the view, which looks like neither.
+	d.Nav().ToggleFullscreen()
+	if got := whichRenderer(d); got != "one screen, promoted" {
+		t.Errorf("a promoted screen drew with %q", got)
+	}
+	d.Nav().ToggleFullscreen()
+
+	// ⭐ AND THE FLAT BAND NAMES ITS REASON. "flat" alone would leave somebody
+	// wondering whether the curvature failed or was never asked for.
+	flat := testPlan(t).WithSplay(0)
+	f, err := New(flat, feedsFor(flat))
+	if err != nil {
+		t.Fatalf("New flat = %v", err)
+	}
+	defer func() { _ = f.Close() }()
+	got := whichRenderer(f)
+	if !strings.Contains(got, "flat") || !strings.Contains(got, "splay") {
+		t.Errorf("the flat band drew with %q, want it to name the reason", got)
+	}
+
+	// A desk with no navigator at all says so rather than pretending.
+	var bare Desk
+	if got := whichRenderer(&bare); got != "no navigator" {
+		t.Errorf("an empty desk drew with %q", got)
+	}
+	if got := bare.towardNow(); got != 0 {
+		t.Errorf("an empty desk is %v screens along", got)
+	}
+	// And on a real one the position is a number somebody can read.
+	if got := d.towardNow(); got != got || got > 1e9 || got < -1e9 {
+		t.Errorf("towardNow() = %v", got)
 	}
 }
