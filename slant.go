@@ -51,9 +51,17 @@ type Slant struct {
 // absolute canvas rows, so a column can be clipped at the top or the bottom of
 // the canvas without the loop knowing what clipping is.
 type SlantCol struct {
-	// Src is the source column, or -1 for a column with no source at all --
-	// which happens where a rotated panel has turned past the edge of the
-	// source. Such a column is left as background rather than stretched.
+	// Src is the source column, or -1 for a column with no source at all. Such
+	// a column is left as background rather than stretched.
+	//
+	// ⭐ AND [slantOf] NO LONGER PRODUCES ONE. It used to: the panel's box was
+	// floored and ceiled, so a column at each end had its centre outside the
+	// panel and no source behind it, and it drew as a dark sliver down the edge
+	// of a screen. A column now belongs to the panel when its CENTRE falls
+	// inside it, which puts every one of them in range. The value stays because
+	// [Canvas.ComposeSlants] must still honour it -- a caller may build slants
+	// of its own, and a backstop against a projection that comes out a hair
+	// wide costs one comparison.
 	Src int32
 	// Y0 and Y1 are the destination rows this column covers, [Y0, Y1).
 	Y0, Y1 int32
@@ -81,20 +89,6 @@ const MaxSlantDeg = 80
 // does not move the screen in front of the viewer by a pixel; it makes the ones
 // beside it slightly more or slightly less stretched than they should be.
 const DefaultFOVDeg = 45
-
-// edgeEps is how far off an integer a projected edge may be and still be taken
-// for that integer.
-//
-// ⛔ IT IS NOT COSMETIC, AND IT IS THE ZERO THAT NEEDS IT. At a splay of nothing
-// the chain must land exactly where the flat band puts it, and it gets there
-// through a tangent, a reciprocal and a sum: a boundary that is 228 came out
-// 227.99999999999989. Floored, that is a column the panel does not cover, with
-// no source pixel behind it -- a one-pixel background sliver down the edge of a
-// screen, drawn on every frame, for a discrepancy of 1e-13.
-//
-// A millionth of a pixel is far below anything a projection can mean and seven
-// orders of magnitude above the error being absorbed.
-const edgeEps = 1e-6
 
 // slantGap is the world-space gap the chain leaves between two panels.
 //
@@ -243,13 +237,33 @@ func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
 
 	x0 := f*lx/lz + float64(viewW)/2
 	x1 := f*rx/rz + float64(viewW)/2
-	if x1-x0 <= 2*edgeEps {
+	// A column belongs to the panel when its CENTRE falls inside it.
+	//
+	// ⛔⛔ IT USED TO FLOOR THE LEFT EDGE AND CEIL THE RIGHT, and that claims a
+	// column at each end whose centre is OUTSIDE the panel. The source
+	// coordinate for such a column falls out of range, so it was drawn as
+	// BACKGROUND: a dark sliver down the edge of a screen, on one side or the
+	// other, appearing and disappearing with the sub-pixel position. Beside a
+	// 48-pixel seam that reads as a fold not quite where it should be -- which
+	// is what was reported four times, and what no amount of asking the person
+	// wearing the glasses was going to localise.
+	//
+	// Found by the sweep in TestTheFoldProtocol on its first run, at 5° and a
+	// third of a screen along: "screen 1 starts at x=239 showing its source
+	// column -1, want its first".
+	//
+	// ⭐ AND IT MAKES edgeEps UNNECESSARY. A boundary that is mathematically 228
+	// and arrives as 227.99999999999989 rounds to the same column either way,
+	// because the decision is now taken half a pixel from the edge instead of
+	// exactly on it.
+	left, right := int(math.Ceil(x0-0.5)), int(math.Ceil(x1-0.5))
+	// Narrower than the space between two column centres: the panel covers no
+	// column's middle, so there is nothing to draw. This is also the guard
+	// against a panel with no width at all, since right <= left whenever
+	// x1 <= x0.
+	if right <= left {
 		return Slant{}, false
 	}
-	// Snapped inwards by edgeEps, so an edge that is a hair short of an integer
-	// does not claim the pixel before it. The guard above keeps the width above
-	// twice the snap, so the two still land at least one column apart.
-	left, right := int(math.Floor(x0+edgeEps)), int(math.Ceil(x1-edgeEps))
 	if right <= 0 || left >= viewW {
 		return Slant{}, false
 	}

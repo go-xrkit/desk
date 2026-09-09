@@ -137,9 +137,18 @@ type RunOptions struct {
 	Showing func() []uint64
 
 	// Snapshot, when set, is handed the first frame actually drawn — the picture
-	// the glasses were shown. It is written by the caller, so this package never
-	// decides where a capture of somebody's screens lands.
-	Snapshot func(pix []byte, w, h int) (string, error)
+	// the glasses were shown, and a note saying what the desk was doing when it
+	// was drawn. It is written by the caller, so this package never decides where
+	// a capture of somebody's screens lands.
+	//
+	// ⛔⛔ THE NOTE IS AN ARGUMENT RATHER THAN A LOG LINE, and that is the whole
+	// point of it. It used to be printed: which renderer, which plan, which
+	// screen in front, how far along, and which screen occupied which band of x.
+	// The application is launched with `open`, so its standard error goes
+	// NOWHERE -- three captures were compared without any of it, and the state
+	// they were taken in had to be guessed from the pixels. A photograph taken to
+	// settle a geometry has to CARRY the geometry, not point at a stream.
+	Snapshot func(pix []byte, w, h int, note string) (string, error)
 
 	// SnapshotFirst takes one as the session opens, without being asked again.
 	//
@@ -370,7 +379,18 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// worse bug than the one the photograph exists to find.
 	pictureSaid := make(chan string, 4)
 	takePicture := func(pix []byte, w, h int) {
-		path, err := opt.Snapshot(pix, w, h)
+		// ⛔⛔ AND THE PICTURE SAYS WHAT THE DESK WAS DOING. Two captures of the
+		// same session came back showing two different renderers -- one a fan of
+		// turned trapezoids, one a flat band of rectangles -- and nothing written
+		// anywhere said which was which, so the pictures could be compared and
+		// not explained. A photograph taken to settle a geometry has to record
+		// the geometry it was taken in.
+		//
+		// Built BEFORE the write and handed over as an argument, because a log
+		// line does not survive `open`: see [RunOptions.Snapshot].
+		note := fmt.Sprintf("taken with the %s, %s, focus %d, %.2f screens along\n%s",
+			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow(), d.bandsNow())
+		path, err := opt.Snapshot(pix, w, h, note)
 		msg := "written to " + path
 		if err != nil {
 			msg = err.Error()
@@ -378,14 +398,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		} else {
 			logf("picture written to %s", path)
 		}
-		// ⛔⛔ AND THE PICTURE SAYS WHAT THE DESK WAS DOING. Two captures of the
-		// same session came back showing two different renderers -- one a fan of
-		// turned trapezoids, one a flat band of rectangles -- and nothing written
-		// anywhere said which was which, so the pictures could be compared and
-		// not explained. A photograph taken to settle a geometry has to record
-		// the geometry it was taken in.
-		logf("  taken with the %s, %s, focus %d, %.2f screens along; %s",
-			whichRenderer(d), d.Plan(), d.Nav().Focus(), d.towardNow(), d.bandsNow())
+		logf("  %s", note)
 		select {
 		case pictureSaid <- msg:
 		default:

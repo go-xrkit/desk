@@ -906,7 +906,7 @@ func run() int {
 // on the ribbon is one of their displays. It goes where durable per-user data
 // goes, never where a `git add` could reach it, and the path is printed so it
 // can be found.
-func writeSnapshot(pix []byte, w, h int) (string, error) {
+func writeSnapshot(pix []byte, w, h int, note string) (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("no user configuration directory: %w", err)
@@ -931,7 +931,27 @@ func writeSnapshot(pix []byte, w, h int) (string, error) {
 		return "", err
 	}
 	defer f.Close()
-	return path, png.Encode(f, img)
+	if err := png.Encode(f, img); err != nil {
+		return "", err
+	}
+	// ⭐ AND THE NOTE LANDS BESIDE IT, under the same name. The picture is what
+	// the glasses showed; the note is what the desk was doing while it showed
+	// it -- which renderer, which plan, which screen in front, and which screen
+	// occupied which band of x.
+	//
+	// ⛔ A SIDECAR RATHER THAN A LOG LINE, because this program is launched by
+	// `open` and its standard error goes nowhere. It used to be printed, and
+	// three captures were compared with none of it: the state had to be guessed
+	// back out of the pixels, which is the thing the note exists to make
+	// unnecessary. Beside the picture, it is still there tomorrow.
+	//
+	// A note that cannot be written does not lose the picture: the path is
+	// returned either way, with the failure named.
+	side := strings.TrimSuffix(path, ".png") + ".txt"
+	if err := os.WriteFile(side, []byte(note+"\n"), 0o644); err != nil {
+		return path, fmt.Errorf("the picture is at %s but its note is not: %w", path, err)
+	}
+	return path, nil
 }
 
 // repoRootOf returns the work tree dir is inside, or "" if it is in none. A
