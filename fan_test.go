@@ -5,7 +5,6 @@
 package desk
 
 import (
-	"bytes"
 	"math"
 	"testing"
 
@@ -67,32 +66,93 @@ func TestAFanOfNothingDrawsWhatTheStripDraws(t *testing.T) {
 		fan.slots[i] = make([]SlantCol, 0, flat.ScreenW)
 	}
 
-	// Every screen, and between two of them: the seam and the scroll are where
-	// two renderers most easily disagree.
+	// ⛔⛔ ONE RENDER FIRST, OR BOTH CANVASES ARE BACKGROUND. Desk.sources is
+	// empty until a frame has been pulled, and Compose on an empty source draws
+	// nothing -- so this comparison held two blank pictures against each other
+	// and passed. Found when a deliberately broken chain was run against it and
+	// the pixels still matched; see TestAWideScreenIsWideInTheChainToo, which is
+	// the test that could not fail.
+	strip.Render()
+	if len(strip.sources) == 0 || strip.sources[0].W == 0 {
+		t.Fatal("the sources are still empty after a render, so nothing is compared")
+	}
+
+	// ⭐ SQUARELY FACING A SCREEN, THE TWO ARE ONE PICTURE, byte for byte. Every
+	// screen, because a ribbon does not put screen zero anywhere in particular
+	// and the seam has to be crossed.
 	for focus := range flat.Count() {
-		for _, toward := range []float64{0, 0.25, -0.25, 0.5} {
-			slot := float64(strip.strip.total) / float64(flat.Count())
-			off := int(float64(strip.strip.centre[focus]) + toward*slot)
+		if differ, total := disagree(strip, fan, focus, 0); differ != 0 {
+			t.Errorf("screen %d square on: the turned renderer and the flat one "+
+				"differ in %d of %d bytes", focus, differ, total)
+		}
+	}
 
-			want := NewCanvas(flat.ScreenW, flat.ScreenH)
-			want.Compose(strip.strip.Frame(nil, off), strip.sources, DefaultBackground)
-
-			got := NewCanvas(flat.ScreenW, flat.ScreenH)
-			got.ComposeSlants(fan.Frame(nil, focus, toward), strip.sources,
-				DefaultBackground)
-
-			if !bytes.Equal(got.Pix, want.Pix) {
-				differ := 0
-				for i := range got.Pix {
-					if got.Pix[i] != want.Pix[i] {
-						differ++
-					}
-				}
-				t.Errorf("screen %d, %g along: the turned renderer and the flat "+
-					"one differ in %d of %d bytes", focus, toward, differ, len(got.Pix))
+	// ⛔⛔ AND BETWEEN TWO SCREENS THEY PART COMPANY, ON PURPOSE. This used to
+	// demand the same equality here, and got it -- from two blank canvases.
+	//
+	// The two are not the same MOTION. [Strip] slides a band of pixels in front
+	// of a fixed window, so every screen stays square on however far it has
+	// slid. A chain is a place: the panels stay where they are and the VIEWER
+	// turns, so a flat wall foreshortens as you look along it, exactly as a real
+	// one does. The two coincide when you are square on, which is the anchor the
+	// arrangement was chosen for, and nowhere else.
+	//
+	// The chain is the one that has to be right, because it is the one that runs
+	// when the panels are turned and when the head is tracked. The strip is the
+	// cheaper approximation, and it is what the flat band uses.
+	//
+	// Measured here rather than waved at, so neither side can drift: 6.2% of the
+	// bytes at a quarter screen and 10.0% at a half, on a four-screen desk.
+	for focus := range flat.Count() {
+		for _, toward := range []float64{0.25, -0.25, 0.5} {
+			differ, total := disagree(strip, fan, focus, toward)
+			// ⛔ AND IT MUST DIFFER. If these two ever came out identical, one of
+			// them would have stopped doing what its own doc comment says, and
+			// the paragraph above would be describing code that is not there.
+			if differ == 0 {
+				t.Errorf("screen %d, %g along: the sliding band and the turning "+
+					"viewer drew the same picture, which neither of them should",
+					focus, toward)
+			}
+			if frac := float64(differ) / float64(total); frac > 0.15 {
+				t.Errorf("screen %d, %g along: they differ in %.1f%% of the bytes, "+
+					"which is more than turning a flat wall accounts for",
+					focus, toward, 100*frac)
 			}
 		}
 	}
+}
+
+// disagree draws one state with both renderers and counts the bytes that differ.
+//
+// The offset is walked through the NEIGHBOUR'S own step rather than an average
+// one, which is how [Strip.Toward] reads it back: on a band with one wide screen
+// the step towards it and the step away from it are different lengths.
+func disagree(d *Desk, fan *Fan, focus int, toward float64) (differ, total int) {
+	s := d.strip
+	off := s.centre[focus]
+	if toward != 0 {
+		step := 1
+		if toward < 0 {
+			step = -1
+		}
+		next := ((focus+step)%s.n + s.n) % s.n
+		span := s.short(s.centre[next] - s.centre[focus])
+		off += int(math.Round(math.Abs(toward) * float64(span)))
+	}
+
+	want := NewCanvas(s.viewW, s.viewH)
+	want.Compose(s.Frame(nil, off), d.sources, DefaultBackground)
+
+	got := NewCanvas(s.viewW, s.viewH)
+	got.ComposeSlants(fan.Frame(nil, focus, toward), d.sources, DefaultBackground)
+
+	for i := range got.Pix {
+		if got.Pix[i] != want.Pix[i] {
+			differ++
+		}
+	}
+	return differ, len(got.Pix)
 }
 
 // TestAFanShowsTheNeighboursTurned: pulled back, the frame is made of several
@@ -620,4 +680,133 @@ func TestTwoScreensSideBySideLeaveASeam(t *testing.T) {
 				"edges, so no seam was measured", dist, len(panels))
 		}
 	}
+}
+
+// TestAWideScreenIsWideInTheChainToo.
+//
+// ⛔⛔ THE CHAIN GAVE EVERY PANEL THE SAME WIDTH, AND ONE DESK HERE IS NOT LIKE
+// THAT. An Odyssey G95NC is mirrored onto a position: 7680x2160 native,
+// captured at the band's height, so 3840x1080 -- TWICE every other screen.
+// [Strip] has placed it as 3840 on the band since the day widths became
+// per-screen; the chain squeezed it into a 1920 panel, so it was compressed by
+// half AND the fold to its neighbour landed where a 1920 screen would have
+// ended.
+//
+// Reported from the glasses as "on a toujours un probleme d'écran dont la
+// cassure n'est pas au bon endroit" -- three times, across two other causes --
+// and then diagnosed from the same chair: "ce peut il que ce soit du a la
+// taille de l'odyssey que tu redimensionne en largeur pour faire tenir dans
+// l'ecran des lunettes?".
+//
+// ⭐ AND THE OLD SUITE WAS GREEN THROUGHOUT, because every plan it built had
+// screens of one shape. A bench run is what settled it: at widths of 1920, 3440
+// and 5120 for one screen, not one panel edge moved.
+//
+// The comparison is the one TestAFanOfNothingDrawsWhatTheStripDraws makes --
+// pixel for pixel against the flat renderer, at a splay of nothing -- because
+// the flat renderer has always known each screen's own width. A mixed band is
+// exactly where the two disagreed.
+func TestAWideScreenIsWideInTheChainToo(t *testing.T) {
+	flat := fanPlan(t, 4, -1, 1) // negative asks for the flat band
+	const wide = 1
+	flat = flat.WithScreenWidth(wide, 2*flat.ScreenW)
+	if flat.ScreenWidth(wide) != 2*flat.ScreenW {
+		t.Fatalf("screen %d is %d wide, want %d -- the plan refused the shape "+
+			"and there is nothing mixed to test",
+			wide, flat.ScreenWidth(wide), 2*flat.ScreenW)
+	}
+
+	feeds := make([]Feed, flat.Count())
+	widths := make([]int, flat.Count())
+	for i := range feeds {
+		widths[i] = flat.ScreenWidth(i)
+		feeds[i] = newStripedFeed(widths[i], flat.ScreenH, byte(10*(i+1)))
+	}
+	strip, err := New(flat, feeds)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer strip.Close()
+
+	// Built by hand, because NewFan refuses a splay of nothing on purpose.
+	hw, panelH, f := slantOptics(flat.HFOVDeg, flat.ScreenW, flat.ScreenW, flat.ScreenH)
+	fan := &Fan{
+		n: flat.Count(), splayDeg: 0, distance: flat.Distance(),
+		hw: hw, gap: slantGap(hw, flat.ScreenW), panelH: panelH, f: f,
+		viewW: flat.ScreenW, viewH: flat.ScreenH,
+		srcW: flat.ScreenW, srcH: flat.ScreenH,
+		slots: make([][]SlantCol, 2*FanReach+1),
+	}
+	for i := range fan.slots {
+		fan.slots[i] = make([]SlantCol, 0, flat.ScreenW)
+	}
+	fan.SetSourceWidths(widths)
+
+	// ⭐ THE PANEL IS AS WIDE AS THE SCREEN, in the units the chain works in:
+	// f*2*hw_i is the screen's own pixel width, because f*2*hw is the view and
+	// hw_i is hw times the screen's share of it. Asserted before any picture,
+	// so a failure says which of the two things is wrong.
+	hwOf := fan.hwOf(0)
+	for i := range flat.Count() {
+		if got, want := f*2*hwOf(i), float64(flat.ScreenWidth(i)); math.Abs(got-want) > 1e-6 {
+			t.Errorf("panel %d projects %g pixels wide at distance 1, want %d",
+				i, got, flat.ScreenWidth(i))
+		}
+	}
+
+	// One render, or both canvases are background and nothing is compared.
+	strip.Render()
+	if len(strip.sources) == 0 || strip.sources[wide].W != flat.ScreenWidth(wide) {
+		t.Fatalf("after a render the wide source is %v, so nothing is compared",
+			strip.sources)
+	}
+
+	// ⭐ AND THE BAND IS AS LONG AS ITS SCREENS, so each keeps its own pixels.
+	// Before, the length was Count()*(ScreenW+gap) -- as if every screen were
+	// nominal -- while ribbon.Place shared the arcs out by shape, so the wide
+	// screen took its share out of the others and EVERY screen came out 1536
+	// pixels wide instead of 1920. See Plan.BandPx.
+	if got, want := strip.strip.total, flat.BandPx(); got != want {
+		t.Errorf("the band is %d pixels for screens totalling %d", got, want)
+	}
+	for i := range flat.Count() {
+		if got, want := strip.strip.width[i], flat.ScreenWidth(i); got != want {
+			t.Errorf("screen %d is %d pixels on the band, want its own %d",
+				i, got, want)
+		}
+	}
+
+	// Square on, the two renderers are one picture, with a screen of another
+	// shape on the band. This is the assertion the whole change is for.
+	for focus := range flat.Count() {
+		if differ, total := disagree(strip, fan, focus, 0); differ != 0 {
+			t.Errorf("screen %d square on, with a %d-wide screen on the band: the "+
+				"turned renderer and the flat one differ in %d of %d bytes",
+				focus, flat.ScreenWidth(wide), differ, total)
+		}
+	}
+}
+
+// newStripedFeed is a source whose colour changes along x.
+//
+// ⛔⛔ THE FLAT FEEDS COULD NOT SEE THE BUG ABOVE. newFakeFeed paints one colour
+// over a whole screen, so squeezing that screen to half its width leaves every
+// pixel exactly the colour it was: run against the single-width chain this test
+// exists to refuse, the pixel comparison passed, and only the assertion on the
+// panel widths failed. A comparison that cannot come out different has measured
+// nothing -- so the source is striped, and a compression moves the stripes.
+func newStripedFeed(w, h int, tag byte) *fakeFeed {
+	const stripe = 16
+	pix := make([]byte, w*h*4)
+	for y := range h {
+		for x := range w {
+			v := tag
+			if (x/stripe)%2 == 1 {
+				v = 255 - tag
+			}
+			i := (y*w + x) * 4
+			pix[i], pix[i+1], pix[i+2], pix[i+3] = v, v, v, 255
+		}
+	}
+	return &fakeFeed{src: Source{Pix: pix, W: w, H: h, Stride: w * 4}, fresh: true}
 }

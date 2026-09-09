@@ -136,9 +136,29 @@ func slantGap(hw float64, srcW int) float64 {
 // screen starts. Given the same gap, a panel at a splay of nothing lands exactly
 // where the strip puts it.
 //
+// hwOf is asked for the HALF-WIDTH OF PANEL k, in world units, for whatever k
+// the walk needs -- which is every panel between 0 and j, inclusive.
+//
+// ⛔⛔ NOT EVERY SCREEN IS THE SAME WIDTH, AND THIS USED TO TAKE ONE NUMBER.
+// A desk here has an Odyssey G95NC mirrored onto a position: 7680x2160,
+// captured at the band's height, so 3840x1080 -- TWICE the width of every other
+// screen. [Strip] has always placed it as 3840 on the band; the chain gave every
+// panel the same 2*hw, so the wide screen was squeezed into a normal panel and
+// the fold to its neighbour landed where a 1920 screen would have ended.
+//
+// Reported from the glasses as "on a toujours un probleme d'écran dont la
+// cassure n'est pas au bon endroit", and then diagnosed from the same chair:
+// "ce peut il que ce soit du a la taille de l'odyssey que tu redimensionne en
+// largeur pour faire tenir dans l'ecran des lunettes?" -- which is what it was.
+// A bench run settled it: at widths of 1920, 3440 and 5120 for one screen, not
+// one panel edge moved.
+//
+// The gap does NOT vary: it is a seam to be seen, not a property of a screen.
+//
 // The returned edges are the panel's left and right vertical edges, and panelH
 // its world height.
-func slantChain(j int, splayDeg, hw, gap, distance, turn float64) (lx, lz, rx, rz float64) {
+func slantChain(j int, splayDeg float64, hwOf func(k int) float64,
+	gap, distance, turn float64) (lx, lz, rx, rz float64) {
 	// Walk out to panel j along the chain, hinge by hinge. Only |j| steps, and a
 	// desk is nine screens: the loop is cheaper than the trigonometry it would
 	// take to close the form, and it cannot drift from the definition.
@@ -147,7 +167,7 @@ func slantChain(j int, splayDeg, hw, gap, distance, turn float64) (lx, lz, rx, r
 	// panel's own extent does not. Folding the gap into a single step would
 	// widen every screen by it -- the pixels would stretch and nothing would
 	// look wrong enough to notice.
-	ax, az := -hw, distance
+	ax, az := -hwOf(0), distance
 	along := func(k, w float64) (float64, float64) {
 		a := rad(k * splayDeg)
 		return w * math.Cos(a), -w * math.Sin(a)
@@ -162,24 +182,24 @@ func slantChain(j int, splayDeg, hw, gap, distance, turn float64) (lx, lz, rx, r
 	// different shapes: measured at a splay of twenty, the left neighbour came
 	// out 625 pixels wide against the right one's 624, and its edges 440/402
 	// against 438/402. Half the fold each is the only split with no side to it.
-	hinge := func(k float64) (float64, float64) {
-		sx, sz := along(k, 2*hw)
-		gx, gz := along(k+0.5, gap)
+	hinge := func(k int) (float64, float64) {
+		sx, sz := along(float64(k), 2*hwOf(k))
+		gx, gz := along(float64(k)+0.5, gap)
 		return sx + gx, sz + gz
 	}
 	switch {
 	case j > 0:
 		for k := range j {
-			dx, dz := hinge(float64(k))
+			dx, dz := hinge(k)
 			ax, az = ax+dx, az+dz
 		}
 	case j < 0:
 		for k := j; k < 0; k++ {
-			dx, dz := hinge(float64(k))
+			dx, dz := hinge(k)
 			ax, az = ax-dx, az-dz
 		}
 	}
-	dx, dz := along(float64(j), 2*hw)
+	dx, dz := along(float64(j), 2*hwOf(j))
 	bx, bz := ax+dx, az+dz
 
 	// The viewer's rotation, applied to both edges.

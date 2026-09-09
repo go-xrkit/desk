@@ -89,15 +89,33 @@ func NewFan(plan Plan) (*Fan, error) {
 	return fan, nil
 }
 
-// Angle is where panel j of the chain is, in radians from straight ahead.
+// hwOf is the half-width of chain panel k, for a chain built around focus.
 //
-// It is the angle to the panel's CENTRE, which is what the scroll interpolates
-// between: the panels of a chain do not subtend equal angles -- the ones further
-// along are further away -- so a position half way between two screens is half
-// way between their two angles and not half of a fixed pitch.
-func (f *Fan) Angle(j int) float64 {
-	lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.gap, f.distance, 0)
-	return math.Atan2((lx+rx)/2, (lz+rz)/2)
+// It goes through [Fan.screenAt] because the chain wraps, and through
+// [Fan.sourceWidth] because a screen's panel is as wide as its pixels are: the
+// band's own width is the default, and a screen that is not that shape gets its
+// own. See the note on [slantChain] for the desk that made this necessary.
+func (f *Fan) hwOf(focus int) func(k int) float64 {
+	return func(k int) float64 {
+		at := f.screenAt(focus + k)
+		return f.hw * float64(f.sourceWidth(at)) / float64(f.srcW)
+	}
+}
+
+// centre is the middle of panel j of a chain built around focus, in camera
+// space with the viewer facing straight ahead.
+//
+// It is the point the scroll interpolates BETWEEN, and it is a POINT rather
+// than an angle on purpose: see [Fan.Frame]. There used to be an Angle method
+// here returning the arc-tangent of it, and nothing called it once the scroll
+// stopped interpolating angles.
+//
+// ⛔ IT TAKES THE FOCUS because a panel's width is its SCREEN's width, and which
+// screen a panel shows depends on where the chain was built from. A chain of
+// identical screens does not care and every other one does.
+func (f *Fan) centre(focus, j int) (x, z float64) {
+	lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hwOf(focus), f.gap, f.distance, 0)
+	return (lx + rx) / 2, (lz + rz) / 2
 }
 
 // Frame appends the panels in shot to dst: the focused screen and its
@@ -145,11 +163,27 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	if toward < 0 {
 		next = -1
 	}
-	turn := f.Angle(0) + toward*float64(next)*(f.Angle(next)-f.Angle(0))
+	// ⛔⛔ INTERPOLATE THE POINT, NOT THE ANGLE. Rotating the view by an angle
+	// moves the picture by f*tan of it, which is not linear in the angle -- so a
+	// band a quarter of a screen along landed somewhere the flat renderer did
+	// not put it. Measured, at a splay of nothing where the two must agree
+	// exactly: 362,436 of 8,294,400 bytes different at a quarter screen, 999,606
+	// at a half. Interpolating the CENTRES makes it exact, because at a splay of
+	// nothing the two centres are a pitch apart on one plane and f*tan of the
+	// angle to a point on that plane is the point's own offset.
+	//
+	// ⭐ AND IT WAS INVISIBLE FOR AS LONG AS THE TEST EXISTED, because
+	// TestAFanOfNothingDrawsWhatTheStripDraws was comparing two blank canvases:
+	// Desk.sources is empty until a frame has been pulled.
+	ax, az := f.centre(focus, 0)
+	bx, bz := f.centre(focus, next)
+	t := toward * float64(next)
+	turn := math.Atan2(ax+t*(bx-ax), az+t*(bz-az))
 
+	hwOf := f.hwOf(focus)
 	slot := 0
 	for j := -FanReach; j <= FanReach; j++ {
-		lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hw, f.gap, f.distance, turn)
+		lx, lz, rx, rz := slantChain(j, f.splayDeg, hwOf, f.gap, f.distance, turn)
 		at := f.screenAt(focus + j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
 			f.panelH, f.f, f.viewW, f.viewH, f.sourceWidth(at), f.srcH)

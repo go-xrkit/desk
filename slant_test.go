@@ -29,7 +29,7 @@ func TestASplayOfNothingIsTheFlatBand(t *testing.T) {
 	for _, d := range []float64{1, 2, 4} {
 		hw, panelH, f := slantOptics(fov, viewW, viewW, viewH)
 		for _, j := range []int{-1, 0, 1} {
-			lx, lz, rx, rz := slantChain(j, 0, hw, slantGap(hw, viewW), d, 0)
+			lx, lz, rx, rz := slantChain(j, 0, sameWidth(hw), slantGap(hw, viewW), d, 0)
 			s, ok := slantOf(nil, j+1, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
 			if !ok {
 				if j != 0 && d == 1 {
@@ -195,14 +195,14 @@ func TestTheChainTurnsWithTheViewer(t *testing.T) {
 	hw, panelH, f := slantOptics(fov, viewW, viewW, viewH)
 
 	// Where the next panel's centre is, as an angle.
-	lx, lz, rx, rz := slantChain(1, splay, hw, slantGap(hw, viewW), dist, 0)
+	lx, lz, rx, rz := slantChain(1, splay, sameWidth(hw), slantGap(hw, viewW), dist, 0)
 	turn := math.Atan2((lx+rx)/2, (lz+rz)/2)
 	if turn <= 0 {
 		t.Fatalf("the next panel is at %g radians", turn)
 	}
 
 	before := project(t, 1, splay, hw, panelH, f, dist, viewW, viewH)
-	lx, lz, rx, rz = slantChain(1, splay, hw, slantGap(hw, viewW), dist, turn)
+	lx, lz, rx, rz = slantChain(1, splay, sameWidth(hw), slantGap(hw, viewW), dist, turn)
 	after, ok := slantOf(nil, 1, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
 	if !ok {
 		t.Fatal("the panel disappeared when the viewer turned to it")
@@ -379,7 +379,7 @@ func project(t *testing.T, j int, splay, hw, panelH, f, dist float64,
 func projectInto(t *testing.T, scratch []SlantCol, j int, splay, hw, panelH, f, dist float64,
 	viewW, viewH int) Slant {
 	t.Helper()
-	lx, lz, rx, rz := slantChain(j, splay, hw, slantGap(hw, viewW), dist, 0)
+	lx, lz, rx, rz := slantChain(j, splay, sameWidth(hw), slantGap(hw, viewW), dist, 0)
 	s, ok := slantOf(scratch, j, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
 	if !ok {
 		t.Fatalf("panel %d at splay %g, distance %g: no projection", j, splay, dist)
@@ -410,7 +410,7 @@ func TestASlantOfSomethingTooThinToSeeIsStillDrawn(t *testing.T) {
 	hw, panelH, f := slantOptics(45, viewW, 4000, 1)
 
 	for _, d := range []float64{1, 4, 40} {
-		lx, lz, rx, rz := slantChain(0, 0, hw, slantGap(hw, viewW), d, 0)
+		lx, lz, rx, rz := slantChain(0, 0, sameWidth(hw), slantGap(hw, viewW), d, 0)
 		s, ok := slantOf(nil, 0, lx, lz, rx, rz, panelH, f, viewW, viewH, 4000, 1)
 		if !ok {
 			t.Fatalf("distance %g: a one-pixel screen was dropped", d)
@@ -564,4 +564,10 @@ func rectOf(x, y, w, h int) stereo.Rect {
 func gapOf(p Plan) float64 {
 	hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
 	return slantGap(hw, p.ScreenW)
+}
+
+// sameWidth is a chain whose panels are all the width of one screen -- what
+// slantChain took before a desk turned up with an Odyssey on it.
+func sameWidth(hw float64) func(int) float64 {
+	return func(int) float64 { return hw }
 }

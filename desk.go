@@ -1591,7 +1591,7 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 	// divided by it, so every screen and every gap shrinks together and the ring
 	// stays the same ring. At 1 a screen is exactly the view, which is where this
 	// started; at 2 it is half of it and its two neighbours are in shot.
-	band := int(float64(plan.Count()*(plan.ScreenW+DefaultGapPx)) / plan.Distance())
+	band := int(float64(plan.BandPx()) / plan.Distance())
 	strip, err := NewStrip(placed, band,
 		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {

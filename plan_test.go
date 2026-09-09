@@ -546,7 +546,7 @@ func TestTheDerivedSplayMakesTheNeighbourFaceYou(t *testing.T) {
 		s := p.FacingSplayDeg()
 		p = p.WithSplay(s)
 		hw, _, _ := slantOptics(p.HFOVDeg, p.ScreenW, p.ScreenW, p.ScreenH)
-		lx, lz, rx, rz := slantChain(1, p.SplayDeg(), hw, gapOf(p), p.Distance(), 0)
+		lx, lz, rx, rz := slantChain(1, p.SplayDeg(), sameWidth(hw), gapOf(p), p.Distance(), 0)
 		sight := math.Atan2((lx+rx)/2, (lz+rz)/2)
 		surf := math.Atan2(rx-lx, rz-lz)
 		if miss := deg(surf-sight) - 90; math.Abs(miss) > 0.05 {
@@ -556,7 +556,7 @@ func TestTheDerivedSplayMakesTheNeighbourFaceYou(t *testing.T) {
 		// ⛔ AND THE OLD CONSTANT MISSES BADLY, which is what makes the assertion
 		// above worth making rather than a tautology.
 		q := p.WithSplay(DefaultSplayDeg)
-		lx, lz, rx, rz = slantChain(1, q.SplayDeg(), hw, gapOf(q), q.Distance(), 0)
+		lx, lz, rx, rz = slantChain(1, q.SplayDeg(), sameWidth(hw), gapOf(q), q.Distance(), 0)
 		sight = math.Atan2((lx+rx)/2, (lz+rz)/2)
 		surf = math.Atan2(rx-lx, rz-lz)
 		if miss := deg(surf-sight) - 90; math.Abs(miss) < 5 {
@@ -690,7 +690,7 @@ func TestTheDistancesAreNotEqualAndTheDocumentationSaysSo(t *testing.T) {
 
 	lo, hi := math.Inf(1), math.Inf(-1)
 	for j := -1; j <= 1; j++ {
-		_, lz, _, rz := slantChain(j, p.SplayDeg(), hw, gapOf(p), p.Distance(), 0)
+		_, lz, _, rz := slantChain(j, p.SplayDeg(), sameWidth(hw), gapOf(p), p.Distance(), 0)
 		for _, z := range []float64{lz, rz} {
 			// A panel behind the viewer has no depth worth comparing; slantOf
 			// refuses it, and the band never shows it.
@@ -707,7 +707,7 @@ func TestTheDistancesAreNotEqualAndTheDocumentationSaysSo(t *testing.T) {
 	}
 	// ⭐ AND THE FLAT BAND REALLY IS FLAT, which is the one state where the two
 	// geometries must agree and the only anchor that makes either verifiable.
-	_, lz, _, rz := slantChain(0, 0, hw, gapOf(p), p.Distance(), 0)
+	_, lz, _, rz := slantChain(0, 0, sameWidth(hw), gapOf(p), p.Distance(), 0)
 	if math.Abs(lz-rz) > 1e-12 {
 		t.Errorf("at a splay of nothing the edges are at %.12f and %.12f, want "+
 			"the same depth: the flat band is what the whole chain is checked against",

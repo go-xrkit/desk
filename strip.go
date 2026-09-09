@@ -189,24 +189,50 @@ func (s *Strip) Toward(yaw float64, focus int) float64 {
 	if focus < 0 || focus >= s.n || s.n < 2 {
 		return 0
 	}
-	slot := float64(s.total) / float64(s.n)
-	d := float64(s.Offset(yaw)-s.centre[focus]) / slot
-	// Round the seam: the SHORTEST way round, which is what "past" has to mean on
-	// a band that closes. Without it, a desk sitting on the screen either side of
-	// the join reports most of a band rather than a little of one.
+	// How far past the focused screen's centre the band is, in pixels, the
+	// SHORTEST way round -- which is what "past" has to mean on a band that
+	// closes. Without it, a desk sitting on the screen either side of the join
+	// reports most of a band rather than a little of one.
+	d := s.short(s.Offset(yaw) - s.centre[focus])
+	step := 1
+	if d < 0 {
+		step = -1
+	}
+	// ⛔⛔ AND EACH STEP IS ITS OWN LENGTH. This divided by one average slot,
+	// total/n, which is the distance between two neighbours only when every
+	// screen is the same width. With an Odyssey G95NC on the band -- 3840 among
+	// 1920s -- the step to it is half as long again as the step away from it, so
+	// "half a screen along" named a place neither renderer agreed on: [Fan]
+	// interpolates between two panels' own centres, and this said something else.
 	//
-	// Half the band either side, not half a screen: mid-turn the navigator names
-	// the screen it is going TO, so the band can be most of a screen away from it
-	// -- and briefly, while a turn of several screens settles, further still.
-	half := float64(s.n) / 2
-	d = math.Mod(d, float64(s.n))
-	if d > half {
-		d -= float64(s.n)
+	// Walked screen by screen rather than solved, because the answer may be
+	// several screens out while a turn settles, and the screens it crosses are
+	// not all the same size.
+	rem, at, screens := float64(step*d), focus, 0.0
+	for range s.n {
+		next := ((at+step)%s.n + s.n) % s.n
+		span := float64(step * s.short(s.centre[next]-s.centre[at]))
+		if span <= 0 || rem < span {
+			if span > 0 {
+				screens += rem / span
+			}
+			break
+		}
+		rem -= span
+		screens++
+		at = next
 	}
-	if d < -half {
-		d += float64(s.n)
+	return float64(step) * screens
+}
+
+// short is the shortest signed way round the band, in pixels: positive to the
+// right, and never more than half a band either way.
+func (s *Strip) short(px int) int {
+	px = ((px % s.total) + s.total) % s.total
+	if 2*px > s.total {
+		px -= s.total
 	}
-	return d
+	return px
 }
 
 // SetSourceWidths gives screens their own source widths.
