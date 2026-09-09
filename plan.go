@@ -367,12 +367,24 @@ func (p Plan) withBandLayout() Plan {
 	// measure.
 	const turnDeg = 360 - 1e-6
 	pitchDeg := turnDeg / float64(n)
-	gapDeg := pitchDeg * DefaultGapPx / float64(p.ScreenW+DefaultGapPx)
 	// The shapes actually on the band, which is the sum ribbon.Place will take.
 	var shapes float64
 	for i := range n {
 		shapes += float64(p.ScreenWidth(i)) / float64(p.ScreenH)
 	}
+	// ⛔⛔ AND THE GAP IS AN ARC OF THE BAND THERE IS, NOT OF THE ONE THERE WOULD
+	// BE IF EVERY SCREEN WERE THE EYE'S SHAPE. It used to be
+	// pitchDeg*gap/(ScreenW+gap), which is this expression with
+	// n*(ScreenW+gap) substituted for the band -- true only when every screen is
+	// nominal. With an Odyssey G95NC on the band (3840 among three 1920) the
+	// arcs still summed to a turn, so ribbon.Place shared a band 20% too short
+	// out among them and EVERY screen came out 1536 pixels wide instead of 1920.
+	// The wide one was not the only casualty; it was just the cause.
+	//
+	// Written this way, screen i's width comes back as exactly ScreenWidth(i)
+	// and every gap as exactly DefaultGapPx, whatever the mix. See
+	// TestTheBandIsAsLongAsItsScreens.
+	gapDeg := turnDeg * float64(DefaultGapPx) / float64(p.BandPx())
 	p.Layout = ribbon.Layout{
 		// DensityDeg is the arc for one width of a SQUARE screen, and a wider
 		// screen gets proportionally more.
@@ -382,6 +394,24 @@ func (p Plan) withBandLayout() Plan {
 		Arrangement:  ribbon.Packed,
 	}
 	return p
+}
+
+// BandPx is how long the whole band is in pixels at distance 1: every screen's
+// own width, plus one gap each.
+//
+// ⛔ ONE GAP PER SCREEN, NOT ONE PER PAIR, because the band closes: the extra
+// gap is the one across the seam, and [ribbon.Place] counts it the same way.
+//
+// It is a method rather than an expression in two places because the layout and
+// the flat renderer must agree about it exactly. They did not: the layout
+// derived its gap from a nominal band and [Strip] was built with a nominal
+// length, so a desk with one wide screen scaled every screen down.
+func (p Plan) BandPx() int {
+	band := 0
+	for i := range p.count {
+		band += p.ScreenWidth(i) + DefaultGapPx
+	}
+	return band
 }
 
 // MaxScreens is the most screens a desk carries: nine.
