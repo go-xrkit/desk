@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"math"
 	"strconv"
 
 	"github.com/go-xrkit/xrkit/ribbon"
@@ -248,7 +249,56 @@ func (d *Desk) followHead() {
 		d.head.base = d.nav.Yaw()
 		return
 	}
-	d.nav.SetYaw(d.head.base + yaw)
+	d.nav.SetYaw(d.head.base + yaw*d.headToBand())
+}
+
+// headToBand converts a real head rotation into ribbon yaw.
+//
+// ⛔⛔ THEY ARE NOT THE SAME UNIT, AND THIS USED TO ADD RADIANS OF ONE TO THE
+// OTHER. [HeadSource.Yaw] is "radians since the source was last recentred" -- a
+// real angle, measured off a camera. The ribbon's yaw is a COORDINATE ON A
+// BAND: a full turn is the whole desk, so with six screens one screen is sixty
+// degrees of it whatever the picture looks like. The turned band puts one
+// screen at about a field of view, because one screen fills the view at
+// distance one. Measured, one screen, chain against ribbon:
+//
+//	screens  splay  chain    ribbon  the desk moves
+//	4        20°    49.16°   90.0°   1.83x too slowly
+//	6        20°    49.16°   60.0°   1.22x too slowly
+//	9        20°    49.16°   40.0°   0.81x too fast
+//
+// So a tracked head dragged the desk with it instead of leaving it where it
+// was, by a factor that depends on how many screens somebody has -- and the
+// fold they turned to look at was not where their head said it would be. The
+// old code corrected the ORIGIN of the two spaces (see [headTracking.base]) and
+// never the SCALE.
+//
+// ⛔ THE STEP IS THE ONE IN FRONT, not an average. On a desk with a screen of
+// another shape on it the step to the left and the step to the right are
+// different lengths, so a single ratio for the whole band would be wrong on
+// both sides of a mismatched screen. See [Strip.Toward], which walks the same
+// steps for the same reason.
+//
+// The flat band is left at 1: [Strip] SLIDES a band of pixels in front of a
+// fixed window rather than turning the viewer, so "the desk stayed where it
+// was" is not a thing that arrangement can do at all, and a scale factor would
+// be a correction towards nothing. See TestAFanOfNothingDrawsWhatTheStripDraws.
+func (d *Desk) headToBand() float64 {
+	if d.fan == nil || d.strip.n < 2 {
+		return 1
+	}
+	focus := d.nav.Focus()
+	next := (focus + 1) % d.strip.n
+	// The step in ribbon radians: a full turn is the whole band.
+	band := 2 * math.Pi * float64(d.strip.short(d.strip.centre[next]-d.strip.centre[focus])) /
+		float64(d.strip.total)
+	// And the same step as the chain actually turns the viewer. It is never
+	// zero: [NewFan] refuses a splay of nothing and a screen of no size, so
+	// panel 1's centre is strictly to the right of panel 0's, and there is no
+	// division here to guard against.
+	x0, z0 := d.fan.centre(focus, 0)
+	x1, z1 := d.fan.centre(focus, 1)
+	return band / (math.Atan2(x1, z1) - math.Atan2(x0, z0))
 }
 
 // toggleFollowHead turns head tracking on, opening the camera the first time,
