@@ -273,16 +273,38 @@ func TestASlantIsClippedToTheCanvas(t *testing.T) {
 		t.Errorf("the bounding box %+v is outside the %dx%d canvas",
 			tall.Dst, viewW, viewH)
 	}
+	// ⛔⛔ AND THIS USED TO DEMAND THE OPPOSITE. The paragraph above has always
+	// said "cut rather than squashed", and the only thing asserted was that the
+	// columns stayed inside the canvas -- which is what MADE the squash: the
+	// source row is (y-Y0)*srcH/(Y1-Y0), so a column clipped before that
+	// arithmetic maps the WHOLE screen into the part of it that fits. A curved
+	// band bends towards the viewer, so every neighbour of the screen in front
+	// is nearer and therefore taller than the view: the screen being read was at
+	// true scale and the ones beside it were compressed.
 	cut := 0
 	for i, col := range tall.Cols {
-		if col.Y0 < 0 || col.Y1 > int32(viewH) {
-			t.Errorf("column %d covers %d..%d, outside the canvas", i, col.Y0, col.Y1)
-		}
 		if col.Src >= 800 {
 			t.Errorf("column %d reads source column %d of 800", i, col.Src)
 		}
-		if col.Y0 == 0 && col.Y1 == int32(viewH) {
-			cut++
+		if col.Y0 >= 0 && col.Y1 <= int32(viewH) {
+			continue
+		}
+		cut++
+		// What Canvas.Slant will draw at the top and the bottom of the canvas.
+		top := srcRowAt(col, 0, 800)
+		bot := srcRowAt(col, viewH-1, 800)
+		// The middle of the source, because the panel straddles the middle row
+		// of the canvas and overflows it equally at both ends. Within a couple
+		// of source rows, which is the rounding of an integer division.
+		wantTop := 800 * (int(col.Y1-col.Y0) - viewH) / 2 / int(col.Y1-col.Y0)
+		if abs(top-wantTop) > 2 {
+			t.Errorf("column %d: the top of the canvas shows source row %d, "+
+				"want about %d -- the panel is squashed into the canvas rather "+
+				"than cut by it", i, top, wantTop)
+		}
+		if bot <= top || bot >= 800 {
+			t.Errorf("column %d: the canvas shows source rows %d..%d of 800",
+				i, top, bot)
 		}
 	}
 	if cut == 0 {
@@ -570,4 +592,11 @@ func gapOf(p Plan) float64 {
 // slantChain took before a desk turned up with an Odyssey on it.
 func sameWidth(hw float64) func(int) float64 {
 	return func(int) float64 { return hw }
+}
+
+// srcRowAt is the source row [Canvas.Slant] draws into canvas row y for this
+// column. It is the drawing loop's own arithmetic, so a test that uses it is
+// measuring what will be on the glasses rather than what the geometry meant.
+func srcRowAt(col SlantCol, y, srcH int) int {
+	return int(int64(int32(y)-col.Y0) * int64(srcH) / int64(col.Y1-col.Y0))
 }
