@@ -426,13 +426,17 @@ var configActions = map[string]Action{
 	// The microphone in use, not the headset's: see [ActionMic].
 	"mic": ActionMic,
 	// The room on a ribbon screen: see [ActionPassthrough].
-	"room":     ActionPassthrough,
-	"flatter":  ActionFlatter,
-	"rounder":  ActionRounder,
-	"point":    ActionPoint,
-	"spread":   ActionSpread,
-	"remove":   ActionRemove,
-	"settings": ActionSettings,
+	"room":    ActionPassthrough,
+	"flatter": ActionFlatter,
+	"rounder": ActionRounder,
+	"point":   ActionPoint,
+	// And the way back out. Named rather than folded into "point" with a
+	// direction, because a settings file names GESTURES and "bring the pointer
+	// here" and "put it back where I can see it" are two of them.
+	"point-home": ActionPointHome,
+	"spread":     ActionSpread,
+	"remove":     ActionRemove,
+	"settings":   ActionSettings,
 	// One name per screen, so a settings file can move them. Nine, because
 	// MaxScreens is nine.
 	"screen-1": ActionScreen1,

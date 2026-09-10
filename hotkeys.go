@@ -101,6 +101,11 @@ func DefaultShortcuts() []Shortcut {
 		// And the pointer, which has to be system-wide or it is nothing: the whole
 		// point of it is to be pressed while another application has the keyboard.
 		{hotkey.Combo{Key: hotkey.KeyM, Mods: mods | hotkey.Control}, ActionPoint},
+		// And the way back, which has to be system-wide MORE than that one does:
+		// it is pressed when the pointer is on a screen only the glasses show and
+		// the glasses are on the table, so nothing this program owns is in front
+		// of the person pressing it.
+		{hotkey.Combo{Key: hotkey.KeyH, Mods: mods | hotkey.Control}, ActionPointHome},
 		// The angle between the screens, on the same two keys the window uses.
 		//
 		// System-wide because a window-only shortcut is no use to a surface that
