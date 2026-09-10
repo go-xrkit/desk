@@ -113,7 +113,7 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 		return
 	}
 
-	viewW := plan.ScreenW
+	viewW, viewH := plan.ScreenW, plan.ScreenH
 	for i, s := range panels {
 		src := widths[s.Screen]
 
@@ -152,6 +152,60 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 			if s.Cols[c].Src < s.Cols[c-1].Src {
 				t.Fatalf("%s: screen %d reads source %d after %d at column %d",
 					where, s.Screen+1, s.Cols[c].Src, s.Cols[c-1].Src, c)
+			}
+		}
+
+		// ⛔⛔ A PANEL TALLER THAN THE VIEW REACHES OUTSIDE IT. The rows in a
+		// column are the PANEL'S own, and [Canvas.Slant] derives the source row
+		// from them -- (y-Y0)*srcH/(Y1-Y0) -- so a column clipped to the canvas
+		// before that arithmetic maps the WHOLE screen into the part of it that
+		// fits, instead of cropping the top and the bottom away.
+		//
+		// It was doing exactly that, and it is not an edge case: a curved band
+		// bends TOWARDS the viewer, so every neighbour of the screen in front is
+		// nearer and therefore taller than the view. The screen being read was at
+		// true scale and the ones beside it were squashed -- "l'angle de cintrage
+		// n'est pas au bon endroit et tombe a l'interieur de l'ecran en face",
+		// reported from inside the glasses and chased four times as geometry.
+		//
+		// The fingerprint of the clip is a column that touches BOTH edges of the
+		// canvas and stops exactly there. That is only honest when the panel is
+		// square on and exactly a view tall, which is what every column of it
+		// then is; on a turned panel each column is a different depth and a
+		// different height, so a plateau at exactly the canvas is arithmetic,
+		// not geometry.
+		flat := true
+		for c := range s.Cols {
+			if s.Cols[c].Y1-s.Cols[c].Y0 != s.Cols[0].Y1-s.Cols[0].Y0 {
+				flat = false
+				break
+			}
+		}
+		// A panel that reaches both edges of the canvas is TALLER than the
+		// canvas, so it must say so: at least one of its columns has to fall
+		// outside. Under the clip, none ever did -- every column stopped exactly
+		// at the canvas, whatever the panel's real height, and the source was
+		// mapped into that.
+		//
+		// The panels whose columns are all one height are square on, and one of
+		// those really can be a view tall to the pixel: that is the doctrine at
+		// distance one, not an artefact, so they are left out.
+		if !flat {
+			touches, over := false, false
+			for _, col := range s.Cols {
+				if col.Y0 <= 0 && col.Y1 >= int32(viewH) {
+					touches = true
+				}
+				if col.Y0 < 0 || col.Y1 > int32(viewH) {
+					over = true
+				}
+			}
+			if touches && !over {
+				t.Errorf("%s: screen %d fills the canvas top to bottom and not "+
+					"one of its %d columns reaches past it: they were clipped "+
+					"before the source row was worked out, so the screen is "+
+					"squashed into the view rather than cropped by it",
+					where, s.Screen+1, len(s.Cols))
 			}
 		}
 

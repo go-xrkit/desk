@@ -63,7 +63,23 @@ type SlantCol struct {
 	// of its own, and a backstop against a projection that comes out a hair
 	// wide costs one comparison.
 	Src int32
-	// Y0 and Y1 are the destination rows this column covers, [Y0, Y1).
+	// Y0 and Y1 are the rows this column covers, [Y0, Y1) -- THE PANEL'S OWN,
+	// which for a panel taller than the canvas fall outside it. The drawing
+	// loop takes the intersection with the canvas; see [Canvas.Slant].
+	//
+	// ⛔⛔ THEY USED TO BE CLIPPED HERE, AND THAT SQUASHED THE PICTURE. The
+	// source row is worked out as (y-Y0)*srcH/(Y1-Y0), so clipping them first
+	// maps the WHOLE screen into the part of it that fits instead of cropping
+	// the top and the bottom away. Measured on a panel twice as tall as the
+	// canvas: rows 0..99 of a 100-row source were drawn where rows 25..74
+	// belong -- a vertical compression of two.
+	//
+	// It is not an edge case, it is the ordinary state of a curved band: the
+	// chain bends TOWARDS the viewer, so every neighbour of the screen in front
+	// is nearer than it and therefore taller than the view. The screen being
+	// read was at true scale and the ones beside it were squashed, which is what
+	// "l'angle de cintrage n'est pas au bon endroit et tombe a l'interieur de
+	// l'ecran en face" looks like from inside the glasses.
 	Y0, Y1 int32
 }
 
@@ -293,10 +309,14 @@ func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
 		// row, and there is no empty column to guard against. A screen one pixel
 		// tall comes out one or two rows tall rather than nothing, which is the
 		// right answer for a capture that hands over a status strip.
-		col.Y0 = int32(max(int(math.Floor(y0)), 0))
-		col.Y1 = int32(min(int(math.Ceil(y0+h)), viewH))
-		topMost = min(topMost, int(col.Y0))
-		botMost = max(botMost, int(col.Y1))
+		// The panel's OWN rows, unclipped, because the source row is derived
+		// from them. See [SlantCol].
+		col.Y0 = int32(math.Floor(y0))
+		col.Y1 = int32(math.Ceil(y0 + h))
+		// The BOX is clipped, because that is what the drawing loop walks and
+		// what [Canvas.Slant] refuses to take outside the canvas.
+		topMost = min(topMost, max(int(col.Y0), 0))
+		botMost = max(botMost, min(int(col.Y1), viewH))
 		out = append(out, col)
 	}
 	// At least one column, always: the two tests above have already established
