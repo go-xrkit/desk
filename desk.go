@@ -17,6 +17,15 @@ import (
 // ErrNoScreens means a desk was asked for with nothing to show.
 var ErrNoScreens = errors.New("desk: no screens")
 
+// ErrNoHostDisplay means every display attached is one this desk made, so there
+// is nowhere to put the pointer that is not the desk's own.
+//
+// It is reachable rather than defensive: a headset with this Mac's own panel
+// asleep is a machine whose only screens this program created. Named so a
+// caller can tell it from a pointer that could not be moved at all -- one is a
+// situation and the other is a failure. See [PointerToHost].
+var ErrNoHostDisplay = errors.New("desk: no display this desk did not make")
+
 // Feed is one screen's pixels, arriving over time.
 //
 // It is an interface rather than a concrete capture handle because what is
@@ -135,6 +144,23 @@ const (
 	// reported through OnPoint rather than acted on here -- the same seam as
 	// ActionCycle and for the same reason.
 	ActionPoint
+	// ActionPointHome is the way back: it puts the pointer on a display this
+	// desk did not make.
+	//
+	// ⛔⛔ WITHOUT IT THE WAY OUT WAS UNPLUGGING THE HEADSET. The desk's screens
+	// are real displays to the window server and they sit BESIDE the physical
+	// ones in its coordinate space -- so the pointer can leave to the right of
+	// the last real screen and land on one that only the glasses show. With the
+	// glasses on that is the whole point, and the band follows it there. With
+	// the glasses on the table it is a pointer nobody can see, on a desktop
+	// nobody can reach: "je n'avais plus la sourie sur l'ecran physique odyssey,
+	// j'ai du debrancher les beast pour la recuperer".
+	//
+	// It is the counterpart of [ActionPoint] and it is answered the same way,
+	// through a seam, because which displays exist is the application's business
+	// and not this package's. Handled before every gallery, because a way out
+	// that only works in some states is not one.
+	ActionPointHome
 	// ActionApps opens the gallery of running APPLICATIONS, or closes it.
 	//
 	// It is the other gallery. The screen gallery answers "which desktop am I
@@ -477,6 +503,8 @@ func (a Action) String() string {
 		return "rounder"
 	case ActionPoint:
 		return "bring the pointer here"
+	case ActionPointHome:
+		return "bring the pointer back to this Mac"
 	case ActionApps:
 		return "the applications"
 	case ActionSpread:
@@ -575,6 +603,16 @@ type Desk struct {
 	// visible: without it the pointer has to be dragged blind across displays
 	// whose contents are captures of somewhere else.
 	OnPoint func(pos int)
+
+	// OnPointHome, when set, is asked to put the pointer back on a display this
+	// desk did not make. It is called without the desk's lock held, and what it
+	// says is what the wearer is told.
+	//
+	// Separate from OnPoint rather than a position it could not name: the
+	// displays this desk did not make are the ones it has no index for, and
+	// inventing one to mean "not mine" would be a number with no screen behind
+	// it. See [ActionPointHome].
+	OnPointHome func() error
 
 	// OnRemove, when set, is called after a screen has been taken off the band,
 	// with the position it was at and the feed that was on it.
@@ -832,6 +870,23 @@ func (d *Desk) Do(a Action) {
 			return
 		}
 		d.say(Action(a).String())
+		return
+	case ActionPointHome:
+		// ⛔ OUT HERE, LIKE THE OTHERS, and for two reasons rather than one: it
+		// talks to the window server, and it is the way OUT -- a key somebody
+		// presses when they cannot see the picture at all, which is exactly when
+		// a gallery might be open in front of it.
+		home := d.OnPointHome
+		d.mu.Unlock()
+		if home == nil {
+			d.say("nothing here can move the pointer")
+			return
+		}
+		if err := home(); err != nil {
+			d.say(err.Error())
+			return
+		}
+		d.say("the pointer is back on this Mac")
 		return
 	case ActionStereo3D, ActionStereo3DOn, ActionStereo3DOff:
 		want := a != ActionStereo3DOff
@@ -1407,6 +1462,11 @@ func KeyAction(code string) Action {
 	// The pointer, on the key next to the one that means "here" in every editor.
 	case "m", "M":
 		return ActionPoint
+	// ⛔ AND THE WAY BACK IS NOT HERE, because h and l already turn the ribbon
+	// in this table and a person who learnt vim's left is owed it. It is on
+	// ⌃⌥⌘H system-wide and in the tray, which is where it is needed: the key
+	// exists for the moment the pointer is on a screen only the glasses show,
+	// and this table is what answers when the desk's own window is in front.
 	// The applications, on their own initial, and the spread on the key next to
 	// it that no other action wanted.
 	case "a", "A":

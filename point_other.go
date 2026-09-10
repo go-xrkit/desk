@@ -22,3 +22,6 @@ func BringPointer([]uint64, int) error { return ErrNoPointer }
 
 // PointerHome has nothing to remember here.
 func PointerHome() func() { return func() {} }
+
+// PointerToHost reports [ErrNoPointer].
+func PointerToHost([]uint64) error { return ErrNoPointer }

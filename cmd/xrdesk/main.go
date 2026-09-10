@@ -394,7 +394,41 @@ func run() int {
 			return true, false, false, 0
 		}
 
+		// pointerHome puts the pointer somewhere a person sitting at this Mac
+		// can see it.
+		//
+		// ⛔ THE HEADSET'S OWN SCREEN IS EXCLUDED TOO. It is a real display and
+		// somebody can see it -- while they are wearing the glasses. This is the
+		// key for when they are not.
+		//
+		// ⛔⛔ AND THE DESK'S SCREENS ONLY WHEN THEY ARE VIRTUAL. When the window
+		// server refused to make any, the ribbon is showing the REAL displays
+		// this Mac already has, and every one of them is a screen somebody can
+		// look at: excluding them would leave nowhere to go on the one machine
+		// where everywhere was already fine.
+		pointerHome := func() error {
+			own, _ := desk.OwnDisplay(chosen.Name)
+			ours := []uint64{own}
+			if screens.Virtual {
+				ours = append(ours, screens.IDs...)
+			}
+			return desk.PointerToHost(ours)
+		}
+
 		defer func() {
+			// ⛔⛔ THE POINTER FIRST, BEFORE THE DISPLAYS IT MAY BE STANDING ON
+			// ARE TAKEN AWAY. The window server relocates a pointer whose
+			// display disappears, so this is not what saves it -- what it does
+			// is make the landing DELIBERATE rather than whatever the system
+			// picks, and it happens on the way to the settings window too, where
+			// no display is removed at all and nothing would move it.
+			//
+			// ErrNoHostDisplay is not worth a line: it means every display
+			// attached is one this program made, and the removal happening two
+			// lines below is what fixes that.
+			if err := pointerHome(); err != nil && !errors.Is(err, desk.ErrNoHostDisplay) {
+				logf("bringing the pointer back: %v", err)
+			}
 			// Waiting for the removal is right when the desk is coming back —
 			// the settings window opens next and a person may well look at
 			// System Settings — and wrong on the way out, where it was measured
@@ -653,6 +687,9 @@ func run() int {
 				}
 				fmt.Printf("the pointer is on screen %d\n", pos+1)
 			}
+			// And the way back, which is the one that gets pressed when nothing
+			// this program draws is in front of the person pressing it.
+			d.OnPointHome = pointerHome
 
 			// A photograph, through one of the glasses' cameras.
 			//

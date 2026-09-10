@@ -8,6 +8,7 @@ package desk
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/go-macos/pointer"
 )
@@ -46,4 +47,45 @@ func PointerHome() func() {
 		return func() {}
 	}
 	return func() { _ = pointer.MoveTo(was) }
+}
+
+// PointerToHost puts the pointer on a display this desk did not make.
+//
+// ⛔⛔ THE WAY OUT USED TO BE UNPLUGGING THE HEADSET. The desk's screens are
+// real displays to the window server, laid out BESIDE the physical ones in its
+// coordinate space, so the pointer can leave past the right-hand edge of the
+// last real screen and land on one that only the glasses show. Wearing them,
+// that is the whole point and the band follows it. With them on the table it is
+// a pointer nobody can see, on a desktop nobody can reach.
+//
+// ours is every display id the caller is responsible for -- the ones this
+// program made, and the headset's own. The first display that is not one of
+// them wins: CGGetActiveDisplayList puts the main display first, so on a Mac
+// with one screen and a headset that is the screen somebody is sitting at.
+//
+// ⛔ IT MOVES TO THE MIDDLE OF A DISPLAY rather than restoring a remembered
+// position. Where the pointer was before it wandered is not where it is wanted:
+// it is wanted somewhere VISIBLE, now, and the middle of the main screen is the
+// one place a person cannot fail to find it. [PointerHome] is the other thing,
+// for a caller that moved the pointer itself and owes it back.
+func PointerToHost(ours []uint64) error {
+	ids, err := pointer.Displays()
+	if err != nil {
+		return fmt.Errorf("desk: cannot list the displays: %w", err)
+	}
+	for _, id := range ids {
+		if slices.Contains(ours, uint64(id)) {
+			continue
+		}
+		if err := pointer.MoveToDisplay(id); err != nil {
+			return fmt.Errorf("desk: cannot bring the pointer to display %d: %w",
+				id, err)
+		}
+		return nil
+	}
+	// Every display attached is one of ours. It is reachable -- a headset with
+	// the Mac's own panel asleep is a machine whose only screens this program
+	// made -- and it is not a failure of the pointer: there is nowhere else for
+	// it to go, and saying so names the situation rather than the call.
+	return fmt.Errorf("%w: all %d displays are the desk's own", ErrNoHostDisplay, len(ids))
 }

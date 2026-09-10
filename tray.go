@@ -126,6 +126,8 @@ func TrayRows() []TrayRow {
 		{},
 		{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint,
 			Symbol: "cursorarrow.rays"},
+		{Title: "Bring the pointer back to this Mac", Key: "h", Action: ActionPointHome,
+			Symbol: "arrow.uturn.backward"},
 		{},
 		{Title: "The applications...", Key: "a", Action: ActionAppsOpen,
 			Symbol: "square.grid.2x2"},
