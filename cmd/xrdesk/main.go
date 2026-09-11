@@ -314,10 +314,21 @@ func run() int {
 			logf("%s", advice)
 		}
 
-		plan, err := desk.NewPlan(chosen, desk.Options{
-			Screens: n, FOVDeg: *fov,
-			USB: desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
-		})
+		// ⛔⛔ THE DISTANCE AND THE SPLAY USED TO BE DROPPED HERE. Both were read
+		// from the command line, fetched from the settings when the flag was
+		// zero, threaded through four call sites and this function's own
+		// parameter list -- and then never mentioned again. Go does not complain
+		// about a parameter nobody reads, so it built, vetted and shipped: in
+		// the whole 677-line body of this function `dist` and `splay` appeared
+		// EXACTLY ONCE each, in the signature.
+		//
+		// So -distance and -splay did nothing, and a distance or a splay written
+		// in desk.hcl did nothing. Every session started at the plan's own
+		// defaults and the only way to move either was the keys. Found by using
+		// the flag as an instrument and reading the note beside the picture it
+		// took: "-distance 2" came back "curved 20.0° at 1.00x".
+		plan, err := planFor(chosen, n, dist, splay, *fov,
+			desk.EvidenceFor(chosen, model != "", desk.Peripherals()))
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			return false, false, false, 1
@@ -1066,4 +1077,27 @@ func ribbonIDs(mirror bool, mac uint64, made []uint64) []uint64 {
 		return made
 	}
 	return append([]uint64{mac}, made...)
+}
+
+// planFor is the band a session starts with: the numbers the flags and the
+// settings agreed on, turned into a plan.
+//
+// ⛔⛔ IT IS A FUNCTION BECAUSE THE LAST STEP WENT MISSING AND NOTHING SAID SO.
+// The distance and the splay were read from the command line, fetched from the
+// settings when the flag was zero, threaded through four call sites and the
+// session's own parameter list -- and then left out of desk.Options. Go does
+// not complain about a parameter nobody reads, so it built, vetted and shipped;
+// in the whole body of that function `dist` and `splay` appeared EXACTLY ONCE
+// each, in the signature. -distance and -splay did nothing, and a distance or a
+// splay written in desk.hcl did nothing.
+//
+// Inline, the mapping from four numbers to a plan could not be asserted without
+// a display, a headset and a window server. Here it can, and
+// TestThePlanCarriesTheDistanceAndTheSplay does.
+func planFor(d glasses.Display, screens int, dist, splay, fov float64,
+	usb *glasses.USB) (desk.Plan, error) {
+
+	return desk.NewPlan(d, desk.Options{
+		Screens: screens, FOVDeg: fov, Distance: dist, SplayDeg: splay, USB: usb,
+	})
 }

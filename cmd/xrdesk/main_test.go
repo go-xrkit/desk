@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-xrkit/desk"
+	"github.com/go-xrkit/xrkit/glasses"
 )
 
 // TestRibbonIDsPutsTheMacFirst.
@@ -76,5 +77,65 @@ func TestMainDisplayIsTheOneThatSaysSo(t *testing.T) {
 	// A panel this program renders onto is not a screen of the machine.
 	if _, ok := mainDisplay([]desk.Offer{{ID: "panel-1", Kind: desk.KindPanel, Main: true}}); ok {
 		t.Error("mainDisplay took a rendered panel for this Mac's screen")
+	}
+}
+
+// TestThePlanCarriesTheDistanceAndTheSplay.
+//
+// ⛔⛔ FOR THREE WEEKS NEITHER OF THEM REACHED THE BAND. -distance and -splay
+// were parsed, fetched from the settings when the flag was zero, threaded
+// through four call sites and the session's own parameter list -- and left out
+// of the Options the plan was built from. Go says nothing about a parameter
+// nobody reads: `dist` and `splay` appeared EXACTLY ONCE each in a 677-line
+// function, in its signature, and the build, the vet and the whole suite were
+// green.
+//
+// It was found by using the flag as an instrument rather than trusting it: a
+// capture taken with "-distance 2" came back with the note "curved 20.0° at
+// 1.00x" beside it.
+//
+// So this asserts the one thing nobody was asserting -- that a number given on
+// the command line is a number the band has.
+func TestThePlanCarriesTheDistanceAndTheSplay(t *testing.T) {
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+
+	p, err := planFor(beast, 6, 2.5, 40, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Distance(); got != 2.5 {
+		t.Errorf("the band sits at %g, want the 2.5 that was asked for", got)
+	}
+	if got := p.SplayDeg(); got != 40 {
+		t.Errorf("the screens are splayed %g°, want the 40 that was asked for", got)
+	}
+	if got := p.Count(); got != 6 {
+		t.Errorf("the band has %d screens, want 6", got)
+	}
+
+	// ⭐ AND ZERO STILL MEANS "NOBODY SAID", which is the convention the flags
+	// rely on: it is what lets an unset flag fall through to the settings and
+	// an unset setting fall through to the plan's own default. A test that only
+	// checked the numbers above would pass on a planFor that ignored zero and
+	// forced one.
+	p, err = planFor(beast, 6, 0, 0, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.Distance(); got != 1 {
+		t.Errorf("a band nobody placed sits at %g, want 1", got)
+	}
+	if got := p.SplayDeg(); got != desk.DefaultSplayDeg {
+		t.Errorf("a band nobody splayed is %g°, want %g", got, desk.DefaultSplayDeg)
+	}
+
+	// And a negative splay is the flat band, which is the other half of that
+	// convention and the only way to ask for no curvature at all.
+	p, err = planFor(beast, 6, 0, -1, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := p.SplayDeg(); got != 0 {
+		t.Errorf("a band asked to be flat is splayed %g°", got)
 	}
 }
