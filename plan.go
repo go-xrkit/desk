@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/go-xrkit/xrkit/glasses"
@@ -78,6 +79,32 @@ type Plan struct {
 	// How says what named the model, so a caller can show whether the answer
 	// came from the bus, from the display, or from the person at the keyboard.
 	How glasses.How
+
+	// DamagedName is the name this display ARRIVED with, when it arrived
+	// damaged and the catalogue entry had to be recovered from what survived.
+	// Empty in every ordinary case.
+	//
+	// ⛔⛔ THE DAMAGE USED TO COST THE OPTICS, SILENTLY. A long-lived Go string
+	// in this program loses its first four bytes now and then -- eight times
+	// since 2026-09-06, roughly four in a hundred runs, and nothing measurable
+	// separates a run that corrupts from one that does not (see
+	// damagedname.go). When the victim is the display's name, the catalogue no
+	// longer recognises it, HFOVDeg stays zero, and [slantOptics] quietly
+	// substitutes [DefaultFOVDeg]:
+	//
+	//	before: VITURE Beast: ... 50.35°x32.74° each, curved 60.0° at 3.00x
+	//	after:      RE Beast: ... field of view not known, curved 60.0° at 3.00x
+	//
+	// The field of view fixes hw = tan(fov/2), so 45° in place of 50.35° stretches
+	// EVERYTHING off-axis by the wrong factor -- the neighbouring panels and the
+	// folds between them. A rendering defect whose only other symptom is half a
+	// line in a log that `open` throws away.
+	//
+	// ⭐ SO IT IS RECOVERED AND SAID, never one without the other. Recovering in
+	// silence would turn a visible fault into an invisible one and nobody would
+	// collect another instance; [Plan.String] carries this into the note beside
+	// every capture, which is a timestamped trace nobody has to be present for.
+	DamagedName string
 
 	// ScreenW and ScreenH are the pixel size to create each virtual display at:
 	// one eye's viewport, which is the most the glasses can show at once.
@@ -154,6 +181,14 @@ func (p Plan) String() string {
 	}
 	if len(odd) > 0 {
 		shape += " (screen " + strings.Join(odd, ", screen ") + ")"
+	}
+	// ⛔⛔ AND IT SAYS WHEN THE NAME ARRIVED DAMAGED. Recovering in silence would
+	// turn a visible fault into an invisible one, and this line is written into
+	// the note beside every capture -- a timestamped trace of a fault that
+	// happens about four times in a hundred runs and that nobody has ever been
+	// present for. See [Plan.DamagedName].
+	if p.DamagedName != "" {
+		shape += ", name arrived DAMAGED as " + strconv.Quote(p.DamagedName)
 	}
 	return fmt.Sprintf("%s: %d screens of %dx%d, %s%s",
 		p.Model, p.count, p.ScreenW, p.ScreenH, optics, shape)
@@ -249,6 +284,35 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	var h, v float64
 	p, how := glasses.IdentifyDevice(d.Name, opts.USB)
 	ok := how != glasses.NotIdentified
+
+	// ⛔⛔ A NAME WITH A NUL IN IT IS NOT A NAME, AND IT COST THE OPTICS. See
+	// [Plan.DamagedName]: the same heap corruption that damagedname.go recovers
+	// from when LOOKING FOR the display also reaches the name the plan is built
+	// from, and there it went unnoticed -- the catalogue missed, the field of
+	// view stayed unknown, and the geometry silently used 45°.
+	//
+	// ⭐ THE SAME PREDICATE AND THE SAME STRICTNESS, against the catalogue
+	// instead of the attached displays: undamage repairs only a name carrying a
+	// NUL, and only when exactly one candidate of the same length ends the same
+	// way. Two candidates is a guess, and a guess here is a headset's optics
+	// wrapped around somebody's desk.
+	//
+	// ⛔ IT DOES NOT TOUCH THE USB EVIDENCE. What is repaired is the STRING; the
+	// repaired name then goes through IdentifyDevice like any other. The bus
+	// still says which headsets are attached and not which display is which one
+	// -- the distinction EvidenceFor exists to keep, and which must not be
+	// traded away to work around a rare fault.
+	var damaged string
+	if !ok {
+		if models := glasses.Models(); len(models) > 0 {
+			if i, repaired := undamage(d.Name, models); repaired {
+				if q, qhow := glasses.IdentifyDevice(models[i], opts.USB); qhow != glasses.NotIdentified {
+					damaged, model = d.Name, models[i]
+					p, how, ok = q, qhow, true
+				}
+			}
+		}
+	}
 	switch {
 	case opts.FOVDeg > 0:
 		// The viewer's own figure wins, and the vertical follows from the shape
@@ -270,6 +334,7 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 
 	plan := Plan{
 		Model:        model,
+		DamagedName:  damaged,
 		How:          how,
 		ScreenW:      eyeW,
 		ScreenH:      eyeH,
