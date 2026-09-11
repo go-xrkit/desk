@@ -151,3 +151,51 @@ func names(apps []App) []string {
 	}
 	return out
 }
+
+// TestGatherTakesEveryApplicationAndNotJustTheOnesItPlaced.
+//
+// ⛔⛔ IT IS THE WAY OUT. One press spreads six applications across screens only
+// the glasses show, and until now nothing put them back -- taking the glasses
+// off meant hunting each window on a desktop that is not in front of you. The
+// same trap the pointer was in before ⌃⌥⌘H: "il faudrait un menu dans le tray
+// pour ramener toutes les applications sur l'ecran du mac".
+//
+// ⭐ EVERY APPLICATION, INCLUDING ONES THIS DESK NEVER MOVED. A desk does not
+// remember what it placed -- a window dragged onto a screen by hand is on it
+// just the same -- and a row that promised to bring everything back and left one
+// behind would send somebody hunting for exactly the one it forgot.
+//
+// They all carry position 1 because the caller hands Send a list of ONE display,
+// this Mac's own. It is not a ribbon position: with mirroring off it is not on
+// the band at all, and off is when this matters most.
+func TestGatherTakesEveryApplicationAndNotJustTheOnesItPlaced(t *testing.T) {
+	apps := []App{{Name: "A"}, {Name: "B"}, {Name: "C"}, {Name: "D"}, {Name: "E"},
+		{Name: "F"}, {Name: "G"}}
+	// Seven, on a desk of six: Spread leaves the seventh where it is, and
+	// Gather must not inherit that limit -- the screens are what run out, and
+	// this is going the other way.
+	if spread := Spread(apps, 6); len(spread) != 6 {
+		t.Fatalf("Spread placed %d of 7 on six screens, so the premise is wrong",
+			len(spread))
+	}
+	got := Gather(apps)
+	if len(got) != len(apps) {
+		t.Fatalf("Gather placed %d of %d applications", len(got), len(apps))
+	}
+	for i, p := range got {
+		if p.App != apps[i].Name {
+			t.Errorf("placement %d is %q, want %q", i, p.App, apps[i].Name)
+		}
+		if p.Pos != 1 {
+			t.Errorf("%s goes to position %d; the host display is the only one in "+
+				"the list the caller passes", p.App, p.Pos)
+		}
+	}
+}
+
+// TestGatherWithNothingRunningPlacesNothing, rather than one empty placement.
+func TestGatherWithNothingRunningPlacesNothing(t *testing.T) {
+	if got := Gather(nil); got != nil {
+		t.Errorf("Gather(nil) = %v", got)
+	}
+}

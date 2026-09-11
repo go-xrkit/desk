@@ -159,3 +159,29 @@ func Spread(apps []App, screens int) []Placement {
 	}
 	return out
 }
+
+// Gather puts every application back on this Mac's own screen.
+//
+// ⛔⛔ IT IS THE WAY OUT, AND THERE WAS NONE. One press spreads six applications
+// across six screens only the glasses show; nothing put them back. Taking the
+// glasses off then meant finding each window on a desktop that is not in front
+// of you -- which is the same trap the pointer was in before ⌃⌥⌘H, and it was
+// asked for in the same words: "il faudrait un menu dans le tray pour ramener
+// toutes les applications sur l'ecran du mac".
+//
+// ⭐ EVERY APPLICATION, NOT THE ONES THIS DESK PLACED. A desk does not remember
+// what it moved -- a window put on a screen by hand is on it just the same --
+// and a row that promised to bring everything back and left a window behind
+// would send somebody hunting for the one it forgot.
+//
+// The position is 1 because the caller hands [Send] a list of ONE display, this
+// Mac's own. That display is not a ribbon position: with mirroring off it is not
+// on the band at all, and this row has to work precisely then -- it is what
+// somebody presses on their way to putting the glasses down.
+func Gather(apps []App) []Placement {
+	var out []Placement
+	for _, a := range apps {
+		out = append(out, Placement{App: a.Name, Pos: 1})
+	}
+	return out
+}

@@ -131,6 +131,8 @@ func TrayRows() []TrayRow {
 		{},
 		{Title: "The applications...", Key: "a", Action: ActionAppsOpen,
 			Symbol: "square.grid.2x2"},
+		{Title: "Bring them all back to this Mac", Action: ActionGather,
+			Symbol: "tray.and.arrow.down"},
 		{Title: "One application per screen", Key: "x", Action: ActionSpread,
 			Symbol: "rectangle.3.group"},
 		{},
