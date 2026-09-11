@@ -85,6 +85,9 @@ func (c Config) Bytes() []byte {
 		if c.Ribbon.Immersive != nil {
 			set("immersive", cty.BoolVal(*c.Ribbon.Immersive), true)
 		}
+		if c.Ribbon.FacesMe != nil {
+			set("faces_me", cty.BoolVal(*c.Ribbon.FacesMe), true)
+		}
 		if c.Ribbon.Dim != nil {
 			set("dim", cty.BoolVal(*c.Ribbon.Dim), true)
 		}

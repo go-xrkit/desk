@@ -128,6 +128,21 @@ type ConfigRibbon struct {
 	// Dock are the real ones rather than a copy on a screen nobody is using.
 	Immersive *bool `hcl:"immersive"`
 
+	// FacesMe turns each screen towards the viewer as they look at it, instead
+	// of leaving the desk where it is. Nil means true, which is what the desk
+	// has always done.
+	//
+	// ⛔⛔ NO ARRANGEMENT HAS BOTH HALVES OF THIS. Turning the screen you look at
+	// square on means MOVING the desk -- the placement before and after are a
+	// rotation and a translation apart, a viewer's rotation absorbs the
+	// rotation, and nothing absorbs the translation. So the desk steps sideways,
+	// 1.3° of view in one frame, each time the gaze crosses a half-way point:
+	// "c'est deroutant quand on tourne la tete d'avoir les ecrans qui se replace
+	// face a soit d'un coup". Turn it off and the motion is smooth, at the price
+	// of seeing the screens off to the side obliquely, as the far monitors of a
+	// real desk are. See [Anchoring]; there are two menu rows for it as well.
+	FacesMe *bool `hcl:"faces_me"`
+
 	// Dim turns the Mac's own panel OFF while the band is showing a copy of it.
 	// Nil means true.
 	//
@@ -510,4 +525,13 @@ func (c Config) Mirror() bool {
 		return true
 	}
 	return *c.Ribbon.Mirror
+}
+
+// Anchoring says what the chain should do when the gaze moves. Nothing said
+// leaves it as it has always been: each screen turns towards the viewer.
+func (c Config) Anchoring() Anchoring {
+	if c.Ribbon == nil || c.Ribbon.FacesMe == nil || *c.Ribbon.FacesMe {
+		return AnchorOnGaze
+	}
+	return AnchorFixed
 }

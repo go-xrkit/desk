@@ -99,7 +99,7 @@ func TestMainDisplayIsTheOneThatSaysSo(t *testing.T) {
 func TestThePlanCarriesTheDistanceAndTheSplay(t *testing.T) {
 	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
 
-	p, err := planFor(beast, 6, 2.5, 40, 0, nil)
+	p, err := planFor(beast, 6, 2.5, 40, 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestThePlanCarriesTheDistanceAndTheSplay(t *testing.T) {
 	// an unset setting fall through to the plan's own default. A test that only
 	// checked the numbers above would pass on a planFor that ignored zero and
 	// forced one.
-	p, err = planFor(beast, 6, 0, 0, 0, nil)
+	p, err = planFor(beast, 6, 0, 0, 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestThePlanCarriesTheDistanceAndTheSplay(t *testing.T) {
 
 	// And a negative splay is the flat band, which is the other half of that
 	// convention and the only way to ask for no curvature at all.
-	p, err = planFor(beast, 6, 0, -1, 0, nil)
+	p, err = planFor(beast, 6, 0, -1, 0, nil, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

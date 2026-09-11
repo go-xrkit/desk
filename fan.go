@@ -29,10 +29,12 @@ import (
 // faces. See [Slant] for what one turned panel projects to, and why that is a
 // trapezoid rather than a guess.
 type Fan struct {
-	n                        int
-	splayDeg                 float64
-	distance                 float64
-	hw, gap, panelH, f       float64
+	n                  int
+	splayDeg           float64
+	distance           float64
+	hw, gap, panelH, f float64
+	// anchor is what the chain does when the gaze moves. See [Anchoring].
+	anchor                   Anchoring
 	viewW, viewH, srcW, srcH int
 	// srcWidths is the source width of each screen that is not the shape of the
 	// band. See [Fan.SetSourceWidths].
@@ -42,6 +44,48 @@ type Fan struct {
 	// frame. A slant's columns are a slice into one of these, so a caller may
 	// hold every slant of a frame at once -- which the drawing loop does.
 	slots [][]SlantCol
+}
+
+// Anchoring is what the chain does when the viewer looks at a different screen,
+// and it is a choice because no arrangement has both halves of it.
+//
+// ⛔⛔ RE-SQUARING IS A MOVE. The chain built around screen F and the one built
+// around F+1 are the same shape in a different PLACE -- a rotation and a
+// translation apart. A viewer rotation absorbs the rotation; nothing absorbs the
+// translation. So a desk that always presents the screen you are looking at
+// square on must shift when you cross the half-way point between two screens:
+// measured at 45 pixels, 1.3° of view, in a single frame, on six identical
+// screens at twenty degrees.
+//
+// ⭐ AND A RIGID DESK HAS THE OTHER HALF OF IT. Leave the chain alone and the
+// motion is perfectly smooth, but the screens away from the middle are seen
+// obliquely -- at twenty degrees the second one along is 40° off square, exactly
+// as the far monitors of a real desk are. That is honest and it is not what
+// everyone wants to read on.
+//
+// The only angle with both is [Plan.FacingSplayDeg], where a rigid chain has
+// every screen facing the viewer already; it was worn and refused as too deep a
+// crease. So this is a setting, and the person wearing the glasses picks.
+type Anchoring int
+
+const (
+	// AnchorOnGaze rebuilds the chain around whichever screen is being looked
+	// at. The screen being read is square on at the set distance whatever the
+	// curvature, at the cost of a step each time the gaze crosses a half-way
+	// point.
+	AnchorOnGaze Anchoring = iota
+	// AnchorFixed leaves the chain where it is and only turns the viewer, the
+	// way a desk of monitors behaves.
+	AnchorFixed
+)
+
+// String names an Anchoring for a log line and for a test failure that has to
+// be readable without counting iota.
+func (a Anchoring) String() string {
+	if a == AnchorFixed {
+		return "fixed"
+	}
+	return "on the gaze"
 }
 
 // FanReach is how many panels either side of the middle one a frame considers.
@@ -155,12 +199,40 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// residue in [-0.5, 0.5]: the panel in front is the one being looked at,
 	// square on when it is squarely looked at, and the extrapolation never runs
 	// beyond half a step. screenAt wraps, so a focus off either end is a screen.
-	whole := math.Round(toward)
-	focus += int(whole)
-	toward -= whole
+	// ⛔⛔ AND RE-ANCHORING IS A MOVE, WHICH IS WHY IT IS A CHOICE. The two
+	// placements -- the chain built around screen F and the one built around
+	// F+1 -- are the same shape in a different place: related by a rotation AND
+	// A TRANSLATION. A viewer rotation can absorb the rotation and nothing can
+	// absorb the translation, so at the half-way point the whole desk shifts.
+	// Measured on six identical screens at twenty degrees: 45 pixels, 1.3° of
+	// view, in one frame. Reported as "c'est deroutant quand on tourne la tete
+	// d'avoir les ecrans qui se replace face a soit d'un coup".
+	//
+	// ⭐ THERE IS NO ARRANGEMENT THAT HAS BOTH. Either the desk is rigid and the
+	// screens away from the middle are seen obliquely, as the far monitors of a
+	// real desk are, or it re-squares the one being looked at and therefore
+	// moves. See [Anchoring]; the wearer picks.
+	base := 0
+	if f.anchor == AnchorOnGaze {
+		// Taking the whole screens off `toward` and giving them to `focus`
+		// leaves a residue in [-0.5, 0.5]: the panel in front is the one being
+		// looked at, square on when it is squarely looked at. screenAt wraps, so
+		// a focus off either end is still a screen.
+		whole := math.Round(toward)
+		focus += int(whole)
+		toward -= whole
+	} else {
+		// Rigid: the chain is not moved, so the viewer walks along it. base is
+		// the panel the gaze has reached and the residue is the rest of the
+		// step, which keeps the interpolation below inside ONE hinge however
+		// far along the band somebody has turned -- the extrapolation that put
+		// a screen at x 420 at toward = 2 is gone with it.
+		base = int(math.Floor(toward))
+		toward -= float64(base)
+	}
 
-	next := 1
-	if toward < 0 {
+	next := base + 1
+	if f.anchor == AnchorOnGaze && toward < 0 {
 		next = -1
 	}
 	// ⛔⛔ INTERPOLATE THE POINT, NOT THE ANGLE. Rotating the view by an angle
@@ -175,9 +247,12 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// ⭐ AND IT WAS INVISIBLE FOR AS LONG AS THE TEST EXISTED, because
 	// TestAFanOfNothingDrawsWhatTheStripDraws was comparing two blank canvases:
 	// Desk.sources is empty until a frame has been pulled.
-	ax, az := f.centre(focus, 0)
+	ax, az := f.centre(focus, base)
 	bx, bz := f.centre(focus, next)
-	t := toward * float64(next)
+	t := toward
+	if f.anchor == AnchorOnGaze {
+		t = toward * float64(next)
+	}
 	turn := math.Atan2(ax+t*(bx-ax), az+t*(bz-az))
 
 	// ⛔⛔ AND NEVER MORE THAN HALF WAY ROUND THE RING. The chain is infinite and
@@ -200,9 +275,13 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 		}
 	}
 
+	// ⛔ THE REACH FOLLOWS THE GAZE, NOT THE ANCHOR. Rigid, the chain stays put
+	// and the viewer walks along it, so the panels in shot are the ones around
+	// where they are LOOKING -- centred on the anchor instead would leave the
+	// half of the view they turned towards empty.
 	hwOf := f.hwOf(focus)
 	slot := 0
-	for j := -reach; j <= reach; j++ {
+	for j := base - reach; j <= base+reach; j++ {
 		lx, lz, rx, rz := slantChain(j, f.splayDeg, hwOf, f.gap, f.distance, turn)
 		at := f.screenAt(focus + j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
@@ -248,4 +327,16 @@ func (f *Fan) sourceWidth(i int) int {
 		return f.srcW
 	}
 	return f.srcWidths[i]
+}
+
+// SetAnchoring chooses what the chain does when the gaze moves. See
+// [Anchoring].
+func (f *Fan) SetAnchoring(a Anchoring) { f.anchor = a }
+
+// said is what to tell the wearer when this anchoring takes effect.
+func (a Anchoring) said() string {
+	if a == AnchorFixed {
+		return "the desk stays where it is"
+	}
+	return "each screen turns towards you"
 }

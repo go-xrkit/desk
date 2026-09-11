@@ -328,7 +328,8 @@ func run() int {
 		// the flag as an instrument and reading the note beside the picture it
 		// took: "-distance 2" came back "curved 20.0° at 1.00x".
 		plan, err := planFor(chosen, n, dist, splay, *fov,
-			desk.EvidenceFor(chosen, model != "", desk.Peripherals()))
+			desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
+			settings.Anchoring())
 		if err != nil {
 			fmt.Printf("%v\n", err)
 			return false, false, false, 1
@@ -1095,9 +1096,10 @@ func ribbonIDs(mirror bool, mac uint64, made []uint64) []uint64 {
 // a display, a headset and a window server. Here it can, and
 // TestThePlanCarriesTheDistanceAndTheSplay does.
 func planFor(d glasses.Display, screens int, dist, splay, fov float64,
-	usb *glasses.USB) (desk.Plan, error) {
+	usb *glasses.USB, anchor desk.Anchoring) (desk.Plan, error) {
 
 	return desk.NewPlan(d, desk.Options{
 		Screens: screens, FOVDeg: fov, Distance: dist, SplayDeg: splay, USB: usb,
+		Anchor: anchor,
 	})
 }
