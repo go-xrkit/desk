@@ -740,3 +740,75 @@ func TestThePlanNamesTheScreenThatIsNotLikeTheOthers(t *testing.T) {
 		t.Errorf("%q does not name both odd screens", s)
 	}
 }
+
+// TestADamagedNameDoesNotCostTheOptics.
+//
+// ⛔⛔ THE EIGHTH OCCURRENCE OF THE HEAP CORRUPTION CHANGED THE GEOMETRY AND SAID
+// ALMOST NOTHING. "VITURE Beast" arrived as "\x00\x00\x00\x00RE Beast", the
+// catalogue missed, HFOVDeg stayed zero, and slantOptics substituted
+// DefaultFOVDeg -- 45° where the Beast has 50.35°. The field of view fixes
+// hw = tan(fov/2), so every panel off the axis was stretched by the wrong
+// factor, folds included. Its only other symptom was half a line in a log that
+// `open` throws away.
+func TestADamagedNameDoesNotCostTheOptics(t *testing.T) {
+	sound, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sound.HFOVDeg <= 0 {
+		t.Fatalf("the catalogue does not know the Beast's optics, so this test "+
+			"cannot tell a repair from a miss: %v", sound)
+	}
+
+	// The same display, its name damaged the way the fault damages it.
+	hurt, err := NewPlan(glasses.Display{Name: "\x00\x00\x00\x00RE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hurt.HFOVDeg != sound.HFOVDeg || hurt.VFOVDeg != sound.VFOVDeg {
+		t.Errorf("a damaged name gave %.2f°x%.2f°, want the Beast's own %.2f°x%.2f°",
+			hurt.HFOVDeg, hurt.VFOVDeg, sound.HFOVDeg, sound.VFOVDeg)
+	}
+	if hurt.Model != sound.Model {
+		t.Errorf("a damaged name was planned for %q, want %q", hurt.Model, sound.Model)
+	}
+
+	// ⭐ AND IT SAYS SO. Recovering in silence would turn a visible fault into an
+	// invisible one: nobody would ever collect another instance, and this line
+	// goes into the note beside every capture.
+	if s := hurt.String(); !strings.Contains(s, "DAMAGED") ||
+		!strings.Contains(s, `\x00\x00\x00\x00RE Beast`) {
+		t.Errorf("the repair was silent: %q", s)
+	}
+	if s := sound.String(); strings.Contains(s, "DAMAGED") {
+		t.Errorf("an undamaged plan claims damage: %q", s)
+	}
+}
+
+// TestADamagedNameIsNotAnExcuseToGuess.
+//
+// ⛔ THE REPAIR IS STRICT OR IT IS A GUESS, and a guess here is a headset's
+// optics wrapped around somebody's desk -- the defect EvidenceFor was closed to
+// prevent. A name is only damaged if it carries a NUL, and only recovered when
+// exactly one catalogue entry of the same length ends the same way.
+func TestADamagedNameIsNotAnExcuseToGuess(t *testing.T) {
+	for _, c := range []struct {
+		what, name string
+	}{
+		{"a monitor nobody catalogued", "DELL U3417W"},
+		{"a NUL but nothing that fits", "\x00\x00\x00\x00zzzzzzzzzzzz"},
+		{"a tail that fits no model of that length", "\x00\x00\x00\x00Beast"},
+		{"nothing left after the NUL", "VITURE Beast\x00"},
+	} {
+		p, err := NewPlan(glasses.Display{Name: c.name, Width: 3840, Height: 1080},
+			Options{Screens: 6})
+		if err != nil {
+			t.Fatalf("%s: %v", c.what, err)
+		}
+		if p.DamagedName != "" {
+			t.Errorf("%s: %q was repaired to %q", c.what, c.name, p.Model)
+		}
+	}
+}
