@@ -25,3 +25,7 @@ func PointerHome() func() { return func() {} }
 
 // PointerToHost reports [ErrNoPointer].
 func PointerToHost([]uint64) error { return ErrNoPointer }
+
+// HostDisplay reports [ErrNoPointer]: without a way to move anything, there is
+// nothing to name a display for.
+func HostDisplay([]uint64) (uint64, error) { return 0, ErrNoPointer }

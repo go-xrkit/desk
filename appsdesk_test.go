@@ -337,3 +337,34 @@ func TestShowingTheApplicationsAlwaysMeansShow(t *testing.T) {
 		t.Error("it did not open again")
 	}
 }
+
+// TestTheDeskHandsTheApplicationsToTheSeamThatKnowsTheHostScreen.
+//
+// ⛔ A SEAM OF ITS OWN, not OnPlace. A Placement's Pos is an index into the
+// BAND, and this Mac's own screen is not on the band when mirroring is off --
+// which is exactly when somebody reaches for this row, on their way to putting
+// the glasses down. Sending it through OnPlace would put the windows on a
+// ribbon position instead, which is a screen only the glasses show: the
+// opposite of what was asked for.
+func TestTheDeskHandsTheApplicationsToTheSeamThatKnowsTheHostScreen(t *testing.T) {
+	d, placed := appDesk(t, threeApps, nil)
+	var home [][]Placement
+	d.OnGather = func(p []Placement) { home = append(home, p) }
+
+	d.Do(ActionGather)
+	if len(home) != 1 {
+		t.Fatalf("OnGather was called %d times", len(home))
+	}
+	if len(home[0]) != len(threeApps) {
+		t.Errorf("it was handed %d applications, want %d", len(home[0]), len(threeApps))
+	}
+	if len(*placed) != 0 {
+		t.Errorf("it also went through OnPlace, onto the band: %v", *placed)
+	}
+
+	// And the list is asked for afresh: one that gathered a stale list would
+	// leave behind whatever started since.
+	if got := len(d.apps.apps); got != len(threeApps) {
+		t.Errorf("the desk holds %d applications after gathering", got)
+	}
+}

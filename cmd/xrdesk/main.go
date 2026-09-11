@@ -418,13 +418,33 @@ func run() int {
 		// this Mac already has, and every one of them is a screen somebody can
 		// look at: excluding them would leave nowhere to go on the one machine
 		// where everywhere was already fine.
-		pointerHome := func() error {
+		// oursNow is every display this program is responsible for: the ones it
+		// made, and the headset's own.
+		oursNow := func() []uint64 {
 			own, _ := desk.OwnDisplay(chosen.Name)
 			ours := []uint64{own}
 			if screens.Virtual {
 				ours = append(ours, screens.IDs...)
 			}
-			return desk.PointerToHost(ours)
+			return ours
+		}
+		pointerHome := func() error { return desk.PointerToHost(oursNow()) }
+		// appsHome puts every window back where somebody sitting at this Mac can
+		// see it -- the SAME display the pointer goes to, or they would find
+		// their applications on one screen and their mouse on another.
+		appsHome := func(places []desk.Placement) {
+			id, err := desk.HostDisplay(oursNow())
+			if err != nil {
+				fmt.Printf("%v\n", err)
+				return
+			}
+			done, err := desk.Send(desk.TheBench(), []uint64{id}, places)
+			if err != nil {
+				fmt.Printf("%v\n", err)
+			}
+			if len(done) > 0 {
+				fmt.Printf("brought back to this Mac: %s\n", strings.Join(done, ", "))
+			}
 		}
 
 		defer func() {
@@ -702,6 +722,7 @@ func run() int {
 			// And the way back, which is the one that gets pressed when nothing
 			// this program draws is in front of the person pressing it.
 			d.OnPointHome = pointerHome
+			d.OnGather = appsHome
 
 			// A photograph, through one of the glasses' cameras.
 			//

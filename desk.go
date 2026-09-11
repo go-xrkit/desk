@@ -196,6 +196,19 @@ const (
 	// hides one of them, and a person who pressed one key cannot be expected to
 	// guess which.
 	ActionSpread
+	// ActionGather puts every application back on this Mac's own screen.
+	//
+	// ⛔⛔ THE WAY OUT, WHICH THERE WAS NONE OF. ActionSpread hands six
+	// applications to six screens only the glasses show, and nothing put them
+	// back: taking the glasses off meant finding each window on a desktop that
+	// is not in front of you. The same trap the pointer was in before
+	// [ActionPointHome], asked for in the same breath -- "il faudrait un menu
+	// dans le tray pour ramener toutes les applications sur l'ecran du mac".
+	//
+	// Answered through [Desk.OnGather] rather than OnPlace, because the
+	// destination is not a ribbon position: with mirroring off this Mac's own
+	// screen is not on the band at all, and off is exactly when this is wanted.
+	ActionGather
 	// ActionRemove takes the selected screen off the band, in the gallery.
 	//
 	// The gallery is where a person looks at the desk they have, so it is where
@@ -528,6 +541,8 @@ func (a Action) String() string {
 		return "the applications"
 	case ActionSpread:
 		return "spread the applications"
+	case ActionGather:
+		return "bring the applications back to this Mac"
 	case ActionStereo3D:
 		return "3D on or off"
 	case ActionStereo3DOn:
@@ -673,6 +688,16 @@ type Desk struct {
 	// and the same reporting, instead of a second placement path that would
 	// drift from it.
 	OnPlace func(places []Placement)
+
+	// OnGather, when set, is handed every application to put back on this Mac's
+	// own screen. It is called without the desk's lock held.
+	//
+	// Separate from OnPlace because the DESTINATION differs, not the list: a
+	// Placement's Pos is an index into the band, and this Mac's own screen is
+	// not on the band when mirroring is off -- which is precisely when somebody
+	// reaches for this. The caller hands [Send] a list of one display and every
+	// placement carries position 1. See [Gather].
+	OnGather func(places []Placement)
 
 	quit bool
 	// settings is set with quit when the desk stopped to show the settings
@@ -1076,10 +1101,11 @@ func (d *Desk) Do(a Action) {
 		// refresh takes it down when the list arrives.
 		list = d.OnApps
 		d.notice.waiting("looking for what is running...")
-	case ActionSpread:
+	case ActionSpread, ActionGather:
 		// From the band, with whatever the last look at the gallery found. It
 		// asks for a fresh list too — one key that spreads a stale list would
-		// move the wrong windows.
+		// move the wrong windows, and one that GATHERS a stale list would leave
+		// behind whatever started since.
 		list = d.OnApps
 		d.notice.waiting("looking for what is running...")
 	case ActionFullscreen:
@@ -1295,16 +1321,25 @@ func (d *Desk) refresh(list func() ([]App, error), a Action) {
 	}
 	d.notice.clear()
 	d.apps.set(apps)
-	var place []Placement
+	var place, home []Placement
 	switch a {
 	case ActionApps, ActionAppsOpen:
 		d.inApps = true
 	case ActionSpread:
 		place = Spread(apps, d.plan.Count())
+	case ActionGather:
+		home = Gather(apps)
 	}
 	d.mu.Unlock()
 	if place != nil && d.OnPlace != nil {
 		d.OnPlace(place)
+	}
+	// ⛔ A SEAM OF ITS OWN, because the DESTINATION is not a ribbon position.
+	// OnPlace's placements are indexes into the band; this Mac's own screen is
+	// not on the band when mirroring is off, and off is exactly when this row
+	// matters. See [Gather].
+	if home != nil && d.OnGather != nil {
+		d.OnGather(home)
 	}
 }
 

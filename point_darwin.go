@@ -69,23 +69,41 @@ func PointerHome() func() {
 // one place a person cannot fail to find it. [PointerHome] is the other thing,
 // for a caller that moved the pointer itself and owes it back.
 func PointerToHost(ours []uint64) error {
+	id, err := HostDisplay(ours)
+	if err != nil {
+		return err
+	}
+	if err := pointer.MoveToDisplay(uint32(id)); err != nil {
+		return fmt.Errorf("desk: cannot bring the pointer to display %d: %w", id, err)
+	}
+	return nil
+}
+
+// HostDisplay is a display this desk did not make: the one somebody sitting at
+// this Mac can see.
+//
+// ⭐ ONE ANSWER, TWO WAYS OUT. The pointer goes there and so do the windows --
+// see [Gather] -- and they must agree, or a person would find their
+// applications on one screen and their mouse on another. Written once for that
+// reason rather than because it is short.
+//
+// ours is every display id the caller is responsible for: the ones this program
+// made, and the headset's own. CGGetActiveDisplayList puts the main display
+// first, so on a Mac with one screen and a headset that is the screen somebody
+// is sitting at.
+func HostDisplay(ours []uint64) (uint64, error) {
 	ids, err := pointer.Displays()
 	if err != nil {
-		return fmt.Errorf("desk: cannot list the displays: %w", err)
+		return 0, fmt.Errorf("desk: cannot list the displays: %w", err)
 	}
 	for _, id := range ids {
-		if slices.Contains(ours, uint64(id)) {
-			continue
+		if !slices.Contains(ours, uint64(id)) {
+			return uint64(id), nil
 		}
-		if err := pointer.MoveToDisplay(id); err != nil {
-			return fmt.Errorf("desk: cannot bring the pointer to display %d: %w",
-				id, err)
-		}
-		return nil
 	}
 	// Every display attached is one of ours. It is reachable -- a headset with
 	// the Mac's own panel asleep is a machine whose only screens this program
-	// made -- and it is not a failure of the pointer: there is nowhere else for
-	// it to go, and saying so names the situation rather than the call.
-	return fmt.Errorf("%w: all %d displays are the desk's own", ErrNoHostDisplay, len(ids))
+	// made -- and it is not a failure of the call: there is nowhere else to go,
+	// and saying so names the situation rather than the call.
+	return 0, fmt.Errorf("%w: all %d displays are the desk's own", ErrNoHostDisplay, len(ids))
 }
