@@ -80,22 +80,30 @@ func (d deskShape) plan(t *testing.T) (Plan, []int) {
 // checks, at each point, the things somebody looking through the glasses would
 // say if they were wrong.
 func TestTheFoldProtocol(t *testing.T) {
-	for _, shape := range theDesksToSweep {
-		base, widths := shape.plan(t)
-		for _, splay := range []float64{SplayStep, 10, 20, 30, 40, 51.6, MaxSplayDeg} {
-			for _, dist := range []float64{1, 1.5, 2, 3, MaxDistance} {
-				plan := base.WithSplay(splay).WithDistance(dist)
-				f, err := NewFan(plan)
-				if err != nil {
-					t.Fatalf("%s at %g°, %gx: NewFan = %v", shape.name, splay, dist, err)
-				}
-				f.SetSourceWidths(widths)
-				for focus := range plan.Count() {
-					for _, toward := range []float64{-0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5} {
-						where := fmt.Sprintf("%s, %g°, %gx, screen %d, %+.1f along",
-							shape.name, splay, dist, focus+1, toward)
-						checkFrame(t, where, plan, widths,
-							f.Frame(nil, focus, toward), focus, toward)
+	// ⛔ BOTH DESKS, because they are two renderings and not a flag: the fixed
+	// one walks the chain where the other re-anchors it, so every panel it
+	// draws is at a different place along the walk. A new mode with no protocol
+	// over it is the blind spot this file exists to close.
+	for _, anchor := range []Anchoring{AnchorOnGaze, AnchorFixed} {
+		for _, shape := range theDesksToSweep {
+			base, widths := shape.plan(t)
+			base = base.WithAnchoring(anchor)
+			for _, splay := range []float64{SplayStep, 10, 20, 30, 40, 51.6, MaxSplayDeg} {
+				for _, dist := range []float64{1, 1.5, 2, 3, MaxDistance} {
+					plan := base.WithSplay(splay).WithDistance(dist)
+					f, err := NewFan(plan)
+					if err != nil {
+						t.Fatalf("%s at %g°, %gx: NewFan = %v", shape.name, splay, dist, err)
+					}
+					f.SetSourceWidths(widths)
+					f.SetAnchoring(anchor)
+					for focus := range plan.Count() {
+						for _, toward := range []float64{-0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5} {
+							where := fmt.Sprintf("%s desk, %s, %g°, %gx, screen %d, %+.1f along",
+								anchor, shape.name, splay, dist, focus+1, toward)
+							checkFrame(t, where, plan, widths,
+								f.Frame(nil, focus, toward), focus, toward)
+						}
 					}
 				}
 			}

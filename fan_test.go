@@ -810,3 +810,76 @@ func newStripedFeed(w, h int, tag byte) *fakeFeed {
 	}
 	return &fakeFeed{src: Source{Pix: pix, W: w, H: h, Stride: w * 4}, fresh: true}
 }
+
+// TestAFixedDeskDoesNotStepWhenTheGazeCrossesAScreen.
+//
+// ⛔⛔ "C'EST DEROUTANT QUAND ON TOURNE LA TETE D'AVOIR LES ECRANS QUI SE REPLACE
+// FACE A SOIT D'UN COUP." Anchored on the gaze, the chain is rebuilt around
+// whichever screen is nearest, and the two placements are the same shape in a
+// different PLACE -- a rotation and a translation apart. The viewer's rotation
+// absorbs the rotation; nothing absorbs the translation. So the desk steps
+// sideways at every half-way point.
+//
+// Measured here rather than argued: the largest change in a panel's edge from
+// one frame to the next, sweeping the gaze smoothly across a screen and a half.
+// Fixed, the largest step is the fastest the picture ever moves, and it happens
+// where the motion IS fastest -- square on. Anchored, it is three times that and
+// it happens at exactly 0.50.
+func TestAFixedDeskDoesNotStepWhenTheGazeCrossesAScreen(t *testing.T) {
+	// The desk this was reported from: a screen of another width on position 1.
+	p := fanPlan(t, 6, DefaultSplayDeg, 1)
+	p = p.WithScreenWidth(0, 1670)
+	widths := make([]int, p.Count())
+	for i := range widths {
+		widths[i] = p.ScreenWidth(i)
+	}
+
+	worst := func(mode Anchoring) (int, float64) {
+		f, err := NewFan(p)
+		if err != nil {
+			t.Fatalf("%s: NewFan = %v", mode, err)
+		}
+		f.SetSourceWidths(widths)
+		f.SetAnchoring(mode)
+		edge := func(tw float64) int {
+			for _, s := range f.Frame(nil, 0, tw) {
+				if s.Screen == 0 {
+					return s.Dst.X + s.Dst.W
+				}
+			}
+			return -1
+		}
+		big, at, prev := 0, 0.0, edge(0)
+		for i := 1; i <= 150; i++ {
+			tw := float64(i) * 0.01
+			x := edge(tw)
+			if x < 0 || prev < 0 {
+				prev = x
+				continue
+			}
+			if d := abs(x - prev); d > big {
+				big, at = d, tw
+			}
+			prev = x
+		}
+		return big, at
+	}
+
+	fixed, fixedAt := worst(AnchorFixed)
+	gaze, gazeAt := worst(AnchorOnGaze)
+
+	// ⛔ A LURCH IS A STEP MUCH BIGGER THAN THE MOTION AROUND IT. Half a screen
+	// of gaze is about 18 pixels per hundredth here, so anything past 40 is the
+	// desk moving on its own rather than the picture scrolling.
+	if fixed > 40 {
+		t.Errorf("fixed: the biggest step is %d px at toward %.2f, which is a "+
+			"lurch and not the scroll", fixed, fixedAt)
+	}
+	// ⛔ AND THE OTHER MODE MUST STILL LURCH, or this test passes on a build
+	// where the setting does nothing and proves neither half of its claim.
+	if gaze <= fixed {
+		t.Errorf("anchored on the gaze the biggest step is %d px at toward %.2f, "+
+			"no worse than the fixed desk's %d: the two modes are the same code",
+			gaze, gazeAt, fixed)
+	}
+}

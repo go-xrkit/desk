@@ -388,3 +388,26 @@ func (d *Desk) curveBy(deg float64) {
 	}
 	d.err = d.reshape(want)
 }
+
+// anchorAs changes what the chain does when the gaze moves, and says so. The
+// caller holds the lock.
+//
+// ⭐ ASKING FOR THE DESK IT IS ALREADY IN DOES NOTHING, QUIETLY, like curveBy
+// beside it: rebuilding the band, the gallery and the fan to arrive back where
+// it started is work nobody asked for. It still SAYS which desk this is,
+// because the two rows are not on and off -- somebody who presses the one that
+// is already in force is asking which one that is.
+// ⛔ NO REBUILD. The band, the gallery and the ribbon are the same either way --
+// what changes is one number the fan reads per frame -- so reshape would tear
+// the navigator down and put it back to arrive exactly where it started. That
+// is the twitch curveBy refuses to make, for the same reason.
+//
+// A nil fan is the flat band, where there is nothing to tell: the plan still
+// records the choice, and build hands it over the moment a curvature makes one.
+func (d *Desk) anchorAs(a Anchoring) {
+	d.plan = d.plan.WithAnchoring(a)
+	if d.fan != nil {
+		d.fan.SetAnchoring(d.plan.Anchoring())
+	}
+	d.notice.say(a.said())
+}

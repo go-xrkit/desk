@@ -199,6 +199,14 @@ func TrayRows() []TrayRow {
 		// way round it was reported as inverted, and it was.
 		{Title: "Flatter", Action: ActionFlatter, Symbol: "rectangle"},
 		{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
+		// ⛔ TWO ROWS AND NOT A TICK. macOS draws nothing at all for a checkbox
+		// that is off, so one toggling row would say which way it is only half
+		// the time -- and these two are not on and off, they are two different
+		// desks. Each says what it did when it is pressed.
+		{Title: "Leave the desk where it is", Action: ActionDeskStaysPut,
+			Symbol: "mappin.and.ellipse"},
+		{Title: "Turn each screen towards me", Action: ActionDeskFacesMe,
+			Symbol: "perspective"},
 		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
 		// lit camera light for as long as it lasts, and a row that only promised
 		// the benefit would be a row that surprised somebody.

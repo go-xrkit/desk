@@ -56,6 +56,11 @@ type Options struct {
 	// that does. On these very glasses the bus says "XREAL 1S" while the
 	// display is not up at all.
 	USB *glasses.USB
+
+	// Anchor is what the chain does when the gaze moves. The zero value is what
+	// the desk has always done: each screen turns towards the viewer as they
+	// look at it. See [Anchoring].
+	Anchor Anchoring
 }
 
 // DefaultScreens is how many virtual screens a desk gets when nobody says.
@@ -131,6 +136,11 @@ type Plan struct {
 	// splayDeg is the angle between one screen and the next. See [Plan.SplayDeg].
 	splayDeg float64
 
+	// anchor is what the chain does when the gaze moves. See [Anchoring] and
+	// [Plan.Anchoring]. A preference rather than something the headset decides,
+	// like the distance and the splay beside it.
+	anchor Anchoring
+
 	// widths is the pixel WIDTH of each screen, when one of them is not the
 	// shape of the glasses. Nil, and every entry of zero, mean ScreenW.
 	//
@@ -187,6 +197,11 @@ func (p Plan) String() string {
 	// the note beside every capture -- a timestamped trace of a fault that
 	// happens about four times in a hundred runs and that nobody has ever been
 	// present for. See [Plan.DamagedName].
+	// Only when it is NOT the default, to keep the line short: this goes into
+	// the note beside every capture, and a state nobody chose is not news.
+	if p.anchor == AnchorFixed {
+		shape += ", the desk stays put"
+	}
 	if p.DamagedName != "" {
 		shape += ", name arrived DAMAGED as " + strconv.Quote(p.DamagedName)
 	}
@@ -347,7 +362,7 @@ func NewPlan(d glasses.Display, opts Options) (Plan, error) {
 	if n == 0 {
 		n = DefaultScreens
 	}
-	plan = plan.WithScreens(n)
+	plan = plan.WithScreens(n).WithAnchoring(opts.Anchor)
 	if opts.Distance > 0 {
 		plan = plan.WithDistance(opts.Distance)
 	}
@@ -600,6 +615,19 @@ const DistanceStep = 0.25
 // the only way in -- so there is no guard here to read past. A plan's zero value
 // is the flat band, which is the right thing for it to be.
 func (p Plan) SplayDeg() float64 { return p.splayDeg }
+
+// Anchoring is what the chain does when the viewer looks at another screen.
+// See [Anchoring].
+func (p Plan) Anchoring() Anchoring { return p.anchor }
+
+// WithAnchoring is this plan with the chain anchored that way.
+func (p Plan) WithAnchoring(a Anchoring) Plan {
+	if a != AnchorFixed {
+		a = AnchorOnGaze
+	}
+	p.anchor = a
+	return p
+}
 
 // MaxSplayDeg is the widest angle between neighbours.
 //

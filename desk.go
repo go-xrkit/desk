@@ -161,6 +161,21 @@ const (
 	// and not this package's. Handled before every gallery, because a way out
 	// that only works in some states is not one.
 	ActionPointHome
+	// ActionDeskStaysPut leaves the chain where it is and only turns the
+	// viewer, the way a desk of monitors behaves. ActionDeskFacesMe rebuilds it
+	// around whichever screen is being looked at.
+	//
+	// ⛔⛔ TWO ROWS BECAUSE NO ARRANGEMENT HAS BOTH, and a tick would say only
+	// half of it. Re-squaring the screen you look at means MOVING the desk: the
+	// two placements are a rotation and a translation apart, the viewer's
+	// rotation absorbs the rotation, and nothing absorbs the translation. So the
+	// desk steps sideways -- 45 pixels, 1.3° of view, in one frame -- each time
+	// the gaze crosses a half-way point. Reported as "c'est deroutant quand on
+	// tourne la tete d'avoir les ecrans qui se replace face a soit d'un coup".
+	// Left rigid it is perfectly smooth and the screens off to the side are seen
+	// obliquely instead, as real ones are. See [Anchoring].
+	ActionDeskStaysPut
+	ActionDeskFacesMe
 	// ActionApps opens the gallery of running APPLICATIONS, or closes it.
 	//
 	// It is the other gallery. The screen gallery answers "which desktop am I
@@ -505,6 +520,10 @@ func (a Action) String() string {
 		return "bring the pointer here"
 	case ActionPointHome:
 		return "bring the pointer back to this Mac"
+	case ActionDeskStaysPut:
+		return "leave the desk where it is"
+	case ActionDeskFacesMe:
+		return "turn each screen towards me"
 	case ActionApps:
 		return "the applications"
 	case ActionSpread:
@@ -1132,6 +1151,10 @@ func (d *Desk) Do(a Action) {
 		d.curveBy(-SplayStep)
 	case ActionRounder:
 		d.curveBy(+SplayStep)
+	case ActionDeskStaysPut:
+		d.anchorAs(AnchorFixed)
+	case ActionDeskFacesMe:
+		d.anchorAs(AnchorOnGaze)
 	}
 	d.mu.Unlock()
 	if cycle != nil {
@@ -1689,6 +1712,7 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 		// And the turned panels read their own widths too. Without this a panel
 		// gathers columns past the end of a narrower source, which is not a
 		// stretched picture but a PANIC.
+		fan.SetAnchoring(plan.Anchoring())
 		fan.SetSourceWidths(widths)
 	}
 	return r, strip, grid, fan, nil
