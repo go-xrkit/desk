@@ -93,6 +93,18 @@ type TrayRow struct {
 	// how somebody came to ask "how do I know whether 3D is on? nothing in the
 	// menu says". A symbol that CHANGES answers in both directions.
 	SymbolOn string
+
+	// Rows makes this row a SUBMENU holding them, and its Action is never sent:
+	// opening a submenu is not choosing anything.
+	//
+	// ⛔⛔ THE MENU GREW TO THIRTY-ONE ROWS and had to be read top to bottom to
+	// find anything -- "ca serait bien de commencer a faire des sous-menus pour
+	// regrouper des entrees, le menu s'allonge pas mal". Grouping costs one
+	// click on the way in, so what stays at the top level is what somebody
+	// reaches for without looking, and what CARRIES A TICK: macOS draws nothing
+	// for an unticked row, and a state hidden one level down is a state nobody
+	// can see at a glance.
+	Rows []TrayRow
 }
 
 // Stereo3D is what the menu should say about the 3D conversion.
@@ -124,18 +136,12 @@ func TrayRows() []TrayRow {
 	return []TrayRow{
 		{Title: "Settings...", Key: ",", Action: ActionSettings, Symbol: "gearshape"},
 		{},
-		{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint,
-			Symbol: "cursorarrow.rays"},
-		{Title: "Bring the pointer back to this Mac", Key: "h", Action: ActionPointHome,
-			Symbol: "arrow.uturn.backward"},
-		{},
-		{Title: "The applications...", Key: "a", Action: ActionAppsOpen,
-			Symbol: "square.grid.2x2"},
-		{Title: "Bring them all back to this Mac", Action: ActionGather,
-			Symbol: "tray.and.arrow.down"},
-		{Title: "One application per screen", Key: "x", Action: ActionSpread,
-			Symbol: "rectangle.3.group"},
-		{},
+		// ⭐⭐ WHAT CARRIES A TICK STAYS AT THE TOP, and that is the rule the
+		// grouping is built on. macOS draws NOTHING for a row that is off, so a
+		// state one level down is a state nobody can see without going looking
+		// for it -- and the tick on "Follow my head" was asked for the day
+		// before these submenus were.
+		//
 		// ⛔ ONE ROW, WITH A TICK. It was two -- "3D on" and "3D off" -- and
 		// that is right for a KEY, which is pressed blind: a shortcut meaning
 		// "on" from outside and "off" from inside does the wrong thing every
@@ -146,105 +152,139 @@ func TrayRows() []TrayRow {
 			// The pair the system itself uses, so the row says which of the two
 			// the picture is in rather than only that it could be either.
 			Symbol: "view.2d", SymbolOn: "view.3d"},
-		{},
-		// ⛔ THREE ROWS WITH A TICK, NOT ONE THAT CYCLES -- the same argument the
-		// 3D row above makes, landing the other way round. A key is pressed
-		// blind, so cycling is right for a key. A MENU is read while somebody
-		// chooses, so three rows say where they are AND where they can go, and
-		// the tick says which is in force. One cycling row would say neither.
-		//
-		// ⭐ THE GLASSES DO THE TRACKING THEMSELVES. Nothing here computes a
-		// pose and no camera is opened: a VITURE Beast holds its own
-		// orientation and composites the host's video where that says. It is a
-		// command, which is why it is three rows rather than a project.
-		{Title: "Anchor the picture in the room", Action: ActionTrackAnchored,
-			Toggle: true, Symbol: "pin", SymbolOn: "pin.fill"},
-		{Title: "Let it follow smoothly", Action: ActionTrackSmooth,
-			Toggle: true, Symbol: "arrow.trianglehead.2.clockwise.rotate.90"},
-		{Title: "Fix it to the glasses", Action: ActionTrackOff,
-			Toggle: true, Symbol: "person.and.background.dotted"},
-		// Not a toggle: recentring is something that HAPPENS, not a state, and a
-		// tick on it would be a tick that never turns off.
-		{Title: "Put it back in front of me", Action: ActionRecenter, Symbol: "scope"},
-		// ⭐ THE CURVE, ASKED FOR AT THE GLASSES. On a flat band the screens off to
-		// the side recede -- a plane seen obliquely is further away -- and the
-		// further the head turns the worse it gets. Turning each screen towards
-		// the viewer faces it at you instead. The actions existed and were
-		// reachable from nowhere.
-		//
-		// ⛔⛔ IT DOES NOT PUT THEM ALL AT ONE DISTANCE, WHICH IS WHAT THIS
-		// COMMENT USED TO CLAIM -- and believing it cost three days of hunting a
-		// defect that was not there. Measured at the derived splay, six screens,
-		// 51.57° per eye: the panel edges sit between 0.667 and 1.110, a 66%
-		// spread. The panels tile edge to edge, so the chain is a polygon whose
-		// size is fixed by how wide a screen is, and the viewer is not at its
-		// centre.
-		//
-		// ⭐ AND THAT IS A CHOICE RATHER THAN A DEFECT: with tiling panels you may
-		// have any two of {a free curvature dial, tiling, equal distance} and
-		// never all three. The dial and the tiling are the two kept, decided
-		// after the spread was measured. See [Plan.FacingSplayDeg].
-		//
-		// ⛔⛔ AND THEY ARE STEPS, WHICH THE FIRST NAMES DENIED. These were
-		// "Curve the screens towards me" and "Flatten the screens" -- both
-		// imperatives, both promising a STATE. They move by [SplayStep], five
-		// degrees of the sixty available: twelve presses from flat to fully
-		// turned. Somebody chose "Flatten the screens", got five degrees, and
-		// reported that one press was not enough -- which was true of the name,
-		// not of the feature. The code always called them "rounder" and
-		// "flatter", comparatives, and saying so was the whole of the fix.
-		//
-		// ⛔ AND FLATTER COMES FIRST, BECAUSE ITS KEY IS THE LEFT ONE. The pair
-		// sits on the two keys after P, and a menu that lists the RIGHT key's
-		// row above the LEFT key's reads backwards to anybody looking at their
-		// hands: "the minus has to be to the left of the plus". Listed the other
-		// way round it was reported as inverted, and it was.
-		{Title: "Flatter", Action: ActionFlatter, Symbol: "rectangle"},
-		{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
-		// ⛔ TWO ROWS AND NOT A TICK. macOS draws nothing at all for a checkbox
-		// that is off, so one toggling row would say which way it is only half
-		// the time -- and these two are not on and off, they are two different
-		// desks. Each says what it did when it is pressed.
-		{Title: "Leave the desk where it is", Action: ActionDeskStaysPut,
-			Symbol: "mappin.and.ellipse"},
-		{Title: "Turn each screen towards me", Action: ActionDeskFacesMe,
-			Symbol: "perspective"},
 		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
 		// lit camera light for as long as it lasts, and a row that only promised
 		// the benefit would be a row that surprised somebody.
 		{Title: "Follow my head (camera on)", Action: ActionFollowHead,
 			Toggle: true, Symbol: "eye", SymbolOn: "eye.fill"},
+		// Not a toggle: recentring is something that HAPPENS, not a state, and a
+		// tick on it would be a tick that never turns off. Kept at the top level
+		// because it is the row somebody reaches for when the picture has
+		// wandered, which is exactly when they do not want to go hunting.
+		{Title: "Put it back in front of me", Action: ActionRecenter, Symbol: "scope"},
 		{},
-		{Title: "Show the gallery", Action: ActionGalleryOpen, Symbol: "square.grid.3x3"},
-		{Title: "Leave the gallery", Action: ActionGalleryClose,
-			Symbol: "arrow.down.right.and.arrow.up.left"},
-		{},
-		// The camera. One row, because there is one thing to do with it that a
-		// person asks for deliberately -- and a camera on a headset points at
-		// whatever they are looking at, so nothing here is ever automatic.
-		// ⛔⛔ THE TWO ROWS BOTH SAID "PHOTOGRAPH" AND ONLY ONE USES A CAMERA.
-		// "Photograph what I see" opened nothing and took no light: it saves the
-		// composed picture -- a screenshot of the glasses. Reported exactly so:
-		// "le menu 'photograph what i see' est trompeur, ca n'utilise pas la
-		// camera mais fait une capture d'ecran des lunettes." A row that names
-		// the wrong instrument is a row somebody presses expecting a lit camera,
-		// or avoids because they think one will light.
-		//
-		// So one names the CAMERA and the room it points at, and the other says
-		// it SAVES what is on the screens. Neither says "photograph" alone.
-		{Title: "Photograph the room (camera)", Action: ActionPhoto, Symbol: "camera"},
-		// ⭐ THE PICTURE THE GLASSES ARE SHOWING, not the camera. It is what makes
-		// a geometry somebody cannot describe from inside a headset describable at
-		// all -- and, the same picture, what lets them show a room what they see.
-		{Title: "Save what the glasses show", Action: ActionCapture,
-			Symbol: "rectangle.dashed"},
-		// The microphone. One row, and it says WHICH microphone once pressed:
-		// the headset's own cannot be silenced at all, so what is turned off is
-		// whatever else the machine listed, and a person has to be told which.
-		{Title: "Mute the microphone", Action: ActionMic, Symbol: "mic.slash"},
-		// The room, on the screen being looked at. One row: it is a switch, and
-		// the tick says which way pressing it will go.
-		{Title: "Show the room", Action: ActionPassthrough, Symbol: "video"},
+		// ⛔⛔ THIRTY-ONE ROWS HAD TO BE READ TOP TO BOTTOM to find anything --
+		// "ca serait bien de commencer a faire des sous-menus pour regrouper des
+		// entrees, le menu s'allonge pas mal". Grouping costs one click on the
+		// way in, so what went below is what somebody chooses DELIBERATELY, and
+		// what stayed above is what they reach for without looking or need to
+		// SEE the state of.
+		{Title: "Where the picture sits", Symbol: "location", Rows: []TrayRow{
+			// ⛔ THREE ROWS WITH A TICK, NOT ONE THAT CYCLES -- the same argument
+			// the 3D row makes, landing the other way round. A key is pressed
+			// blind, so cycling is right for a key. A MENU is read while
+			// somebody chooses, so three rows say where they are AND where they
+			// can go, and the tick says which is in force. One cycling row would
+			// say neither.
+			//
+			// ⭐ THE GLASSES DO THE TRACKING THEMSELVES. Nothing here computes a
+			// pose and no camera is opened: a VITURE Beast holds its own
+			// orientation and composites the host's video where that says. It is
+			// a command, which is why it is three rows rather than a project.
+			{Title: "Anchor the picture in the room", Action: ActionTrackAnchored,
+				Toggle: true, Symbol: "pin", SymbolOn: "pin.fill"},
+			{Title: "Let it follow smoothly", Action: ActionTrackSmooth,
+				Toggle: true, Symbol: "arrow.trianglehead.2.clockwise.rotate.90"},
+			{Title: "Fix it to the glasses", Action: ActionTrackOff,
+				Toggle: true, Symbol: "person.and.background.dotted"},
+		}},
+		{Title: "The shape of the desk", Symbol: "slider.horizontal.3", Rows: []TrayRow{
+			// ⭐ THE CURVE, ASKED FOR AT THE GLASSES. On a flat band the screens
+			// off to the side recede -- a plane seen obliquely is further away --
+			// and the further the head turns the worse it gets. Turning each
+			// screen towards the viewer faces it at you instead.
+			//
+			// ⛔⛔ IT DOES NOT PUT THEM ALL AT ONE DISTANCE, WHICH IS WHAT THIS
+			// COMMENT USED TO CLAIM -- and believing it cost three days of
+			// hunting a defect that was not there. Measured at the derived
+			// splay, six screens, 51.57° per eye: the panel edges sit between
+			// 0.667 and 1.110, a 66% spread. The panels tile edge to edge, so
+			// the chain is a polygon whose size is fixed by how wide a screen
+			// is, and the viewer is not at its centre.
+			//
+			// ⭐ AND THAT IS A CHOICE RATHER THAN A DEFECT: with tiling panels
+			// you may have any two of {a free curvature dial, tiling, equal
+			// distance} and never all three. The dial and the tiling are the two
+			// kept, decided after the spread was measured. See
+			// [Plan.FacingSplayDeg].
+			//
+			// ⛔⛔ AND THEY ARE STEPS, WHICH THE FIRST NAMES DENIED. These were
+			// "Curve the screens towards me" and "Flatten the screens" -- both
+			// imperatives, both promising a STATE. They move by [SplayStep],
+			// five degrees of the sixty available: twelve presses from flat to
+			// fully turned. Somebody chose "Flatten the screens", got five
+			// degrees, and reported that one press was not enough -- which was
+			// true of the name, not of the feature. The code always called them
+			// "rounder" and "flatter", comparatives, and saying so was the whole
+			// of the fix.
+			//
+			// ⛔ AND FLATTER COMES FIRST, BECAUSE ITS KEY IS THE LEFT ONE. The
+			// pair sits on the two keys after P, and a menu that lists the RIGHT
+			// key's row above the LEFT key's reads backwards to anybody looking
+			// at their hands: "the minus has to be to the left of the plus".
+			// Listed the other way round it was reported as inverted, and it was.
+			{Title: "Flatter", Action: ActionFlatter, Symbol: "rectangle"},
+			{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
+			// ⛔ TWO ROWS AND NOT A TICK. macOS draws nothing at all for a
+			// checkbox that is off, so one toggling row would say which way it is
+			// only half the time -- and these two are not on and off, they are
+			// two different desks. Each says what it did when it is pressed.
+			{Title: "Leave the desk where it is", Action: ActionDeskStaysPut,
+				Symbol: "mappin.and.ellipse"},
+			{Title: "Turn each screen towards me", Action: ActionDeskFacesMe,
+				Symbol: "perspective"},
+		}},
+		{Title: "The screens", Symbol: "rectangle.stack", Rows: []TrayRow{
+			{Title: "Show the gallery", Action: ActionGalleryOpen,
+				Symbol: "square.grid.3x3"},
+			{Title: "Leave the gallery", Action: ActionGalleryClose,
+				Symbol: "arrow.down.right.and.arrow.up.left"},
+		}},
+		{Title: "The applications", Symbol: "macwindow.on.rectangle", Rows: []TrayRow{
+			{Title: "The applications...", Key: "a", Action: ActionAppsOpen,
+				Symbol: "square.grid.2x2"},
+			{Title: "One application per screen", Key: "x", Action: ActionSpread,
+				Symbol: "rectangle.3.group"},
+			{Title: "Bring them all back to this Mac", Action: ActionGather,
+				Symbol: "tray.and.arrow.down"},
+		}},
+		{Title: "The pointer", Symbol: "cursorarrow", Rows: []TrayRow{
+			{Title: "Bring the pointer to this screen", Key: "m", Action: ActionPoint,
+				Symbol: "cursorarrow.rays"},
+			{Title: "Bring the pointer back to this Mac", Key: "h",
+				Action: ActionPointHome, Symbol: "arrow.uturn.backward"},
+		}},
+		{Title: "The camera, the room and the sound", Symbol: "camera.aperture",
+			Rows: []TrayRow{
+				// ⛔⛔ THE TWO ROWS BOTH SAID "PHOTOGRAPH" AND ONLY ONE USES A
+				// CAMERA. "Photograph what I see" opened nothing and took no
+				// light: it saves the composed picture -- a screenshot of the
+				// glasses. Reported exactly so: "le menu 'photograph what i see'
+				// est trompeur, ca n'utilise pas la camera mais fait une capture
+				// d'ecran des lunettes." A row that names the wrong instrument is
+				// a row somebody presses expecting a lit camera, or avoids
+				// because they think one will light.
+				//
+				// So one names the CAMERA and the room it points at, and the
+				// other says it SAVES what is on the screens. Neither says
+				// "photograph" alone.
+				{Title: "Photograph the room (camera)", Action: ActionPhoto,
+					Symbol: "camera"},
+				// ⭐ THE PICTURE THE GLASSES ARE SHOWING, not the camera. It is
+				// what makes a geometry somebody cannot describe from inside a
+				// headset describable at all -- and, the same picture, what lets
+				// them show a room what they see.
+				{Title: "Save what the glasses show", Action: ActionCapture,
+					Symbol: "rectangle.dashed"},
+				// The room, on the screen being looked at. One row: it is a
+				// switch, and the tick says which way pressing it will go.
+				{Title: "Show the room", Action: ActionPassthrough, Symbol: "video"},
+				// The microphone. One row, and it says WHICH microphone once
+				// pressed: the headset's own cannot be silenced at all, so what
+				// is turned off is whatever else the machine listed, and a person
+				// has to be told which.
+				{Title: "Mute the microphone", Action: ActionMic, Symbol: "mic.slash"},
+			}},
 		{},
 		// ⛔ PUTTING THE GLASSES DOWN IS NOT QUITTING, and until this row
 		// existed there was no way to say so: the only thing that ended a
@@ -270,3 +310,13 @@ func TrayRows() []TrayRow {
 // It is io.Closer by shape and not by import, so the portable half of this file
 // carries no dependency on the platform half.
 type Closer interface{ Close() error }
+
+// IsSeparator says whether this row is the thin line between groups.
+//
+// ⛔ "NO ACTION" MEANT THREE THINGS AT ONCE once submenus existed: a separator,
+// a submenu's own row, and a row somebody forgot to finish. The first two are
+// legitimate and the third is a bug, so the question is asked by name instead of
+// inferred from an empty field.
+func (r TrayRow) IsSeparator() bool {
+	return r.Action == ActionNone && r.Title == "" && len(r.Rows) == 0
+}
