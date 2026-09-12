@@ -14,7 +14,7 @@ require (
 	github.com/go-macos/hotkey v0.10.0
 	github.com/go-macos/iokit v0.13.0
 	github.com/go-macos/multitouch v0.1.0
-	github.com/go-macos/objc v0.9.2
+	github.com/go-macos/objc v0.10.2
 	github.com/go-macos/pointer v0.1.0
 	github.com/go-macos/screencapture v0.1.1
 	github.com/go-macos/virtualdisplay v0.3.0
@@ -25,7 +25,7 @@ require (
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/tray v0.10.1
-	github.com/go-widgets/window v0.75.0
+	github.com/go-widgets/window v0.77.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.17.0
@@ -70,7 +70,7 @@ require (
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
