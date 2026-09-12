@@ -106,6 +106,16 @@ func DefaultShortcuts() []Shortcut {
 		// the glasses are on the table, so nothing this program owns is in front
 		// of the person pressing it.
 		{hotkey.Combo{Key: hotkey.KeyH, Mods: mods | hotkey.Control}, ActionPointHome},
+		// Following a head, on the initial of follow.
+		//
+		// ⛔ IT HAD NO KEY AT ALL and only a menu row -- "ca serait bien d'avoir
+		// un raccourci pour activer le suivi de la tete". System-wide like the
+		// rest: it is pressed while another application has the keyboard, which
+		// is the whole of what these shortcuts are for. The bare f in the desk's
+		// own window still means fullscreen; that table answers only while this
+		// program's window is in front, and this one has to answer when it is
+		// not.
+		{hotkey.Combo{Key: hotkey.KeyF, Mods: mods | hotkey.Control}, ActionFollowHead},
 		// The angle between the screens, on the same two keys the window uses.
 		//
 		// System-wide because a window-only shortcut is no use to a surface that

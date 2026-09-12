@@ -155,3 +155,48 @@ func TestTheSettingsActionWorksFromTheGalleryToo(t *testing.T) {
 		t.Errorf("from the gallery: quit=%v settings=%v", d.Quit(), d.WantsSettings())
 	}
 }
+
+// TestEveryTickIsWhereItCanBeSeen.
+//
+// ⛔⛔ macOS DRAWS NOTHING FOR A ROW THAT IS OFF. A checkbox that is off is
+// pixel-for-pixel an ordinary row, so a binary tick hidden inside a submenu
+// answers "is this on?" only for somebody who already went and looked. The
+// grouping was built on that rule and then broke it on the row it most
+// obviously covers: "Use the glasses" sat under the six groups until somebody
+// said "remonte use the glasses avec les autres en haut".
+//
+// ⭐ A SET OF MUTUALLY EXCLUSIVE TICKS IS DIFFERENT, and that is why this is not
+// simply "no toggles in submenus". One of the three tracking rows is ALWAYS
+// ticked, so opening the group answers the question completely; it is the lone
+// toggle, whose "off" is silence, that has to be visible without opening
+// anything.
+func TestEveryTickIsWhereItCanBeSeen(t *testing.T) {
+	top := map[Action]bool{}
+	for _, r := range TrayRows() {
+		top[r.Action] = true
+	}
+	for _, parent := range TrayRows() {
+		if len(parent.Rows) == 0 {
+			continue
+		}
+		ticks := 0
+		for _, r := range parent.Rows {
+			if r.Toggle {
+				ticks++
+			}
+		}
+		for _, r := range parent.Rows {
+			if r.Toggle && ticks < 2 {
+				t.Errorf("%q is the only tick in %q: off draws nothing, so it "+
+					"cannot be told from an ordinary row without opening the "+
+					"group. Put it at the top level.", r.Title, parent.Title)
+			}
+		}
+	}
+	// And the rows the rule was written for are where it says.
+	for _, a := range []Action{ActionStereo3D, ActionFollowHead, ActionPause} {
+		if !top[a] {
+			t.Errorf("%v carries a tick and is not at the top level", a)
+		}
+	}
+}
