@@ -136,3 +136,85 @@ func matches(name, want string) bool {
 // forgive furniture without ever forgiving a window that went to the wrong
 // place.
 const furniture = 64
+
+// CascadeStep is how far each window is offset from the one before it when they
+// all come home to the same screen.
+//
+// ⛔ WITHOUT IT THEY LAND EXACTLY ON TOP OF EACH OTHER, which reads as one
+// window and one lost afternoon. Thirty-two points is about a title bar: enough
+// that every window shows an edge to click, small enough that six of them still
+// fit on a laptop panel.
+const CascadeStep = 32.0
+
+// Recall brings every application's windows to ONE display and leaves them a
+// size somebody can work with.
+//
+// ⛔⛔ IT MUST NOT FILL, AND SHIPPING IT THAT WAY MADE A DESKTOP UNUSABLE. [Send]
+// fills, and is right to: a ribbon screen is a whole desktop and an application
+// sent to one is meant to have it. Six applications sent to ONE screen that way
+// are six full-screen windows stacked exactly on each other -- "le retour de
+// l'ensemble des appli sur l'ecran du mac conduit a un affichage inexploitable,
+// il faut debrancher les lunettes pour recuperer quelque chose d'utilisable".
+//
+// So the size is left alone and the windows are cascaded: each one a title bar
+// down and across from the last, the way a window manager opens a second window.
+// What comes back is a desk somebody can see the shape of.
+func Recall(b Bench, display uint64, places []Placement) ([]string, error) {
+	if len(places) == 0 {
+		return nil, nil
+	}
+	if !b.Trusted() {
+		return nil, fmt.Errorf("desk: this application may not move another one's "+
+			"windows: grant it Accessibility in System Settings > Privacy & Security "+
+			"> Accessibility, then run it again (%w)", accessibility.ErrNotTrusted)
+	}
+	displays, err := b.Displays()
+	if err != nil {
+		return nil, fmt.Errorf("desk: listing displays: %w", err)
+	}
+	to, ok := accessibility.DisplayByID(displays, uint32(display))
+	if !ok {
+		return nil, fmt.Errorf("desk: display %d is not one the window server is driving",
+			display)
+	}
+	var done []string
+	var problems []error
+	step := 0
+	for _, p := range places {
+		ws, names, err := b.Windows(p.App)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("%q: %w", p.App, err))
+			continue
+		}
+		for i, w := range ws {
+			// Centre first, at whatever size the window already has: a window
+			// bigger than the screen is still reachable, and nothing is resized
+			// behind somebody's back.
+			opt := &accessibility.Options{
+				Placement: accessibility.Center,
+				Tolerance: furniture,
+			}
+			res, err := accessibility.MoveToDisplay(w, to, displays, opt)
+			if err != nil {
+				problems = append(problems, fmt.Errorf("%q (%s): %w", p.App, names[i], err))
+				continue
+			}
+			// Then a title bar down and across from the one before, so the pile
+			// reads as several windows rather than one. The package clamps a
+			// window back onto the display, so a long cascade gathers at the
+			// corner instead of walking off the edge -- which is the right end
+			// for it to stop at.
+			if step > 0 {
+				at := res.Got
+				at.X += float64(step) * CascadeStep
+				at.Y += float64(step) * CascadeStep
+				if shifted, err := accessibility.Move(w, at, opt); err == nil {
+					res = shifted
+				}
+			}
+			step++
+			done = append(done, fmt.Sprintf("%s -> %s", names[i], res.Got))
+		}
+	}
+	return done, errors.Join(problems...)
+}

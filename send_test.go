@@ -322,3 +322,103 @@ func (b *fakeBench) Listing() ([]accessibility.WindowInfo, error) {
 	}
 	return out, nil
 }
+
+// TestComingHomeDoesNotFillTheScreen.
+//
+// ⛔⛔ IT DID, AND IT MADE A DESKTOP UNUSABLE. Send fills, and is right to: a
+// ribbon screen is a whole desktop and an application sent to one is meant to
+// have it. The row that brings EVERYTHING back went through the same function,
+// so six applications became six full-screen windows stacked exactly on each
+// other -- "le retour de l'ensemble des appli sur l'ecran du mac conduit a un
+// affichage inexploitable, il faut debrancher les lunettes pour recuperer
+// quelque chose d'utilisable".
+func TestComingHomeDoesNotFillTheScreen(t *testing.T) {
+	b, _, safari := bench(t)
+	was := safari.frame
+
+	done, err := Recall(b, 101, []Placement{{App: "safari", Pos: 1}})
+	if err != nil {
+		t.Fatalf("Recall = %v", err)
+	}
+	if len(done) != 1 {
+		t.Fatalf("Recall moved %d windows: %v", len(done), done)
+	}
+	// ⛔ THE SIZE IS THE WINDOW'S OWN. Nothing is resized behind somebody's
+	// back, which is the whole difference from Send.
+	if safari.frame.W != was.W || safari.frame.H != was.H {
+		t.Errorf("the window came home %gx%g, having been %gx%g",
+			safari.frame.W, safari.frame.H, was.W, was.H)
+	}
+	// And it is ON the screen it was called to.
+	if safari.frame.X < 0 || safari.frame.X+safari.frame.W > 1920 {
+		t.Errorf("the window is at x %g..%g, off a screen 0..1920",
+			safari.frame.X, safari.frame.X+safari.frame.W)
+	}
+}
+
+// TestWindowsComingHomeDoNotHideEachOther.
+//
+// ⭐ A CASCADE, NOT A PILE. Centred and nothing else, every window lands on the
+// same spot and the screen reads as ONE window -- which is the complaint this
+// fixes, arriving by a different route. Each is a title bar down and across
+// from the last.
+func TestWindowsComingHomeDoNotHideEachOther(t *testing.T) {
+	b, _, _ := bench(t)
+	first := &fakeWindow{frame: accessibility.Rect{X: -7680, Y: 0, W: 800, H: 600}}
+	second := &fakeWindow{frame: accessibility.Rect{X: -7680, Y: 0, W: 800, H: 600}}
+	b.windows = map[string][]*fakeWindow{"Mail": {first}, "Notes": {second}}
+
+	if _, err := Recall(b, 101, []Placement{{App: "Mail"}, {App: "Notes"}}); err != nil {
+		t.Fatalf("Recall = %v", err)
+	}
+	if first.frame == second.frame {
+		t.Errorf("both windows came home to %+v, so the screen shows one",
+			first.frame)
+	}
+	if got := second.frame.X - first.frame.X; got != CascadeStep {
+		t.Errorf("the second window is %g points across from the first, want %g",
+			got, CascadeStep)
+	}
+}
+
+// TestComingHomeSaysWhatItCouldNotDo, rather than the first thing that failed.
+func TestComingHomeSaysWhatItCouldNotDo(t *testing.T) {
+	b, _, _ := bench(t)
+	if _, err := Recall(b, 101, nil); err != nil {
+		t.Errorf("nothing to bring home is not a failure: %v", err)
+	}
+
+	b.trusted = false
+	if _, err := Recall(b, 101, []Placement{{App: "safari"}}); err == nil ||
+		!strings.Contains(err.Error(), "Accessibility") {
+		t.Errorf("without the grant: %v", err)
+	}
+	b.trusted = true
+
+	b.displaysErr = errAsked
+	if _, err := Recall(b, 101, []Placement{{App: "safari"}}); err == nil {
+		t.Error("a desk that cannot list its displays brought windows home anyway")
+	}
+	b.displaysErr = nil
+
+	// A display nobody is driving: named, rather than a window moved nowhere.
+	if _, err := Recall(b, 999, []Placement{{App: "safari"}}); err == nil ||
+		!strings.Contains(err.Error(), "999") {
+		t.Errorf("an unknown display: %v", err)
+	}
+
+	// A window that will not move is NAMED, not silently counted as brought
+	// home: a person told everything came back and finding one window still on a
+	// screen they cannot see has been told the opposite of what happened.
+	b2, _, stubborn := bench(t)
+	stubborn.refuse = true
+	if done, err := Recall(b2, 101, []Placement{{App: "safari"}}); err == nil {
+		t.Errorf("a window that refused to move was reported as moved: %v", done)
+	}
+
+	// One application that cannot be listed must not stop the others.
+	b.windowsErr = errAsked
+	if _, err := Recall(b, 101, []Placement{{App: "safari"}}); err == nil {
+		t.Error("an application that could not be listed was reported as moved")
+	}
+}

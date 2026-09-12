@@ -438,7 +438,11 @@ func run() int {
 				fmt.Printf("%v\n", err)
 				return
 			}
-			done, err := desk.Send(desk.TheBench(), []uint64{id}, places)
+			// ⛔ Recall, NOT Send. Send FILLS the screen it sends to, which is
+			// right for one application on one ribbon screen and catastrophic for
+			// six on one panel: six full-screen windows exactly on top of each
+			// other. See desk.Recall.
+			done, err := desk.Recall(desk.TheBench(), id, places)
 			if err != nil {
 				fmt.Printf("%v\n", err)
 			}
