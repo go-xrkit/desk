@@ -148,7 +148,7 @@ func TrayRows() []TrayRow {
 		// time somebody has lost track. A MENU is the opposite case. The state
 		// is in front of the person as they choose, so two rows are two rows
 		// where one of them always does nothing, and the tick says which.
-		{Title: "3D", Action: ActionStereo3D, Toggle: true,
+		{Title: "3D", Key: "d", Action: ActionStereo3D, Toggle: true,
 			// The pair the system itself uses, so the row says which of the two
 			// the picture is in rather than only that it could be either.
 			Symbol: "view.2d", SymbolOn: "view.3d"},
@@ -289,7 +289,7 @@ func TrayRows() []TrayRow {
 				// So one names the CAMERA and the room it points at, and the
 				// other says it SAVES what is on the screens. Neither says
 				// "photograph" alone.
-				{Title: "Photograph the room (camera)", Action: ActionPhoto,
+				{Title: "Photograph the room (camera)", Key: "l", Action: ActionPhoto,
 					Symbol: "camera"},
 				// ⭐ THE PICTURE THE GLASSES ARE SHOWING, not the camera. It is
 				// what makes a geometry somebody cannot describe from inside a

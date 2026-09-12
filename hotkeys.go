@@ -245,6 +245,18 @@ func DefaultShortcuts() []Shortcut {
 		// entries below were going to be given. A shortcut added today does not
 		// get to displace one somebody already has.
 		{hotkey.Combo{Key: hotkey.KeyP, Mods: mods | hotkey.Control}, ActionCapture},
+		// The 2D/3D switch, on the initial of the dimension it adds. One key for
+		// both directions, because a key is pressed BLIND: a shortcut meaning
+		// "on" from outside and "off" from inside does the wrong thing every
+		// time somebody has lost track of which they are in. The menu row is the
+		// opposite case and carries a tick.
+		{hotkey.Combo{Key: hotkey.KeyD, Mods: mods | hotkey.Control}, ActionStereo3D},
+		// The camera, on the initial of its LENS -- because every word that
+		// describes this row is already spoken for. P is the OTHER picture, the
+		// one saved from the glasses; R recentres, C cycles a screen, F follows
+		// a head. A letter nobody can derive is better than one that means
+		// something else two rows away.
+		{hotkey.Combo{Key: hotkey.KeyL, Mods: mods | hotkey.Control}, ActionPhoto},
 	}
 }
 

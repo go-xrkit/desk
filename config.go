@@ -422,6 +422,12 @@ var configActions = map[string]Action{
 	"recentre": ActionRecenter,
 	// A picture of what the glasses are showing, at a moment the wearer chooses.
 	"capture": ActionCapture,
+	// And the other picture: the room, through the headset's own camera. Two
+	// names because they are two instruments, which is the whole reason the two
+	// menu rows were renamed.
+	"photo": ActionPhoto,
+	// The 2D/3D switch. One name, like the one key: it toggles.
+	"3d": ActionStereo3D,
 	// What the desk shows, and how far away.
 	"apps":      ActionApps,
 	"apps-open": ActionAppsOpen,
