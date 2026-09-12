@@ -623,7 +623,10 @@ func TestRecentringIsOnAKeyThatCanBePressedBlind(t *testing.T) {
 // head made obvious. A capability nobody can invoke is not a capability.
 func TestTheCurveIsReachable(t *testing.T) {
 	want := map[Action]bool{ActionRounder: false, ActionFlatter: false}
-	for _, row := range TrayRows() {
+	// ⛔ FlatRows, NOT TrayRows: the curve rows live in a submenu now, and a
+	// walk that stopped at the top level would report them missing the day they
+	// were grouped -- which is exactly what it did.
+	for _, row := range FlatRows() {
 		if _, ok := want[row.Action]; ok {
 			want[row.Action] = true
 			if row.Title == "" {

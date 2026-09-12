@@ -22,14 +22,12 @@ func TestTrayRows(t *testing.T) {
 	keys := map[string]string{}
 	actions := map[Action]string{}
 	seps := 0
-	for i, r := range rows {
-		if r.Action == ActionNone {
-			seps++
-			if r.Title != "" || r.Key != "" {
-				t.Errorf("row %d is a separator carrying %q/%q", i, r.Title, r.Key)
-			}
-			continue
-		}
+	// ⛔⛔ BY IDENTITY, NOT BY POSITION. This walked the top level and paired
+	// rows with menu items by index, and the day rows were grouped into
+	// submenus it reported the curve as missing from a menu it was in. A row's
+	// ACTION is what does not move when the menu is rearranged or a title is
+	// reworded -- and two titles were reworded the same week.
+	for i, r := range FlatRows() {
 		if r.Title == "" {
 			t.Errorf("row %d asks for %v and says nothing", i, r.Action)
 		}
@@ -59,14 +57,37 @@ func TestTrayRows(t *testing.T) {
 		}
 		keys[r.Key] = r.Title
 	}
+	// The separators are a property of the TOP level, where the rules are drawn.
+	for i, r := range rows {
+		if r.IsSeparator() {
+			seps++
+			continue
+		}
+		if r.Action == ActionNone {
+			// A submenu row: it opens something rather than doing something.
+			if len(r.Rows) == 0 {
+				t.Errorf("row %d (%q) has no action and nothing under it", i, r.Title)
+			}
+			if r.Title == "" {
+				t.Errorf("row %d holds %d rows and says nothing", i, len(r.Rows))
+			}
+		}
+	}
 	if seps == 0 {
 		t.Error("the menu has no separator; the settings row reads as one of the " +
 			"gallery rows")
 	}
 	// Neither the first nor the last row is a separator: a menu that opens or
 	// ends with a rule has a gap in it where a person expects a row.
-	if rows[0].Action == ActionNone || rows[len(rows)-1].Action == ActionNone {
+	if rows[0].IsSeparator() || rows[len(rows)-1].IsSeparator() {
 		t.Error("the menu begins or ends with a separator")
+	}
+	// ⭐ AND THE GROUPING ACTUALLY SHORTENED IT. Thirty-one rows was the
+	// complaint; a submenu mechanism that nobody used would leave it at
+	// thirty-one and pass every other assertion here.
+	if len(rows) >= len(FlatRows()) {
+		t.Errorf("the top level has %d rows and the whole menu %d: nothing is "+
+			"grouped", len(rows), len(FlatRows()))
 	}
 
 	// The two rows that matter are there, because this is the whole reason the

@@ -25,22 +25,30 @@ import (
 // one, because two rows drawn alike are two rows that have to be read.
 func TestEveryMenuRowCarriesASymbol(t *testing.T) {
 	seen := map[string]string{}
-	for _, r := range TrayRows() {
-		if r.Action == ActionNone {
-			if r.Symbol != "" {
-				t.Errorf("a separator carries the symbol %q", r.Symbol)
+	// ⛔ THE SUBMENU ROWS COUNT TOO. They carry a symbol of their own and sit
+	// beside the ungrouped rows, so one of them drawn as something already used
+	// is the same collision anywhere else would be.
+	var walk func([]TrayRow)
+	walk = func(rows []TrayRow) {
+		for _, r := range rows {
+			if r.IsSeparator() {
+				if r.Symbol != "" {
+					t.Errorf("a separator carries the symbol %q", r.Symbol)
+				}
+				continue
 			}
-			continue
+			if r.Symbol == "" {
+				t.Errorf("%q has no symbol", r.Title)
+			} else {
+				if other, ok := seen[r.Symbol]; ok {
+					t.Errorf("%q and %q are both drawn as %q", other, r.Title, r.Symbol)
+				}
+				seen[r.Symbol] = r.Title
+			}
+			walk(r.Rows)
 		}
-		if r.Symbol == "" {
-			t.Errorf("%q has no symbol", r.Title)
-			continue
-		}
-		if other, ok := seen[r.Symbol]; ok {
-			t.Errorf("%q and %q are both drawn as %q", other, r.Title, r.Symbol)
-		}
-		seen[r.Symbol] = r.Title
 	}
+	walk(TrayRows())
 }
 
 // TestEverySymbolTheMenuNamesExists.
@@ -270,15 +278,20 @@ func TestTheMenuSaysWhichKeyDoesTheSameThing(t *testing.T) {
 	}, "the combinations to arrive")
 
 	_, _, menu = h.Snapshot()
-	rows := TrayRows()
-	if len(menu.Items) != len(rows) {
-		t.Fatalf("the menu has %d rows, want %d", len(menu.Items), len(rows))
-	}
-	for i, r := range rows {
-		it := menu.Items[i]
+	// ⛔⛔ BY LABEL, NOT BY INDEX. This paired rows with items by position, and
+	// the day the rows were grouped into submenus every index past the first
+	// group pointed at the wrong item -- silently, because an index still
+	// resolves. A row is found by what it SAYS, which is also what the person
+	// reading the menu has. See Menu.ByLabel, and Menu.Find's warning beside it.
+	for i, r := range FlatRows() {
+		it := menu.ByLabel(r.Title)
+		if it == nil {
+			t.Errorf("row %d (%q) is in no menu item", i, r.Title)
+			continue
+		}
 		// ⛔ THE LABEL IS ALWAYS JUST THE LABEL. The combination is drawn beside
 		// it by the platform, right-aligned in a column with every other row's.
-		if r.Action != ActionNone && it.Label != r.Title {
+		if it.Label != r.Title {
 			t.Errorf("row %d is labelled %q, want %q", i, it.Label, r.Title)
 		}
 		switch r.Action {
@@ -293,10 +306,6 @@ func TestTheMenuSaysWhichKeyDoesTheSameThing(t *testing.T) {
 			if it.Key != tray.KeyEscape {
 				t.Errorf("row %d names %q for Escape; a menu draws a glyph there",
 					i, it.Key)
-			}
-		case ActionNone:
-			if !it.Separator {
-				t.Errorf("row %d stopped being a separator: %q", i, it.Label)
 			}
 		default:
 			if it.Key != "" || it.Mods != 0 {
@@ -736,10 +745,16 @@ func TestTheTickFollowsTheHeadsetsOwnTrackingMode(t *testing.T) {
 		return m != nil && len(m.Items) > 0
 	}, "the menu to arrive")
 
+	// ⛔ BY LABEL. These three rows live in a submenu now, and an index into the
+	// top level would point at whatever happens to sit there instead -- a wrong
+	// answer rather than a missing one.
 	tickedRow := func() Action {
 		_, _, m := h.Snapshot()
-		for i, r := range TrayRows() {
-			if _, ok := trackingFor(r.Action); ok && m.Items[i].Checked {
+		for _, r := range FlatRows() {
+			if _, ok := trackingFor(r.Action); !ok {
+				continue
+			}
+			if it := m.ByLabel(r.Title); it != nil && it.Checked {
 				return r.Action
 			}
 		}
@@ -780,9 +795,10 @@ func TestShowTrackingOnNoItemAndWithNoNewsDoesNothing(t *testing.T) {
 	item.ShowTracking(Tracking{Mode: 2})
 	waitFor(t, func() bool {
 		_, _, m := h.Snapshot()
-		for i, r := range TrayRows() {
+		for _, r := range FlatRows() {
 			if r.Action == ActionTrackSmooth {
-				return m.Items[i].Checked
+				it := m.ByLabel(r.Title)
+				return it != nil && it.Checked
 			}
 		}
 		return false

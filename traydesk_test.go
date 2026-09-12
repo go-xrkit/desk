@@ -52,22 +52,37 @@ func TestTheMenuIsTheRowsTheDeskOffers(t *testing.T) {
 	if len(icon) == 0 {
 		t.Error("the item has no icon")
 	}
-	rows := TrayRows()
-	if len(menu.Items) != len(rows) {
-		t.Fatalf("the menu has %d rows, want the %d the desk offers", len(menu.Items), len(rows))
-	}
-	for i, r := range rows {
-		got := menu.Items[i]
-		if r.Action == ActionNone {
-			if !got.Separator {
-				t.Errorf("row %d is %q, want a separator", i, got.Label)
+	// ⛔ THE WHOLE TREE, not the top level. The menu mirrors the rows through
+	// the submenus, and a check that stopped at the first level would pass on a
+	// build that dropped everything inside them.
+	var same func(items []*tray.MenuItem, rows []TrayRow, where string)
+	same = func(items []*tray.MenuItem, rows []TrayRow, where string) {
+		if len(items) != len(rows) {
+			t.Fatalf("%s has %d items, want the %d rows the desk offers",
+				where, len(items), len(rows))
+		}
+		for i, r := range rows {
+			got := items[i]
+			if r.IsSeparator() {
+				if !got.Separator {
+					t.Errorf("%s row %d is %q, want a separator", where, i, got.Label)
+				}
+				continue
 			}
-			continue
-		}
-		if got.Label != r.Title {
-			t.Errorf("row %d is %q, want %q", i, got.Label, r.Title)
+			if got.Label != r.Title {
+				t.Errorf("%s row %d is %q, want %q", where, i, got.Label, r.Title)
+			}
+			if len(r.Rows) > 0 {
+				if got.Submenu == nil {
+					t.Errorf("%s row %d (%q) holds %d rows and opens nothing",
+						where, i, r.Title, len(r.Rows))
+					continue
+				}
+				same(got.Submenu.Items, r.Rows, where+" > "+r.Title)
+			}
 		}
 	}
+	same(menu.Items, TrayRows(), "the menu")
 }
 
 func TestChoosingARowSendsItsAction(t *testing.T) {

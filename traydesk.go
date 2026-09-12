@@ -182,8 +182,12 @@ func (t *Tray) ShowShortcuts(keys map[Action]hotkey.Combo) {
 	// person saying the shortcuts were not there. A count is the cheapest thing
 	// that can contradict that, and it names the two ends -- what the session
 	// granted, and what the menu drew -- because the fault has been at both.
+	// ⛔ COUNTED THROUGH THE SUBMENUS TOO. A count that stopped at the top
+	// level would report a collapse every time a row was grouped, and the whole
+	// point of this line is to contradict "the shortcuts are not there" -- so it
+	// must count the rows a person can actually reach, wherever they now live.
 	drawn := 0
-	for _, it := range m.Items {
+	for _, it := range m.Leaves() {
 		if it.Key != "" {
 			drawn++
 		}
@@ -314,8 +318,29 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 	t.mu.Unlock()
 
 	menu := tray.NewMenu()
-	for _, r := range TrayRows() {
-		if r.Action == ActionNone {
+	t.rowsInto(menu, TrayRows(), keys, threeD, running, track, following)
+	return menu
+}
+
+// rowsInto builds rows into a menu, and itself into the submenus among them.
+//
+// One function for both levels: a row in a submenu is a row, with the same
+// tick, the same symbol pair, the same key equivalent and the same refusal to
+// send an action nobody granted. Two copies of this would be two chances for a
+// grouped row to behave differently from the one it used to be.
+func (t *Tray) rowsInto(menu *tray.Menu, rows []TrayRow, keys map[Action]hotkey.Combo,
+	threeD Stereo3D, running bool, track Tracking, following bool) {
+
+	for _, r := range rows {
+		if len(r.Rows) > 0 {
+			sub := tray.NewMenu()
+			t.rowsInto(sub, r.Rows, keys, threeD, running, track, following)
+			it := tray.SubMenu(r.Title, sub)
+			it.Icon = rowIcon(r.Symbol)
+			menu.Add(it)
+			continue
+		}
+		if r.IsSeparator() {
 			menu.Add(tray.Separator())
 			continue
 		}
@@ -373,7 +398,6 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 		}
 		menu.Add(it)
 	}
-	return menu
 }
 
 // Hold runs the item AND the platform's main loop, and returns when Release is
@@ -673,4 +697,31 @@ func squared(b []byte, side int) ([]byte, error) {
 		copy(out[((y0+y)*side+x0)*4:], pix[y*w*4:(y+1)*w*4])
 	}
 	return pngOf(out, side, side)
+}
+
+// FlatRows is every row the menu offers, submenus walked, in the order somebody
+// reading the menu top to bottom would meet them.
+//
+// ⭐ IT EXISTS FOR THE TESTS AND FOR ANY CALLER THAT ASKS "what can be chosen".
+// Before submenus, TrayRows() was both the shape of the menu and the list of
+// everything in it; grouping split those two questions apart, and a caller that
+// went on using the first to answer the second would quietly stop seeing every
+// row that moved.
+func FlatRows() []TrayRow {
+	var out []TrayRow
+	var walk func([]TrayRow)
+	walk = func(rows []TrayRow) {
+		for _, r := range rows {
+			switch {
+			case len(r.Rows) > 0:
+				walk(r.Rows)
+			case r.IsSeparator():
+				// A rule is not a thing anybody can choose.
+			default:
+				out = append(out, r)
+			}
+		}
+	}
+	walk(TrayRows())
+	return out
 }
