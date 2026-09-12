@@ -449,9 +449,12 @@ var configActions = map[string]Action{
 	// direction, because a settings file names GESTURES and "bring the pointer
 	// here" and "put it back where I can see it" are two of them.
 	"point-home": ActionPointHome,
-	"spread":     ActionSpread,
-	"remove":     ActionRemove,
-	"settings":   ActionSettings,
+	// Following the viewer's own head, which is this Mac's camera rather than
+	// the headset's tracking: the three "anchor" names below are the glasses.
+	"follow-head": ActionFollowHead,
+	"spread":      ActionSpread,
+	"remove":      ActionRemove,
+	"settings":    ActionSettings,
 	// One name per screen, so a settings file can move them. Nine, because
 	// MaxScreens is nine.
 	"screen-1": ActionScreen1,

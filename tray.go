@@ -155,13 +155,34 @@ func TrayRows() []TrayRow {
 		// ⚠ NAMED FOR THE COST AS WELL AS THE BENEFIT. Following a head means a
 		// lit camera light for as long as it lasts, and a row that only promised
 		// the benefit would be a row that surprised somebody.
-		{Title: "Follow my head (camera on)", Action: ActionFollowHead,
+		{Title: "Follow my head (camera on)", Key: "f", Action: ActionFollowHead,
 			Toggle: true, Symbol: "eye", SymbolOn: "eye.fill"},
 		// Not a toggle: recentring is something that HAPPENS, not a state, and a
 		// tick on it would be a tick that never turns off. Kept at the top level
 		// because it is the row somebody reaches for when the picture has
 		// wandered, which is exactly when they do not want to go hunting.
 		{Title: "Put it back in front of me", Action: ActionRecenter, Symbol: "scope"},
+		// ⛔ PUTTING THE GLASSES DOWN IS NOT QUITTING, and until this row
+		// existed there was no way to say so: the only thing that ended a
+		// ribbon ended the program with it, so a person who wanted their
+		// keyboard back for ten minutes had to quit and set the desk up
+		// again afterwards. Asked for in those words -- "garder l'app
+		// xrdesk ouverte mais arreter d'utiliser des lunettes".
+		//
+		// A TICK rather than two rows, for the reason the 3D row is one row:
+		// the state is in front of the person as they choose. And it is the
+		// one row that has to work in BOTH states, because while the glasses
+		// are down this menu is the only control left alive -- the shortcuts
+		// went back to the rest of the machine when the ribbon came down.
+		//
+		// ⛔ IT SAT UNDER THE GROUPS UNTIL SOMEBODY POINTED AT IT -- "remonte use
+		// the glasses avec les autres en haut". The rule above says every tick
+		// belongs where it can be seen, and this one was left below it: the rule
+		// was written and then not applied to the row it most obviously covers.
+		// TestEveryTickIsWhereItCanBeSeen now applies it instead of trusting me
+		// to.
+		{Title: "Use the glasses", Action: ActionPause, Toggle: true,
+			Symbol: "eyeglasses", SymbolOn: "eyeglasses"},
 		{},
 		// ⛔⛔ THIRTY-ONE ROWS HAD TO BE READ TOP TO BOTTOM to find anything --
 		// "ca serait bien de commencer a faire des sous-menus pour regrouper des
@@ -286,20 +307,6 @@ func TrayRows() []TrayRow {
 				{Title: "Mute the microphone", Action: ActionMic, Symbol: "mic.slash"},
 			}},
 		{},
-		// ⛔ PUTTING THE GLASSES DOWN IS NOT QUITTING, and until this row
-		// existed there was no way to say so: the only thing that ended a
-		// ribbon ended the program with it, so a person who wanted their
-		// keyboard back for ten minutes had to quit and set the desk up
-		// again afterwards. Asked for in those words -- "garder l'app
-		// xrdesk ouverte mais arreter d'utiliser des lunettes".
-		//
-		// A TICK rather than two rows, for the reason the 3D row is one row:
-		// the state is in front of the person as they choose. And it is the
-		// one row that has to work in BOTH states, because while the glasses
-		// are down this menu is the only control left alive -- the shortcuts
-		// went back to the rest of the machine when the ribbon came down.
-		{Title: "Use the glasses", Action: ActionPause, Toggle: true,
-			Symbol: "eyeglasses", SymbolOn: "eyeglasses"},
 		{Title: "Quit the desk", Key: "q", Action: ActionQuit, Symbol: "power"},
 	}
 }
