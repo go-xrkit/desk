@@ -496,9 +496,9 @@ func (a Action) String() string {
 	case ActionFit:
 		return "fit"
 	case ActionPhoto:
-		return "take a photograph"
+		return "photograph the room with the camera"
 	case ActionCapture:
-		return "photograph what the glasses show"
+		return "save a picture of what the glasses show"
 	case ActionDimmer:
 		return "dim the glasses"
 	case ActionBrighter:
@@ -698,6 +698,19 @@ type Desk struct {
 	// reaches for this. The caller hands [Send] a list of one display and every
 	// placement carries position 1. See [Gather].
 	OnGather func(places []Placement)
+
+	// OnFollowingHead, when set, is told whether the desk is now following the
+	// viewer's head — what ACTUALLY happened, on every path including the one
+	// that refuses. It is called without the desk's lock held.
+	//
+	// ⛔⛔ THE MENU ROW HAD NO TICK AT ALL. It is declared a toggle, with an
+	// open eye and a filled one for the two states, and nothing ever told the
+	// item which of them it was in: stateFor fell through to its default and
+	// answered "off" for the life of the session. macOS draws NOTHING for an
+	// unticked row, so a feature that was running looked exactly like one that
+	// was not -- "lorsque follow my head est activé il faut avoir un coche sur
+	// le menu".
+	OnFollowingHead func(on bool)
 
 	quit bool
 	// settings is set with quit when the desk stopped to show the settings

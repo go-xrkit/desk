@@ -312,6 +312,17 @@ func (d *Desk) headToBand() float64 {
 // tracker reopened on every toggle would relearn the room each time, and the
 // light would flicker with the menu.
 func (d *Desk) toggleFollowHead() {
+	// ⛔⛔ WHAT HAPPENED, NOT WHAT WAS ASKED, and it is told on EVERY path --
+	// including the one that refuses. Asking to follow a head opens a camera,
+	// and a headset plugged in for its picture only presents none; a tick that
+	// moved because a row was clicked would then say the desk is following a
+	// head it cannot see. Same rule as OnTracking, which learned it from a
+	// headset that refuses whenever it is passing the picture through.
+	defer func() {
+		if on := d.OnFollowingHead; on != nil {
+			on(d.FollowingHead())
+		}
+	}()
 	if d.FollowingHead() {
 		d.FollowHead(false)
 		d.closeHead()
