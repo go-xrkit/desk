@@ -138,6 +138,9 @@ type Tray struct {
 	threeD Stereo3D
 	// track is which tracking mode the glasses are holding the picture in.
 	track Tracking
+	// following is whether the desk is following the viewer's head, for the
+	// tick on that row. See [Tray.ShowFollowingHead].
+	following bool
 	// running mirrors the state observable, for the "use the glasses" tick.
 	//
 	// ⛔ A MIRROR RATHER THAN A READ. mvvm.Observable has no lock -- it is
@@ -234,16 +237,47 @@ func (t *Tray) ShowTracking(s Tracking) {
 	t.t.SetMenu(t.buildMenu(keys))
 }
 
+// ShowFollowingHead says whether the desk is following the viewer's head, so
+// the row carries a tick while it is.
+//
+// ⛔ WHAT HAPPENED, NOT WHAT WAS ASKED, like Show3D and ShowTracking above.
+// Asking to follow a head opens a camera, and a headset plugged in for its
+// picture only presents none -- so the value comes from the desk after the
+// attempt, not from the row that was clicked.
+func (t *Tray) ShowFollowingHead(on bool) {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	if t.following == on {
+		t.mu.Unlock()
+		return
+	}
+	t.following = on
+	keys := t.keys
+	t.mu.Unlock()
+	t.t.SetMenu(t.buildMenu(keys))
+}
+
 // stateFor reports what a toggling row should show: whether it is on, and why
 // it cannot be turned on at all.
 //
 // A function of the state rather than a field on TrayRow: a row is a
 // DESCRIPTION, written once, and what it describes changes while the menu is on
 // screen.
-func stateFor(a Action, threeD Stereo3D, running bool, track Tracking) (on bool, why string) {
+func stateFor(a Action, threeD Stereo3D, running bool, track Tracking,
+	following bool) (on bool, why string) {
+
 	switch a {
 	case ActionStereo3D:
 		return threeD.On, threeD.Why
+	case ActionFollowHead:
+		// ⛔⛔ IT FELL THROUGH TO THE DEFAULT AND ANSWERED "OFF" FOR EVER. The
+		// row is declared a toggle with an open eye and a filled one, and
+		// nothing ever told the item which of the two it was in -- so a feature
+		// that was running looked exactly like one that was not, macOS drawing
+		// nothing at all for an unticked row.
+		return following, ""
 	case ActionTrackAnchored, ActionTrackSmooth, ActionTrackOff:
 		// ⭐ THE TICK IS ON THE ROW THE HEADSET IS ACTUALLY IN, which is not
 		// necessarily the row last clicked: the glasses have their own button
@@ -276,6 +310,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 	// after would show two answers to one question.
 	t.mu.Lock()
 	threeD, running, track := t.threeD, t.running, t.track
+	following := t.following
 	t.mu.Unlock()
 
 	menu := tray.NewMenu()
@@ -320,7 +355,7 @@ func (t *Tray) buildMenu(keys map[Action]hotkey.Combo) *tray.Menu {
 			// The Checked field is flipped by tray before the callback runs,
 			// and overwritten on the next rebuild by what actually happened --
 			// which matters, because turning 3D on can be refused.
-			on, why := stateFor(a, threeD, running, track)
+			on, why := stateFor(a, threeD, running, track, following)
 			sym := r.Symbol
 			if on && r.SymbolOn != "" {
 				sym = r.SymbolOn

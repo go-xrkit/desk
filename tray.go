@@ -222,11 +222,22 @@ func TrayRows() []TrayRow {
 		// The camera. One row, because there is one thing to do with it that a
 		// person asks for deliberately -- and a camera on a headset points at
 		// whatever they are looking at, so nothing here is ever automatic.
-		{Title: "Take a photograph", Action: ActionPhoto, Symbol: "camera"},
+		// ⛔⛔ THE TWO ROWS BOTH SAID "PHOTOGRAPH" AND ONLY ONE USES A CAMERA.
+		// "Photograph what I see" opened nothing and took no light: it saves the
+		// composed picture -- a screenshot of the glasses. Reported exactly so:
+		// "le menu 'photograph what i see' est trompeur, ca n'utilise pas la
+		// camera mais fait une capture d'ecran des lunettes." A row that names
+		// the wrong instrument is a row somebody presses expecting a lit camera,
+		// or avoids because they think one will light.
+		//
+		// So one names the CAMERA and the room it points at, and the other says
+		// it SAVES what is on the screens. Neither says "photograph" alone.
+		{Title: "Photograph the room (camera)", Action: ActionPhoto, Symbol: "camera"},
 		// ⭐ THE PICTURE THE GLASSES ARE SHOWING, not the camera. It is what makes
 		// a geometry somebody cannot describe from inside a headset describable at
 		// all -- and, the same picture, what lets them show a room what they see.
-		{Title: "Photograph what I see", Action: ActionCapture, Symbol: "rectangle.dashed"},
+		{Title: "Save what the glasses show", Action: ActionCapture,
+			Symbol: "rectangle.dashed"},
 		// The microphone. One row, and it says WHICH microphone once pressed:
 		// the headset's own cannot be silenced at all, so what is turned off is
 		// whatever else the machine listed, and a person has to be told which.

@@ -723,6 +723,14 @@ func run() int {
 			// this program draws is in front of the person pressing it.
 			d.OnPointHome = pointerHome
 			d.OnGather = appsHome
+			// And whether the head is being followed, so that row carries a tick.
+			// Told what HAPPENED: asking opens a camera, and a headset plugged in
+			// for its picture only presents none.
+			d.OnFollowingHead = func(on bool) {
+				if menuBar != nil {
+					menuBar.ShowFollowingHead(on)
+				}
+			}
 
 			// A photograph, through one of the glasses' cameras.
 			//

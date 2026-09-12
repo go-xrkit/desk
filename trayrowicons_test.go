@@ -562,26 +562,26 @@ func TestTellingTheItemSomethingItAlreadyKnowsRebuildsNothing(t *testing.T) {
 // state and no other, so a row that was never meant to carry a tick does not
 // sprout one.
 func TestOnlyTheTickingRowsTick(t *testing.T) {
-	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}, false, Tracking{}); !on {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{On: true}, false, Tracking{}, false); !on {
 		t.Error("the 3D row does not follow the state")
 	}
-	if on, _ := stateFor(ActionStereo3D, Stereo3D{}, false, Tracking{}); on {
+	if on, _ := stateFor(ActionStereo3D, Stereo3D{}, false, Tracking{}, false); on {
 		t.Error("the 3D row is ticked with 3D off")
 	}
-	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}, false, Tracking{}); why != "one eye" {
+	if _, why := stateFor(ActionStereo3D, Stereo3D{Why: "one eye"}, false, Tracking{}, false); why != "one eye" {
 		t.Errorf("the reason came back %q", why)
 	}
 	// And the row that says whether the glasses are in use follows the
 	// SESSION, not the conversion: it is ticked while a desk is up, and the
 	// tick is the only thing that says which way pressing it will go.
-	if on, why := stateFor(ActionPause, Stereo3D{}, true, Tracking{}); !on || why != "" {
+	if on, why := stateFor(ActionPause, Stereo3D{}, true, Tracking{}, false); !on || why != "" {
 		t.Errorf("the glasses row is %v %q with a desk up", on, why)
 	}
-	if on, _ := stateFor(ActionPause, Stereo3D{On: true}, false, Tracking{}); on {
+	if on, _ := stateFor(ActionPause, Stereo3D{On: true}, false, Tracking{}, false); on {
 		t.Error("the glasses row is ticked with no desk up")
 	}
 	for _, a := range []Action{ActionQuit, ActionSettings, ActionPhoto, ActionNone} {
-		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"}, true, Tracking{})
+		on, why := stateFor(a, Stereo3D{On: true, Why: "one eye"}, true, Tracking{}, false)
 		if on || why != "" {
 			t.Errorf("%v carries a state: %v %q", a, on, why)
 		}
@@ -789,4 +789,54 @@ func TestShowTrackingOnNoItemAndWithNoNewsDoesNothing(t *testing.T) {
 	}, "the tick to arrive")
 	// The same again: the item should notice it has nothing to do.
 	item.ShowTracking(Tracking{Mode: 2})
+}
+
+// TestTheFollowMyHeadTickReachesTheItem.
+//
+// ⛔⛔ THE ROW WAS DECLARED A TOGGLE AND NOTHING EVER TOLD THE ITEM. stateFor had
+// no case for it, so it answered "off" for the life of the session -- and macOS
+// draws nothing at all for an unticked row, which makes a feature that IS
+// running look exactly like one that is not.
+func TestTheFollowMyHeadTickReachesTheItem(t *testing.T) {
+	h := headless(t)
+	actions := make(chan Action, TrayQueue)
+	item, err := OpenTray(nil, actions)
+	if err != nil {
+		t.Fatalf("OpenTray = %v", err)
+	}
+	defer func() { _ = item.Close() }()
+	go func() { _ = item.Hold() }()
+	waitFor(t, func() bool {
+		_, _, m := h.Snapshot()
+		return m != nil && len(m.Items) > 0
+	}, "the menu to arrive")
+
+	tick := func() bool {
+		_, _, m := h.Snapshot()
+		for i, r := range TrayRows() {
+			if r.Action == ActionFollowHead {
+				return m.Items[i].Checked
+			}
+		}
+		t.Fatal("no follow-my-head row")
+		return false
+	}
+	if tick() {
+		t.Error("the row is ticked before anything turned it on")
+	}
+	// ⭐ TELLING IT WHAT IT ALREADY KNOWS REBUILDS NOTHING. The menu is rebuilt
+	// from scratch each time it is told, and a row that redrew on every frame of
+	// a head tracker would flicker for nothing.
+	item.ShowFollowingHead(false)
+	item.ShowFollowingHead(true)
+	waitFor(t, tick, "the tick to arrive")
+	item.ShowFollowingHead(false)
+	waitFor(t, func() bool { return !tick() }, "the tick to go away")
+}
+
+// TestShowFollowingHeadOnNoItemDoesNothing: OpenTray can fail, and main carries
+// on without a menu.
+func TestShowFollowingHeadOnNoItemDoesNothing(t *testing.T) {
+	var none *Tray
+	none.ShowFollowingHead(true)
 }

@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -17,7 +18,7 @@ func TestTheTickIsOnTheModeTheHeadsetIsIn(t *testing.T) {
 	for mode, want := range map[int]Action{0: ActionTrackOff, 1: ActionTrackAnchored, 2: ActionTrackSmooth} {
 		ticked := 0
 		for _, a := range rows {
-			on, why := stateFor(a, Stereo3D{}, true, Tracking{Mode: mode})
+			on, why := stateFor(a, Stereo3D{}, true, Tracking{Mode: mode}, false)
 			if why != "" {
 				t.Errorf("mode %d: %v is unavailable for %q", mode, a, why)
 			}
@@ -40,7 +41,7 @@ func TestTheTickIsOnTheModeTheHeadsetIsIn(t *testing.T) {
 func TestWhyItCannotTrackIsSaidOnEveryRow(t *testing.T) {
 	const why = "these glasses are passing the picture through"
 	for _, a := range []Action{ActionTrackOff, ActionTrackAnchored, ActionTrackSmooth, ActionRecenter} {
-		on, got := stateFor(a, Stereo3D{}, true, Tracking{Mode: 1, Why: why})
+		on, got := stateFor(a, Stereo3D{}, true, Tracking{Mode: 1, Why: why}, false)
 		if got != why {
 			t.Errorf("%v says %q, want %q", a, got, why)
 		}
@@ -54,7 +55,7 @@ func TestWhyItCannotTrackIsSaidOnEveryRow(t *testing.T) {
 // would be one that never turns off.
 func TestRecentringIsNeverTicked(t *testing.T) {
 	for mode := range 3 {
-		if on, _ := stateFor(ActionRecenter, Stereo3D{}, true, Tracking{Mode: mode}); on {
+		if on, _ := stateFor(ActionRecenter, Stereo3D{}, true, Tracking{Mode: mode}, false); on {
 			t.Errorf("recentring is ticked in mode %d", mode)
 		}
 	}
@@ -152,3 +153,68 @@ var errAsked = errTracking("these glasses are passing the picture through, so th
 type errTracking string
 
 func (e errTracking) Error() string { return string(e) }
+
+// TestTheFollowMyHeadRowCarriesATick.
+//
+// ⛔⛔ IT NEVER DID. The row is declared a toggle, with an open eye and a filled
+// one for its two states, and stateFor had no case for it -- so it fell through
+// to the default and answered "off" for the life of the session. macOS draws
+// NOTHING for an unticked row, so a feature that was running looked exactly like
+// one that was not: "lorsque follow my head est activé il faut avoir un coche
+// sur le menu".
+func TestTheFollowMyHeadRowCarriesATick(t *testing.T) {
+	if on, why := stateFor(ActionFollowHead, Stereo3D{}, true, Tracking{}, true); !on || why != "" {
+		t.Errorf("following a head: on=%v why=%q", on, why)
+	}
+	if on, _ := stateFor(ActionFollowHead, Stereo3D{}, true, Tracking{}, false); on {
+		t.Error("not following a head, and the row is ticked")
+	}
+	// ⛔ AND IT IS NOT GREYED OUT BY THE HEADSET'S OWN TRACKING. The three
+	// tracking rows go grey while the glasses are passing the picture through;
+	// this one opens a camera on the Mac's side and has nothing to do with them.
+	if _, why := stateFor(ActionFollowHead, Stereo3D{},
+		true, Tracking{Why: "passing through"}, true); why != "" {
+		t.Errorf("the row was disabled because the headset said %q", why)
+	}
+}
+
+// TestTheMenuIsToldWhatHappenedAndNotWhatWasAsked.
+//
+// ⛔ ASKING TO FOLLOW A HEAD OPENS A CAMERA, AND IT CAN REFUSE -- a headset
+// plugged in for its picture only presents none. A tick that moved because a row
+// was clicked would then say the desk is following a head it cannot see. So the
+// seam is told on EVERY path, with what the desk actually ended up doing.
+func TestTheMenuIsToldWhatHappenedAndNotWhatWasAsked(t *testing.T) {
+	d, h := deskForHead(t)
+	var said []bool
+	d.OnFollowingHead = func(on bool) { said = append(said, on) }
+
+	d.Do(ActionFollowHead)
+	if len(said) != 1 || !said[0] {
+		t.Fatalf("switching on told the menu %v", said)
+	}
+	d.Do(ActionFollowHead)
+	if len(said) != 2 || said[1] {
+		t.Fatalf("switching off told the menu %v", said)
+	}
+	_ = h
+
+	// A desk with no camera to open: the attempt is refused, and the menu is
+	// told the truth rather than left showing the row as pressed.
+	//
+	// ⛔ RESTORED AFTERWARDS. openCameraHead is package state, and a test that
+	// leaves it holding a stub hands every later test a machine with no camera
+	// -- a failure that appears in a file nobody touched.
+	was := openCameraHead
+	t.Cleanup(func() { openCameraHead = was })
+	d.SetHeadSource(nil)
+	openCameraHead = func(string) (HeadSource, func() error, error) {
+		return nil, nil, errNoCameraHere
+	}
+	d.Do(ActionFollowHead)
+	if len(said) != 3 || said[2] {
+		t.Fatalf("a refused camera told the menu %v", said)
+	}
+}
+
+var errNoCameraHere = errors.New("these glasses have no camera")
