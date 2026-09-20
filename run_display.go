@@ -635,6 +635,14 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// hits those has these beside it. See [Witnesses].
 	witnesses := NewWitnesses()
 	caught := false
+	// ⛔ AND THE LOG SAYS THE INSTRUMENT IS ARMED, because silence about the
+	// witnesses would otherwise mean either "nothing was damaged" or "the check
+	// never ran", and those are opposite conclusions.
+	if bad := SelfCheck(); bad != "" {
+		logf("%s", bad)
+	} else {
+		logf("%d witness strings are watching; a head set to zero is seen", len(witnesses))
+	}
 
 	lookedAt := time.Now()
 	watch := func(now time.Time) {

@@ -99,3 +99,51 @@ func TestTheWitnessReportSaysHowManyAndWhere(t *testing.T) {
 		t.Errorf("the report carries %d commas: %q", n, long)
 	}
 }
+
+// ⛔⛔ A DETECTOR NOBODY HAS SEEN FIRE IS NOT A DETECTOR, and the log that goes
+// with it cannot be read: silence about the witnesses means either "nothing was
+// damaged" or "the check never ran", which are opposite conclusions.
+func TestTheSelfCheckArmsTheInstrument(t *testing.T) {
+	t.Parallel()
+
+	if bad := SelfCheck(); bad != "" {
+		t.Fatalf("the instrument does not see a head set to zero: %s", bad)
+	}
+}
+
+// AND IT REFUSES WHEN THE DETECTOR IS BROKEN, which is the half that makes it
+// a control. Each of these is a way the instrument could be wrong while looking
+// exactly as healthy from outside.
+func TestTheSelfCheckRefusesABrokenDetector(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name    string
+		damaged func([]string) []int
+	}{
+		// The comparison that never fires: a detector reading the text it just
+		// built rather than the witness in front of it would look like this.
+		{"sees nothing", func([]string) []int { return nil }},
+		// The one that counts wrong, which matters MORE than it looks: how many
+		// are hit at once is the whole question this instrument was built to
+		// answer -- one is a stray write, several a sweep over a region.
+		{"counts everyone", func(ws []string) []int {
+			all := make([]int, len(ws))
+			for i := range all {
+				all[i] = i
+			}
+			return all
+		}},
+		// And the one that finds damage in the wrong place: indexes are what
+		// say whether the victims are neighbours.
+		{"names the wrong one", func([]string) []int { return []int{7} }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if selfCheck(c.damaged) == "" {
+				t.Error("a broken detector passed the self-check; it proves nothing")
+			}
+		})
+	}
+}

@@ -103,3 +103,44 @@ func WitnessReport(hit []int, total int) string {
 	return s + ". One is a stray write; a run of neighbours is a sweep over a " +
 		"region. This run is worth keeping."
 }
+
+// SelfCheck arms the instrument by damaging a witness of its own, on purpose,
+// and says whether the damage was seen. An empty string means it was.
+//
+// ⛔⛔ A SILENT LOG SAYS TWO DIFFERENT THINGS AND THIS IS WHAT SEPARATES THEM.
+// Without it, a run whose journal never mentions a witness could mean "nothing
+// was damaged" or "the check never ran" -- a mis-wired loop, a slice that was
+// never allocated, a build where this file was left out. Those are opposite
+// conclusions and the reader had no way to tell them apart. Nine occurrences
+// of this fault have already been lost to instruments nobody watched fire.
+//
+// ⭐ The damage is the SHAPE of the real one -- the first four bytes set to
+// zero, the rest untouched -- so what is proved is that the comparison catches
+// THAT, not merely that it catches a different string.
+//
+// It works on witnesses of its own, never the live ones: a control that
+// consumes its subject proves nothing about the next check.
+func SelfCheck() string { return selfCheck(DamagedWitnesses) }
+
+// selfCheck takes the detector as an argument so the suite can hand it a
+// broken one and watch this REFUSE. ⛔ A control that cannot fail is not a
+// control: with the real detector wired in permanently, a test could only ever
+// observe the happy answer and would pass just as well if the whole function
+// returned the empty string.
+func selfCheck(damaged func([]string) []int) string {
+	ws := NewWitnesses()
+	const at = 0
+	ws[at] = "\x00\x00\x00\x00" + WitnessText(at)[4:]
+
+	hit := damaged(ws)
+	switch {
+	case len(hit) == 0:
+		return "⛔ the witness self-check FAILED: a head set to zero was not seen. " +
+			"Nothing this run says about witnesses can be trusted."
+	case len(hit) != 1 || hit[0] != at:
+		return "⛔ the witness self-check FAILED: damaging witness " +
+			strconv.Itoa(at) + " was reported as " + strconv.Itoa(len(hit)) +
+			" damaged. The count this instrument exists to measure is wrong."
+	}
+	return ""
+}
