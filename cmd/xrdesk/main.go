@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -87,9 +88,26 @@ func run() int {
 			"screen lit for one run. The lasting choice is in the settings window.")
 	flag.Parse()
 
-	logf := func(f string, a ...any) { fmt.Printf("  "+f+"\n", a...) }
+	// ⛔ AND IT GOES TO A FILE, because an application launched from the Finder
+	// has no standard output: macOS connects it to nothing. Every line below is
+	// discarded when the desk is used the ordinary way, which is the only way
+	// the faults being hunted have ever appeared. See [desk.JournalPath].
+	journal, jerr := desk.OpenJournal(time.Now())
+	defer journal.Close()
+
+	out := io.Writer(os.Stdout)
 	if *quiet {
-		logf = func(string, ...any) {}
+		// Quiet empties the TERMINAL, never the file: it is about not filling
+		// somebody's shell with sixty lines, not about throwing away the record
+		// of a run they will ask about tomorrow.
+		out = nil
+	}
+	logf := func(f string, a ...any) { journal.Logf(out, f, a...) }
+
+	if jerr != nil {
+		fmt.Fprintf(os.Stderr, "  this run keeps no journal: %v\n", jerr)
+	} else {
+		logf("journal: %s", journal.Path)
 	}
 
 	// The settings file comes first: a flag given on the command line is a

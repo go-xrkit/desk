@@ -8,3 +8,9 @@ portable.txt
 /deskchaos
 /deskcheck
 /build/
+
+# The application bundle. `go run ./cmd/macapp` writes a signed 22 MB bundle to
+# dist/ by DEFAULT, and the rule above names build/ -- the directory the bundle
+# used to go in. An ignore rule that names yesterday's output directory protects
+# nothing.
+/dist/
