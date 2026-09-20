@@ -628,12 +628,30 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// for the whole arrangement; and every second rather than every beat,
 	// because five seconds of a dark screen with the glasses already off is five
 	// seconds of somebody wondering what has happened to their Mac.
+	// ⛔⛔ THE WITNESSES, ALLOCATED HERE ON PURPOSE. Both known victims were
+	// damaged within the first second: a display name read from the window
+	// server, and a line from desk.hcl already mangled by the time applications
+	// were placed. These land in the same heap at the same moment, so whatever
+	// hits those has these beside it. See [Witnesses].
+	witnesses := NewWitnesses()
+	caught := false
+
 	lookedAt := time.Now()
 	watch := func(now time.Time) {
 		if now.Sub(lookedAt) < time.Second {
 			return
 		}
 		lookedAt = now
+		// ⛔ SAID ONCE. The victims are never repaired -- a damaged string stays
+		// damaged -- so a report on every beat would bury the run in one
+		// sentence, which is exactly what happened before #163: 3,939 identical
+		// lines out of 4,797.
+		if !caught {
+			if hit := DamagedWitnesses(witnesses); len(hit) > 0 {
+				caught = true
+				logf("%s", WitnessReport(hit, len(witnesses)))
+			}
+		}
 		if _, err := currentScreen(opt.Screen.Name); err != nil {
 			// ⛔ A DAMAGED NAME IS NOT AN UNPLUGGED HEADSET, and treating it as
 			// one took a desk away mid-session while the headset was listed
