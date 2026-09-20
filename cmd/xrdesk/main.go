@@ -56,6 +56,30 @@ const retryAfter = 3 * time.Second
 // has. See the fallback in session.
 const maxProvideTries = 5
 
+// journal is this run's record, and it is package level because the helpers
+// below print too.
+//
+// ⛔⛔ A LINE THAT SKIPS THE FILE IS THE DEFECT THIS EXISTS TO FIX. The first
+// journal ever written here ended on "CGGetActiveDisplayList counted 0
+// displays" and the file did not hold it: the failure went straight to standard
+// error while everything leading up to it was kept. A record that keeps
+// everything except the reason a run stopped reads as a run that simply ended,
+// which is worse than no record at all. Passing a journal down to every helper
+// that prints would have been tidier and would have left the same hole the
+// first time somebody added a function that did not take one.
+//
+// The nil journal writes nowhere and never panics, so this is usable before
+// [desk.OpenJournal] and after Close.
+var journal *desk.Journal
+
+// say is what a person is told: what the desk is waiting for, why it stopped,
+// what it could not put back. -quiet does not silence it -- quiet is about
+// chatter -- and the file keeps it either way.
+func say(format string, a ...any) { journal.Say(os.Stdout, format, a...) }
+
+// fail is say, for trouble, on standard error.
+func fail(err error) { journal.Say(os.Stderr, "%v", err) }
+
 func main() { os.Exit(run()) }
 
 func run() int {
@@ -92,7 +116,8 @@ func run() int {
 	// has no standard output: macOS connects it to nothing. Every line below is
 	// discarded when the desk is used the ordinary way, which is the only way
 	// the faults being hunted have ever appeared. See [desk.JournalPath].
-	journal, jerr := desk.OpenJournal(time.Now())
+	var jerr error
+	journal, jerr = desk.OpenJournal(time.Now())
 	defer journal.Close()
 
 	out := io.Writer(os.Stdout)
@@ -115,7 +140,7 @@ func run() int {
 	// the flags are consulted.
 	settings, err := desk.LoadConfig()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fail(err)
 		return 1
 	}
 
@@ -127,14 +152,14 @@ func run() int {
 		logf("putting back a screen left dark: %v", err)
 	} else {
 		for _, line := range said {
-			fmt.Printf("%s\n", line)
+			say("%s", line)
 		}
 	}
 	if *settingsWin {
 		if err := desk.RunSettings(desk.SettingsOptions{
 			Logf: logf, DisplayH: tallestDisplay(),
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fail(err)
 			return 1
 		}
 		return 0
@@ -148,7 +173,7 @@ func run() int {
 		if err := desk.RunSettings(desk.SettingsOptions{
 			Logf: logf, DisplayH: tallestDisplay(),
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fail(err)
 			return 1
 		}
 		// Read it back: the choice has to take effect in THIS run, or the
@@ -305,7 +330,7 @@ func run() int {
 			// -for ran out while still waiting. Not a failure: the run did
 			// exactly what it was told, and saying so is better than a silent
 			// zero after nothing happened.
-			fmt.Printf("gave up waiting after %s; nothing was created\n", *forDur)
+			say("gave up waiting after %s; nothing was created\n", *forDur)
 			return false, false, false, 0
 		case errors.Is(err, desk.ErrAwaitResume):
 			// Picked back up. Straight round again, this time looking for the
@@ -315,10 +340,10 @@ func run() int {
 			askedAboutGlasses = true
 			return true, true, false, 0
 		case err != nil:
-			fmt.Printf("%v\n", err)
+			say("%v", err)
 			return false, false, false, 1
 		}
-		fmt.Printf("on %s\n", chosen)
+		say("on %s", chosen)
 		// THE MENU BAR SAYS SO. A green dot on the icon while a desk is up,
 		// and the plain glyph when there is none: a person glancing at their
 		// menu bar learns whether the glasses are live without opening
@@ -349,7 +374,7 @@ func run() int {
 			desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
 			settings.Anchoring())
 		if err != nil {
-			fmt.Printf("%v\n", err)
+			say("%v", err)
 			return false, false, false, 1
 		}
 		logf("%s", plan)
@@ -385,8 +410,8 @@ func run() int {
 			// with "no displays at all" while the person was looking at their
 			// screens. Whatever the window server was busy with, the answer is
 			// to ask again in a moment, not to give up on the session.
-			fmt.Printf("%v\n", err)
-			fmt.Printf("waiting, and trying again in %v\n", retryAfter)
+			say("%v", err)
+			say("waiting, and trying again in %v\n", retryAfter)
 			select {
 			case <-ctx.Done():
 				return false, false, false, 0
@@ -410,8 +435,8 @@ func run() int {
 		// So it waits, a few times, before settling for that.
 		if !screens.Virtual && provideTries < maxProvideTries {
 			provideTries++
-			fmt.Printf("%s\n", screens.Why)
-			fmt.Printf("waiting %v for the window server, and asking again (%d of %d)\n",
+			say("%s", screens.Why)
+			say("waiting %v for the window server, and asking again (%d of %d)\n",
 				retryAfter, provideTries, maxProvideTries)
 			if err := screens.Close(); err != nil {
 				logf("%v", err)
@@ -453,7 +478,7 @@ func run() int {
 		appsHome := func(places []desk.Placement) {
 			id, err := desk.HostDisplay(oursNow())
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				say("%v", err)
 				return
 			}
 			// ⛔ Recall, NOT Send. Send FILLS the screen it sends to, which is
@@ -462,10 +487,10 @@ func run() int {
 			// other. See desk.Recall.
 			done, err := desk.Recall(desk.TheBench(), id, places)
 			if err != nil {
-				fmt.Printf("%v\n", err)
+				say("%v", err)
 			}
 			if len(done) > 0 {
-				fmt.Printf("brought back to this Mac: %s\n", strings.Join(done, ", "))
+				say("brought back to this Mac: %s\n", strings.Join(done, ", "))
 			}
 		}
 
@@ -495,13 +520,13 @@ func run() int {
 				err = screens.Release()
 			}
 			if err != nil {
-				fmt.Printf("WARNING: could not remove every virtual display: %v\n", err)
+				say("WARNING: could not remove every virtual display: %v\n", err)
 			}
 		}()
 
 		feeds, err := desk.Capture(ctx, made, screens, logf)
 		if err != nil {
-			fmt.Printf("%v\n", err)
+			say("%v", err)
 			return false, false, false, 1
 		}
 		// Position 0 is left empty for now: what goes there is opened once the
@@ -511,7 +536,7 @@ func run() int {
 		}
 		d, err := desk.New(plan, feeds)
 		if err != nil {
-			fmt.Printf("%v\n", err)
+			say("%v", err)
 			return false, false, false, 1
 		}
 		defer d.Close()
@@ -623,7 +648,7 @@ func run() int {
 			var dark desk.Dimmer
 			defer func() {
 				if err := dark.Restore(); err != nil {
-					fmt.Printf("putting a screen's brightness back: %v\n", err)
+					say("putting a screen's brightness back: %v\n", err)
 				}
 			}()
 			remirror := func() {
@@ -660,7 +685,7 @@ func run() int {
 					logf("noting what is dark: %v", err)
 				}
 				if n := dark.Dark(); n != was {
-					fmt.Printf("%d of this Mac's screens are off while the ribbon shows them\n", n)
+					say("%d of this Mac's screens are off while the ribbon shows them\n", n)
 				}
 			}
 			remirror()
@@ -670,7 +695,7 @@ func run() int {
 			d.OnRemove = func(pos int, f desk.Feed) {
 				closeFeed(f)
 				if mirror && pos == 0 {
-					fmt.Printf("screen 1 is this Mac's own screen; it cannot be taken away\n")
+					say("screen 1 is this Mac's own screen; it cannot be taken away\n")
 					return
 				}
 				if mirror {
@@ -678,7 +703,7 @@ func run() int {
 					pos--
 				}
 				if err := screens.Remove(pos); err != nil {
-					fmt.Printf("%v\n", err)
+					say("%v", err)
 					return
 				}
 				// The inventory keeps one row per POSITION, and there is one
@@ -688,7 +713,7 @@ func run() int {
 					_ = inv.Clear(n - 1)
 				}
 				remirror()
-				fmt.Printf("screen %d is gone; %d left\n", pos+1, len(screens.IDs))
+				say("screen %d is gone; %d left\n", pos+1, len(screens.IDs))
 			}
 
 			// The gallery's "add a screen" cell. Making a display is the platform's
@@ -707,7 +732,7 @@ func run() int {
 				if err != nil {
 					return nil, err
 				}
-				fmt.Printf("added screen %d\n", len(screens.IDs))
+				say("added screen %d\n", len(screens.IDs))
 				return f, nil
 			}
 
@@ -721,14 +746,14 @@ func run() int {
 			d.OnScreens = func(n int) {
 				path, err := desk.ConfigPath()
 				if err != nil {
-					fmt.Printf("cannot remember %d screens: %v\n", n, err)
+					say("cannot remember %d screens: %v\n", n, err)
 					return
 				}
 				if err := desk.RememberScreens(path, n); err != nil {
-					fmt.Printf("%v\n", err)
+					say("%v", err)
 					return
 				}
-				fmt.Printf("%d screens, remembered in %s\n", n, path)
+				say("%d screens, remembered in %s\n", n, path)
 			}
 
 			// One key, and the pointer is on the screen being looked at. Without it the
@@ -736,10 +761,10 @@ func run() int {
 			// capture, so dragging the mouse towards it is dragging it blind.
 			d.OnPoint = func(pos int) {
 				if err := desk.BringPointer(screens.IDs, pos); err != nil {
-					fmt.Printf("%v\n", err)
+					say("%v", err)
 					return
 				}
-				fmt.Printf("the pointer is on screen %d\n", pos+1)
+				say("the pointer is on screen %d\n", pos+1)
 			}
 			// And the way back, which is the one that gets pressed when nothing
 			// this program draws is in front of the person pressing it.
@@ -842,17 +867,17 @@ func run() int {
 			// drift from the one that runs at start-up.
 			d.OnPlace = func(places []desk.Placement) {
 				if !screens.Virtual {
-					fmt.Printf("not moving anything: these are the displays this "+
+					say("not moving anything: these are the displays this "+
 						"Mac already has (%s)\n", screens.Why)
 					return
 				}
 				done, err := desk.Send(desk.TheBench(), ribbonIDs(mirror, macID, screens.IDs), places)
 				for _, line := range done {
-					fmt.Printf("%s\n", line)
+					say("%s", line)
 				}
 				if err != nil {
 					for _, line := range strings.Split(err.Error(), "\n") {
-						fmt.Printf("%s\n", line)
+						say("%s", line)
 					}
 				}
 			}
@@ -862,18 +887,18 @@ func run() int {
 				if !ok {
 					old, _ := d.SetFeed(pos, nil)
 					closeFeed(old)
-					fmt.Printf("screen %d: nothing\n", pos+1)
+					say("screen %d: nothing\n", pos+1)
 					remirror()
 					return
 				}
 				f, err := desk.OpenOffer(ctx, plan, o)
 				if err != nil {
-					fmt.Printf("screen %d: %v\n", pos+1, err)
+					say("screen %d: %v\n", pos+1, err)
 					return
 				}
 				old, err := d.SetFeed(pos, f)
 				if err != nil {
-					fmt.Printf("screen %d: %v\n", pos+1, err)
+					say("screen %d: %v\n", pos+1, err)
 					closeFeed(f)
 					return
 				}
@@ -881,11 +906,11 @@ func run() int {
 				// What this position shows has changed, so what may be dark
 				// has changed with it -- in both directions.
 				remirror()
-				fmt.Printf("screen %d: %s\n", pos+1, o.Name)
+				say("screen %d: %s\n", pos+1, o.Name)
 			}
 		}
 
-		fmt.Printf("arrow keys or h/l turn the ribbon, space promotes, tab or c changes what a screen shows, q quits\n")
+		say("arrow keys or h/l turn the ribbon, space promotes, tab or c changes what a screen shows, q quits\n")
 		start := time.Now()
 		opts := desk.RunOptions{
 			Title: "xrdesk", Screen: chosen, For: *forDur, Logf: logf,
@@ -926,10 +951,10 @@ func run() int {
 		opts.SnapshotFirst = *snap
 		opts.Snapshot = writeSnapshot
 		if err := desk.Run(ctx, plan, d, opts); err != nil {
-			fmt.Printf("%v\n", err)
+			say("%v", err)
 			return false, false, false, 1
 		}
-		fmt.Printf("ran for %s\n", time.Since(start).Round(time.Millisecond))
+		say("ran for %s\n", time.Since(start).Round(time.Millisecond))
 		// The desk stopped. It asked for the settings, it asked to be put down,
 		// or it is simply done.
 		if d.WantedStereo3D() {
@@ -988,7 +1013,7 @@ func run() int {
 		if err := desk.RunSettings(desk.SettingsOptions{
 			Logf: logf, DisplayH: tallestDisplay(),
 		}); err != nil {
-			fmt.Fprintln(os.Stderr, err)
+			fail(err)
 			return 1
 		}
 		if fresh, err := desk.LoadConfig(); err == nil {
@@ -1078,7 +1103,7 @@ func closeFeed(f desk.Feed) {
 		return
 	}
 	if err := f.Close(); err != nil {
-		fmt.Printf("closing a replaced screen: %v\n", err)
+		say("closing a replaced screen: %v\n", err)
 	}
 }
 

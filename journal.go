@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/go-fsctl/outdir"
@@ -76,6 +77,30 @@ func OpenJournal(at time.Time) (*Journal, error) {
 	return &Journal{Path: path, w: f}, nil
 }
 
+// Say writes one line that is never silenced -- what the desk is waiting for,
+// why it stopped, what it could not put back.
+//
+// ⛔⛔ THE LINE THAT SAYS WHY WAS THE ONE MISSING FROM THE FILE. The first run
+// written with a journal ended on "CGGetActiveDisplayList counted 0 displays"
+// and the file did not hold it: the failure went straight to standard error
+// while everything leading up to it was kept. A record of a run that keeps
+// everything except the reason it stopped is worse than none, because it reads
+// as a run that simply ended.
+//
+// out is where a person sees it -- standard output for news, standard error
+// for trouble -- and is never nil: -quiet is about chatter.
+func (j *Journal) Say(out io.Writer, format string, a ...any) {
+	// A trailing newline is trimmed rather than doubled. These lines were
+	// fmt.Printf calls carrying their own, in a file with fifty of them, and a
+	// conversion that had to edit every format string by hand is a conversion
+	// that silently mangles one. Both spellings say the same thing here.
+	line := strings.TrimSuffix(fmt.Sprintf(format, a...), "\n")
+	if out != nil {
+		fmt.Fprintln(out, line)
+	}
+	j.keep(line)
+}
+
 // Logf writes one line to the journal and to out, so a run started from a
 // terminal still says everything on the screen in front of the person who
 // started it.
@@ -88,13 +113,19 @@ func (j *Journal) Logf(out io.Writer, format string, a ...any) {
 	if out != nil {
 		fmt.Fprintf(out, "  %s\n", line)
 	}
+	j.keep(line)
+}
+
+// keep puts one line in the file, with the time.
+//
+// The time is in the file ONLY: a terminal has the person watching it, and a
+// file read days later has nothing else to say when a line happened -- which is
+// the witnesses' whole question, both known victims having been damaged within
+// the first second.
+func (j *Journal) keep(line string) {
 	if j == nil || j.w == nil {
 		return
 	}
-	// The time, in the file only: a terminal has the person watching it, a file
-	// read days later has nothing else to say when a line happened. And the
-	// witnesses' whole question is WHEN -- both known victims were damaged
-	// within the first second.
 	fmt.Fprintf(j.w, "%s  %s\n", time.Now().Format("15:04:05.000"), line)
 }
 
