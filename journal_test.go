@@ -6,6 +6,7 @@ package desk
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,5 +179,68 @@ func mustStillLog(t *testing.T, j *Journal) {
 	}
 	if err := j.Close(); err != nil {
 		t.Errorf("closing it: %v", err)
+	}
+}
+
+// ⛔⛔ THE LINE THAT SAYS WHY HAS TO BE IN THE FILE. The first journal this
+// program ever wrote ended on "CGGetActiveDisplayList counted 0 displays" and
+// the file did not hold it: the failure went to standard error while everything
+// leading up to it was kept. A record of a run that keeps everything except the
+// reason it stopped reads as a run that simply ended.
+func TestTheReasonARunStoppedIsInTheFile(t *testing.T) {
+	t.Setenv(JournalDirEnv, t.TempDir())
+
+	j, err := OpenJournal(time.Now())
+	if err != nil {
+		t.Fatalf("opening the journal: %v", err)
+	}
+	var trouble bytes.Buffer
+	j.Say(&trouble, "%v", errors.New("listing displays: counted 0"))
+	if err := j.Close(); err != nil {
+		t.Fatalf("closing the journal: %v", err)
+	}
+
+	if got := trouble.String(); got != "listing displays: counted 0\n" {
+		t.Errorf("standard error got %q", got)
+	}
+	b, err := os.ReadFile(j.Path)
+	if err != nil {
+		t.Fatalf("reading it back: %v", err)
+	}
+	if !strings.Contains(string(b), "listing displays: counted 0") {
+		t.Errorf("the file does not hold the reason the run stopped: %q", b)
+	}
+}
+
+// ⛔ AND A LINE THAT BROUGHT ITS OWN NEWLINE IS NOT DOUBLED. Fifty fmt.Printf
+// calls were converted at once and editing every format string by hand is how
+// one of them gets mangled; both spellings have to mean the same thing.
+func TestSayTakesALineWithOrWithoutItsNewline(t *testing.T) {
+	t.Parallel()
+
+	var with, without bytes.Buffer
+	(&Journal{}).Say(&with, "added screen %d\n", 3)
+	(&Journal{}).Say(&without, "added screen %d", 3)
+
+	if with.String() != without.String() {
+		t.Errorf("%q and %q are not the same line", with.String(), without.String())
+	}
+	if got := with.String(); got != "added screen 3\n" {
+		t.Errorf("the line is %q", got)
+	}
+}
+
+// AND -quiet DOES NOT SILENCE IT. Quiet is about not filling somebody's shell
+// with chatter; what the desk is waiting for and why it stopped are not that.
+func TestSayIsNotChatter(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	j := &Journal{}
+	j.Logf(nil, "a frame was drawn") // what -quiet drops
+	j.Say(&out, "waiting for the glasses")
+
+	if got := out.String(); got != "waiting for the glasses\n" {
+		t.Errorf("the terminal got %q", got)
 	}
 }
