@@ -67,14 +67,36 @@ jobs:
   darwin:
     name: darwin (the platform playback runs on)
     runs-on: macos-latest
+    # ⛔⛔ A HANG HERE ONCE COST 54 MINUTES OF A MACOS RUNNER AND SAID NOTHING.
+    # On 2026-09-20 the -race step sat in_progress until the job was killed,
+    # while the twelve runs before it finished in 2m15s to 4m27s and the rerun
+    # of the very same commit took 3m. Nothing was learnt: by the time anyone
+    # looked, the rerun had replaced the log blob and the original was a 404.
+    #
+    # This bound is not about saving minutes. It is about the NEXT one being
+    # readable: a job that stops at twenty says "something hung" while a job
+    # killed at the platform limit says only that the platform gave up.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: stable }
       - run: CGO_ENABLED=0 go vet ./...
       - run: CGO_ENABLED=0 go build ./...
-      - run: CGO_ENABLED=0 go test -count=1 -coverprofile=cover.out ./...
-      - run: CGO_ENABLED=1 go test -race -count=1 ./...
+      # ⛔ -timeout IS THE INSTRUMENT, not the bound above. When it fires, Go
+      # panics and prints EVERY goroutine's stack, which names the deadlock;
+      # when the job's own limit fires, the process is killed and says nothing.
+      # Six minutes against a healthy 2-4 on this runner, and 64s for the race
+      # build on the author's Mac.
+      #
+      # ⛔ AND IT APPLIES PER TEST BINARY, which is why it was not enough on its
+      # own: Go's default is already ten minutes, two packages are built here,
+      # and the hang that started this ran FIFTY. Whatever stopped that run was
+      # therefore not a test overrunning -- the watchdog never got to fire -- so
+      # both halves are needed, one to name a deadlock and one to catch what a
+      # deadlock is not.
+      - run: CGO_ENABLED=0 go test -timeout 6m -count=1 -coverprofile=cover.out ./...
+      - run: CGO_ENABLED=1 go test -timeout 6m -race -count=1 ./...
       # The gate is on the PORTABLE files. Playback needs a display, a video file
       # and a pair of glasses, none of which a runner has; a total-coverage gate
       # would therefore be a number chosen to pass rather than a standard.
@@ -137,8 +159,9 @@ jobs:
   linux:
     name: linux (portable logic)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: { go-version: stable }
-      - run: CGO_ENABLED=0 go test -count=1 ./...
+      - run: CGO_ENABLED=0 go test -timeout 6m -count=1 ./...
