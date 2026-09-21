@@ -89,11 +89,28 @@ jobs:
           CGO_ENABLED=0 go build -o /tmp/standin ./cmd/standin
           CGO_ENABLED=0 go build -o /tmp/xrdesk ./cmd/xrdesk
           n=${{ inputs.sessions }}
-          hold=$(( n * 30 + 40 ))
+          # ⛔⛔ THE FIRST RUN OF THIS LOOP CHANGED WHAT IT WAS MEASURING HALF
+          # WAY THROUGH AND SAID NOTHING. The hold was n*30+40 seconds against
+          # sessions that actually took about 38, so the stand-in expired with
+          # two sessions to go: one took no measurement and one ran with no
+          # headset-shaped display at all, which is a different experiment
+          # wearing the same name. 45 leaves room, and the check below is what
+          # makes the bound unnecessary to trust.
+          hold=$(( n * 45 + 90 ))
           /tmp/standin -model "XREAL 1S" -for ${hold}s &
           standin=$!
           sleep 8
           for i in $(seq 1 "$n"); do
+            # ⛔ AND IT IS CHECKED BEFORE EVERY SESSION RATHER THAN COMPUTED
+            # ONCE. A harness that quietly changes configuration is the defect
+            # this whole hunt keeps turning up in other people's code; a bound
+            # that has to be right in advance is a guess, and this is a
+            # measurement.
+            if ! kill -0 "$standin" 2>/dev/null; then
+              echo "RESULT harness-broke: the stand-in was gone before session $i of $n, "\
+                "so the sessions after it measured a different machine"
+              exit 1
+            fi
             echo "--- session $i of $n"
             # ⛔ 25s is not arbitrary: the damage has always arrived within
             # about 1.4s of the displays being made, so a session that gets
