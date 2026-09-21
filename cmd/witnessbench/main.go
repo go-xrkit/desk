@@ -65,6 +65,8 @@ const (
 func run() int {
 	rounds := flag.Int("rounds", 10, "how many times to make and destroy the displays")
 	displays := flag.Int("displays", 5, "how many virtual displays per round; the fault depends on this number")
+	width := flag.Int("width", 1920, "how wide each virtual display is asked to be; particular widths are REFUSED and the refusal is what this exists to test")
+	height := flag.Int("height", 1080, "how tall")
 	settle := flag.Duration("settle", 2*time.Second, "how long to leave them up before looking at the witnesses")
 	allowed := flag.Bool("i-can-freeze-this-machine", false,
 		"yes, this is a runner or a throwaway VM and nobody is using it")
@@ -102,10 +104,10 @@ func run() int {
 	fmt.Printf("%d witnesses per round, %d displays, %v to settle, %d rounds\n",
 		desk.Witnesses, *displays, *settle, *rounds)
 
-	hits, done := 0, 0
+	hits, done, refusals := 0, 0, 0
 	var baseline time.Duration
 	for r := 1; r <= *rounds; r++ {
-		hit, took, err := oneRound(*displays, *settle)
+		hit, refused, took, err := oneRound(*displays, *width, *height, *settle)
 		if err != nil {
 			fmt.Printf("round %d: %v\n", r, err)
 			break
@@ -114,8 +116,9 @@ func run() int {
 		if hit > 0 {
 			hits++
 		}
-		fmt.Printf("round %d: %d of %d witnesses damaged, %v to make %d displays\n",
-			r, hit, desk.Witnesses, took.Round(time.Millisecond), *displays)
+		refusals += refused
+		fmt.Printf("round %d: %d of %d witnesses damaged, %d of %d displays REFUSED at %dx%d, %v\n",
+			r, hit, desk.Witnesses, refused, *displays, *width, *height, took.Round(time.Millisecond))
 
 		if baseline == 0 {
 			baseline = took
@@ -127,7 +130,8 @@ func run() int {
 		}
 	}
 
-	fmt.Printf("RESULT %d of %d rounds damaged a witness, at %d displays\n", hits, done, *displays)
+	fmt.Printf("RESULT %d of %d rounds damaged a witness, at %d displays of %dx%d, %d refusals in all\n",
+		hits, done, *displays, *width, *height, refusals)
 	if done == 0 {
 		return 3
 	}
@@ -139,7 +143,7 @@ func run() int {
 // The witnesses are allocated HERE rather than once for the whole bench, so
 // each round asks the same question the desk asks: are the strings this process
 // just put on the heap still what they were a moment later.
-func oneRound(n int, settle time.Duration) (hit int, took time.Duration, err error) {
+func oneRound(n, w, h int, settle time.Duration) (hit, refused int, took time.Duration, err error) {
 	ws := desk.NewWitnesses()
 
 	started := time.Now()
@@ -160,11 +164,23 @@ func oneRound(n int, settle time.Duration) (hit int, took time.Duration, err err
 	for i := range n {
 		d, e := virtualdisplay.Open(virtualdisplay.Spec{
 			Name:   fmt.Sprintf("witnessbench %d", i+1),
-			Width:  1920,
-			Height: 1080,
+			Width:  uint32(w),
+			Height: uint32(h),
 		})
 		if e != nil {
-			return 0, 0, fmt.Errorf("making display %d of %d: %w", i+1, n, e)
+			// ⛔⛔ A REFUSAL IS NOT A BROKEN ROUND, IT IS THE CONDITION UNDER
+			// TEST. Particular widths are poison on the author's machine --
+			// 3840, 4096 and 7680 refused at every height, 3839, 3841 and 4095
+			// opening in half a second -- so the desk ASKS, IS REFUSED, and
+			// asks again one pixel over. The runner opened 1920x1200 first try
+			// and therefore never walked that path at all, which makes "what
+			// does the private API do with the pointers it was handed when it
+			// then fails" a question nothing has asked yet.
+			//
+			// So the round carries on and still looks at the witnesses. Giving
+			// up here would have thrown away the very measurement.
+			refused++
+			continue
 		}
 		open = append(open, d)
 	}
@@ -176,5 +192,5 @@ func oneRound(n int, settle time.Duration) (hit int, took time.Duration, err err
 	if len(damaged) > 0 {
 		fmt.Println(desk.WitnessReport(damaged, len(ws)))
 	}
-	return len(damaged), took, nil
+	return len(damaged), refused, took, nil
 }

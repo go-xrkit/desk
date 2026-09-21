@@ -33,6 +33,9 @@ on:
       sessions:
         description: "how many desk sessions; one clean session is one chance in three, so a rate needs ten"
         default: "10"
+      widths:
+        description: "also sweep the widths the window server refuses (yes/no)"
+        default: "yes"
 
 permissions:
   contents: read
@@ -63,6 +66,32 @@ jobs:
             -rounds ${{ inputs.rounds }} \
             -displays ${{ inputs.displays }} \
             -settle ${{ inputs.settle }}
+
+      # ⛔⛔ THE WIDTHS THE WINDOW SERVER REFUSES, because the first hunt never
+      # asked for one. Measured on the author's Mac on 2026-09-07: 3840, 4096
+      # and 7680 refused at EVERY height tried, while 3839, 3841 and 4095 opened
+      # in half a second, and 6400x1440 opened too. Particular widths are
+      # poison; it is not about size.
+      #
+      # That matters here because the desk MEETS those refusals -- it asks, is
+      # told no, and asks again one pixel over -- while the runner opened
+      # 1920x1200 first try and never walked that path at all. What the private
+      # API does with the pointers it was handed when it then FAILS is a
+      # question nothing has asked yet, and a four-byte write of zeros is
+      # exactly what a half-finished call leaves behind.
+      #
+      # The refused widths may differ on a runner. The bench reports how many
+      # were refused, so the sweep measures that rather than assuming it.
+      - name: the widths that get refused
+        if: ${{ inputs.widths == 'yes' }}
+        run: |
+          for w in 1920 3840 4096 6784 7680; do
+            echo "--- $w wide"
+            CGO_ENABLED=0 go run ./cmd/witnessbench \
+              -i-can-freeze-this-machine \
+              -rounds 3 -displays ${{ inputs.displays }} \
+              -width "$w" -height 1080 -settle 2s
+          done
 
       # ⛔⛔ AND THEN THE REAL DESK, because the bench above came back 0 of 10 at
       # five displays where the desk had come back 2 of 3. Creating the displays
