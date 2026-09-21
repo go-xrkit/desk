@@ -1,0 +1,59 @@
+# Hunt the heap corruption on a machine nobody minds losing.
+#
+# ⛔⛔ THE REASON THIS IS A WORKFLOW AND NOT A SCRIPT ON A DESK. A Go string in
+# xrdesk loses its first four bytes now and then, and the one measurement that
+# makes the fault tractable is that it depends on the NUMBER of virtual
+# displays: 0 of 3 runs at one display, 2 of 3 at five. Reproducing it therefore
+# means creating five virtual displays over and over -- which, run unattended on
+# the author's Mac on 2026-09-11, froze it and cost a reboot.
+#
+# A runner is the machine that may be frozen. It is also the only way to get a
+# RATE rather than an anecdote: a fault that shows two times in three needs
+# twenty runs, and nobody's workstation should be asked for twenty.
+#
+# ⛔ It is manual. Nothing about this belongs on a push: it is an experiment,
+# it takes a runner for minutes, and its answer is a number somebody reads.
+name: witness
+
+on:
+  workflow_dispatch:
+    inputs:
+      displays:
+        description: "virtual displays per round (the fault depends on this number; 1 is the control)"
+        default: "5"
+      rounds:
+        description: "how many rounds"
+        default: "10"
+      settle:
+        description: "how long to leave the displays up before looking"
+        default: "2s"
+
+permissions:
+  contents: read
+
+jobs:
+  hunt:
+    name: witnesses on a macOS runner
+    runs-on: macos-latest
+    # The bench stops itself when creation slows down, and this stops it when
+    # the thing that hangs is not creation. See the darwin lane in ci.yml for
+    # what a 54-minute silence costs.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with: { go-version: stable }
+      # ⛔ FIRST, WHETHER THIS MACHINE CAN DO IT AT ALL. A runner without the
+      # private virtual-display API reports every round clean, which reads
+      # exactly like a runner where the fault did not happen. The bench says
+      # "RESULT unavailable" instead, and that is the difference between a
+      # negative result and no result.
+      - name: can this runner make virtual displays
+        run: CGO_ENABLED=0 go run ./cmd/witnessbench -i-can-freeze-this-machine -rounds 1 -displays 1 -settle 1s
+      - name: hunt
+        run: |
+          CGO_ENABLED=0 go run ./cmd/witnessbench \
+            -i-can-freeze-this-machine \
+            -rounds ${{ inputs.rounds }} \
+            -displays ${{ inputs.displays }} \
+            -settle ${{ inputs.settle }}
