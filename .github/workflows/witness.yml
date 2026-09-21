@@ -28,8 +28,11 @@ on:
         description: "how long to leave the displays up before looking"
         default: "2s"
       desk:
-        description: "also run a real desk session with a stand-in for the glasses (yes/no)"
+        description: "also run real desk sessions with a stand-in for the glasses (yes/no)"
         default: "yes"
+      sessions:
+        description: "how many desk sessions; one clean session is one chance in three, so a rate needs ten"
+        default: "10"
 
 permissions:
   contents: read
@@ -72,16 +75,35 @@ jobs:
       # screen-recording grant and no signed bundle, so the desk may stop before
       # it starts -- which says nothing at all about the corruption. The step
       # therefore always succeeds and the JOURNAL is what is read.
-      - name: a real desk session, with a stand-in for the glasses
+      # ⛔⛔ REPEATED, because ONE clean session is one chance in three. The
+      # measurement being matched is 2 of 3 sessions damaged, so a single clean
+      # run is the likeliest thing to happen even when the fault is fully
+      # present. Reading it as "the runner does not reproduce it" would be
+      # reading a coin that came up tails once as a two-headed coin.
+      #
+      # One stand-in for the whole loop, because that is what a headset is: it
+      # stays plugged in while desks come and go.
+      - name: desk sessions, with a stand-in for the glasses
         if: ${{ inputs.desk == 'yes' }}
         run: |
           CGO_ENABLED=0 go build -o /tmp/standin ./cmd/standin
           CGO_ENABLED=0 go build -o /tmp/xrdesk ./cmd/xrdesk
-          # The stand-in holds a display under a headset's name; the desk finds
-          # it in the catalogue and runs everything after the choice unchanged.
-          /tmp/standin -model "XREAL 1S" -for 90s &
+          n=${{ inputs.sessions }}
+          hold=$(( n * 30 + 40 ))
+          /tmp/standin -model "XREAL 1S" -for ${hold}s &
+          standin=$!
           sleep 8
-          /tmp/xrdesk -screens ${{ inputs.displays }} -for 40s -dim=false || true
+          for i in $(seq 1 "$n"); do
+            echo "--- session $i of $n"
+            # ⛔ 25s is not arbitrary: the damage has always arrived within
+            # about 1.4s of the displays being made, so a session that gets
+            # that far has asked the question. Longer sessions buy nothing and
+            # cost runner minutes that buy MORE SESSIONS, which is what a rate
+            # needs.
+            /tmp/xrdesk -screens ${{ inputs.displays }} -for 25s -dim=false || true
+            sleep 2
+          done
+          kill "$standin" 2>/dev/null || true
           wait || true
       - name: what the journals said
         if: ${{ always() && inputs.desk == 'yes' }}
@@ -92,14 +114,20 @@ jobs:
             echo "RESULT desk-never-started: no journal was written"
             exit 0
           fi
+          caught=0 armed=0 mute=0
           for f in "${logs[@]}"; do
             echo "=== $f"
             cat "$f"
+            if grep -qi "heap corruption was CAUGHT" "$f"; then
+              caught=$((caught + 1))
+            elif grep -qi "witness strings are watching" "$f"; then
+              armed=$((armed + 1))
+            else
+              # ⛔ COUNTED SEPARATELY AND NEVER AS CLEAN. A session that never
+              # reached the watch loop took no measurement, and folding it in
+              # with the clean ones would quietly lower a rate with runs that
+              # never asked the question.
+              mute=$((mute + 1))
+            fi
           done
-          if grep -qi "heap corruption was CAUGHT" "${logs[@]}"; then
-            echo "RESULT desk-caught"
-          elif grep -qi "witness strings are watching" "${logs[@]}"; then
-            echo "RESULT desk-ran-clean: the instrument was armed and saw nothing"
-          else
-            echo "RESULT desk-never-reached-the-watch-loop"
-          fi
+          echo "RESULT desk ${caught} caught, ${armed} armed and clean, ${mute} took no measurement, of ${#logs[@]} sessions"
