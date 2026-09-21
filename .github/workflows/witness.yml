@@ -27,6 +27,9 @@ on:
       settle:
         description: "how long to leave the displays up before looking"
         default: "2s"
+      desk:
+        description: "also run a real desk session with a stand-in for the glasses (yes/no)"
+        default: "yes"
 
 permissions:
   contents: read
@@ -57,3 +60,46 @@ jobs:
             -rounds ${{ inputs.rounds }} \
             -displays ${{ inputs.displays }} \
             -settle ${{ inputs.settle }}
+
+      # ⛔⛔ AND THEN THE REAL DESK, because the bench above came back 0 of 10 at
+      # five displays where the desk had come back 2 of 3. Creating the displays
+      # is evidently not what carries the fault: the desk also captures screens,
+      # places applications, loads fonts and draws sixty frames a second, and
+      # one of those is doing it. A bench that reproduces nothing has narrowed
+      # the question rather than answered it, and this step is the other half.
+      #
+      # ⛔ It must not be read as a failure when it cannot run. A runner has no
+      # screen-recording grant and no signed bundle, so the desk may stop before
+      # it starts -- which says nothing at all about the corruption. The step
+      # therefore always succeeds and the JOURNAL is what is read.
+      - name: a real desk session, with a stand-in for the glasses
+        if: ${{ inputs.desk == 'yes' }}
+        run: |
+          CGO_ENABLED=0 go build -o /tmp/standin ./cmd/standin
+          CGO_ENABLED=0 go build -o /tmp/xrdesk ./cmd/xrdesk
+          # The stand-in holds a display under a headset's name; the desk finds
+          # it in the catalogue and runs everything after the choice unchanged.
+          /tmp/standin -model "XREAL 1S" -for 90s &
+          sleep 8
+          /tmp/xrdesk -screens ${{ inputs.displays }} -for 40s -dim=false || true
+          wait || true
+      - name: what the journals said
+        if: ${{ always() && inputs.desk == 'yes' }}
+        run: |
+          shopt -s nullglob
+          logs=("$HOME/Library/Application Support/xrdesk/logs/"*.log)
+          if [ ${#logs[@]} -eq 0 ]; then
+            echo "RESULT desk-never-started: no journal was written"
+            exit 0
+          fi
+          for f in "${logs[@]}"; do
+            echo "=== $f"
+            cat "$f"
+          done
+          if grep -qi "heap corruption was CAUGHT" "${logs[@]}"; then
+            echo "RESULT desk-caught"
+          elif grep -qi "witness strings are watching" "${logs[@]}"; then
+            echo "RESULT desk-ran-clean: the instrument was armed and saw nothing"
+          else
+            echo "RESULT desk-never-reached-the-watch-loop"
+          fi
