@@ -144,6 +144,28 @@ const displayTries = 2
 // real. It is simply not the only cause, and it is the cheap one to rule out
 // first -- so the planned width is asked for twice, and only then nudged.
 //
+// ⭐⭐ CONFIRMED ON A SECOND MACHINE, 2026-09-22, and it is not this desk's
+// quirk. A GitHub macOS runner -- Azure hardware, macOS 26.6.2 arm64, nothing
+// in common with the machine above -- was asked for six virtual displays at
+// each width, three times over:
+//
+//	3840, 4096, 7680  refused, 6 of 6, EVERY round
+//	3839, 3841, 4095, 4097  opened, every round
+//	6784  OPENED, 6 of 6 -- where the machine above refuses it
+//
+// So the poison widths and the one-pixel escape are a property of this macOS
+// rather than of one Mac, and 6784 is the part that really is local. A rule
+// derived from one machine now stands on two.
+//
+// ⛔ AND NOTHING HERE ASKS FOR A POISON WIDTH TODAY. Every headset in the
+// catalogue has EyeWidth 1920, Plan.ScreenW is that width, and Screens.Add is
+// called with it; the code that widened a screen to the shape of what it
+// mirrored was abandoned. The refusals this comment was written for came from
+// that code. What the same-width retry earns its place against is the
+// TRANSIENT refusal -- a window server that has just made five displays -- and
+// a reader tempted to optimise the poison case should know there is no longer
+// one to optimise.
+//
 // ⚠ SMALLER FIRST, and never by more than a pixel. The screens are laid out to
 // the planned width, so a wider one would not fit; and a size that follows a
 // headset's optics must not be "corrected" into something else. One pixel is
