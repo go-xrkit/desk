@@ -34,8 +34,8 @@ on:
         description: "how many desk sessions; one clean session is one chance in three, so a rate needs ten"
         default: "10"
       widths:
-        description: "also sweep the widths the window server refuses (yes/no)"
-        default: "yes"
+        description: "widths to sweep, space separated; empty skips the sweep"
+        default: "1920 3840 4096 6784 7680"
 
 permissions:
   contents: read
@@ -83,9 +83,9 @@ jobs:
       # The refused widths may differ on a runner. The bench reports how many
       # were refused, so the sweep measures that rather than assuming it.
       - name: the widths that get refused
-        if: ${{ inputs.widths == 'yes' }}
+        if: ${{ inputs.widths != '' }}
         run: |
-          for w in 1920 3840 4096 6784 7680; do
+          for w in ${{ inputs.widths }}; do
             echo "--- $w wide"
             CGO_ENABLED=0 go run ./cmd/witnessbench \
               -i-can-freeze-this-machine \
