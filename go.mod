@@ -25,7 +25,7 @@ require (
 	github.com/go-widgets/painter v0.13.0
 	github.com/go-widgets/toolkit v0.316.0
 	github.com/go-widgets/tray v0.11.0
-	github.com/go-widgets/window v0.77.0
+	github.com/go-widgets/window v0.78.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.17.0
@@ -50,7 +50,7 @@ require (
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/depth v0.4.0 // indirect
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
-	github.com/go-macos/appkit v0.5.0 // indirect
+	github.com/go-macos/appkit v0.6.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
 	github.com/go-mswin/win32 v0.4.0 // indirect
