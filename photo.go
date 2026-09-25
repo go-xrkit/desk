@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/go-fsctl/outdir"
+	"github.com/go-appdirs/outdir"
 )
 
 // PhotoDirEnv moves where photographs are written. It is checked like any other
@@ -43,7 +43,7 @@ type Picture struct {
 //
 // A .gitignore entry would be the wrong fix: ignoring is a safety net, not a
 // barrier -- `git add -f`, a fresh clone, or any tool that does not consult it
-// publishes the file anyway. go-fsctl/outdir is the barrier, and it REFUSES
+// publishes the file anyway. go-appdirs/outdir is the barrier, and it REFUSES
 // rather than choosing somewhere else, including when a person points
 // XRDESK_PHOTO_DIR at their own work tree.
 //

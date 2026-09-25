@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-fsctl/outdir"
+	"github.com/go-appdirs/outdir"
 )
 
 // JournalDirEnv points the journal somewhere else, like [PhotoDirEnv] does for
