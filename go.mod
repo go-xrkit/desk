@@ -3,8 +3,8 @@ module github.com/go-xrkit/desk
 go 1.26.4
 
 require (
+	github.com/go-appdirs/outdir v0.2.0
 	github.com/go-freedesktop/screencast v0.1.0
-	github.com/go-fsctl/outdir v0.1.0
 	github.com/go-macos/accessibility v0.3.2
 	github.com/go-macos/appbundle v0.5.0
 	github.com/go-macos/appicon v0.3.0
