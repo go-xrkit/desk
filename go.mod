@@ -23,9 +23,9 @@ require (
 	github.com/go-viture/luma v0.2.0
 	github.com/go-widgets/mvvm v0.9.0
 	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.316.0
-	github.com/go-widgets/tray v0.11.0
-	github.com/go-widgets/window v0.78.0
+	github.com/go-widgets/toolkit v0.320.0
+	github.com/go-widgets/tray v0.12.0
+	github.com/go-widgets/window v0.83.0
 	github.com/go-xrkit/android v0.1.0
 	github.com/go-xrkit/depth3d v0.1.0
 	github.com/go-xrkit/xrkit v0.17.0
@@ -37,23 +37,23 @@ require (
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/ajroetker/go-highway v0.0.4 // indirect
 	github.com/ajroetker/go-jpeg2000 v0.0.2 // indirect
-	github.com/andybalholm/brotli v1.2.3 // indirect
+	github.com/andybalholm/brotli v1.2.4 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
-	github.com/ebitengine/purego v0.11.0 // indirect
-	github.com/go-crdt/collab v0.45.0 // indirect
-	github.com/go-crdt/crdt v0.46.0 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/go-crdt/collab v0.62.0 // indirect
+	github.com/go-crdt/crdt v0.49.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
 	github.com/go-gfx/gfx v0.19.0 // indirect
-	github.com/go-gtk/gtk4 v0.6.0 // indirect
+	github.com/go-gtk/gtk4 v0.8.0 // indirect
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/depth v0.4.0 // indirect
 	github.com/go-images/images v0.0.0-20260831115433-23d959d868e3 // indirect
-	github.com/go-macos/appkit v0.6.0 // indirect
+	github.com/go-macos/appkit v0.8.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
-	github.com/go-mswin/win32 v0.4.0 // indirect
+	github.com/go-mswin/win32 v0.5.0 // indirect
 	github.com/go-opentype/fonts v0.9.0 // indirect
 	github.com/go-opentype/opentype v0.12.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
@@ -73,7 +73,7 @@ require (
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
-	google.golang.org/grpc v1.83.2 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
