@@ -23,7 +23,48 @@ import (
 type Shortcut struct {
 	Want hotkey.Combo
 	Does Action
+
+	// Group ties this shortcut to the ones it is only meaningful beside.
+	// Empty means it stands alone.
+	//
+	// ⛔⛔ A SHORTCUT THAT MOVED ALONE READS AS A BROKEN APPLICATION, and it
+	// did: "impossible d'aller sur les ecrans de cote ou de ramener les ecrans
+	// apres les avoir pousses". The journal of that run says why. ⌃⌥⌘↑ pushed
+	// the band away sixteen times; ⌃⌥⌘↓ was held by something else, so "closer"
+	// climbed the ladder to ⌃⌥⇧⌘↓ alone and never fired once. The same happened
+	// to ← while → kept the plain prefix, and to screens 2 and 9 while 1 and 3
+	// to 8 kept theirs.
+	//
+	// Nothing was broken and every key was granted. But a person presses the
+	// OPPOSITE of what just worked, gets nothing, and stops there -- they have
+	// no reason to suspect that the two halves of one gesture are on different
+	// modifiers, and the desk only says so in a log and a settings pane nobody
+	// opens while reaching for a key.
+	//
+	// ⭐ THE RULE THIS FILE ALREADY ARGUES FOR, applied where it was missing.
+	// [DefaultShortcuts] says it of the prefix: "a set of shortcuts with two
+	// prefixes is a set nobody can remember, and the one that gives way is the
+	// one with fewer keys on it". The ladder was breaking exactly that, one
+	// shortcut at a time, at the moment a machine turned out to be busier than
+	// the default assumed.
+	Group string
 }
+
+// The groups, which are the gestures a person thinks in rather than the keys
+// they are made of. Each one lands whole on a single rung of the ladder or not
+// at all -- see [Shortcut.Group].
+const (
+	// GroupBand turns the ribbon. ← and → are the same gesture in two
+	// directions: whichever one a machine leaves free, both take.
+	GroupBand = "the band"
+	// GroupDistance pushes the band away, brings it back, and fits it. Pushing
+	// away while being unable to bring back is worse than neither: it leaves
+	// the desk somewhere the person did not want it with no way home.
+	GroupDistance = "the distance"
+	// GroupScreens is the numbered screens. Nine keys in a row where two carry
+	// an extra modifier is not a row anybody can use without looking it up.
+	GroupScreens = "the screens"
+)
 
 // DefaultShortcuts are what the ribbon needs from the whole machine.
 //
@@ -49,8 +90,8 @@ type Shortcut struct {
 func DefaultShortcuts() []Shortcut {
 	const mods = hotkey.Option | hotkey.Command
 	return []Shortcut{
-		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods | hotkey.Control}, ActionPrev},
-		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods | hotkey.Control}, ActionNext},
+		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods | hotkey.Control}, ActionPrev, GroupBand},
+		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods | hotkey.Control}, ActionNext, GroupBand},
 		// Open and leave, each on its own key.
 		//
 		// A system-wide shortcut is pressed BLIND: the viewer cannot see whether
@@ -58,7 +99,7 @@ func DefaultShortcuts() []Shortcut {
 		// outside and "close" from inside does the wrong thing every time they
 		// have lost track. Up goes in and down comes out, which is also the
 		// direction the grid is in relative to the band.
-		{hotkey.Combo{Key: hotkey.KeyF3, Mods: mods | hotkey.Control}, ActionGalleryOpen},
+		{hotkey.Combo{Key: hotkey.KeyF3, Mods: mods | hotkey.Control}, ActionGalleryOpen, ""},
 		// ↑ shows the SCREENS, ↓ shows what is RUNNING on them.
 		//
 		// The applications were on ⌃⌥⌘A and it did nothing at all on the machine
@@ -71,21 +112,21 @@ func DefaultShortcuts() []Shortcut {
 		// Leaving is not here any more. It does not need to be: while a gallery
 		// is up the desk holds the bare Escape, and ⌃⌥⌘Space toggles from
 		// outside. What a blind press needs is for OPEN to always mean open.
-		{hotkey.Combo{Key: hotkey.KeyF4, Mods: mods | hotkey.Control}, ActionAppsOpen},
+		{hotkey.Combo{Key: hotkey.KeyF4, Mods: mods | hotkey.Control}, ActionAppsOpen, ""},
 		// And choosing, system-wide with the rest.
 		//
 		// Enter alone is a key in the window, which is no use to somebody who
 		// opened the gallery from another application: they could move the
 		// selection with the global arrows and then have nothing to confirm it
 		// with, because Enter would go wherever the keyboard was pointing.
-		{hotkey.Combo{Key: hotkey.KeyReturn, Mods: mods | hotkey.Control}, ActionChoose},
+		{hotkey.Combo{Key: hotkey.KeyReturn, Mods: mods | hotkey.Control}, ActionChoose, ""},
 		// Nearer and further, system-wide with the rest.
 		//
 		// On the two keys a keyboard puts smaller and larger on, which is the one
 		// pair a person does not have to be told. Registered by CODE, so they are
 		// the same two positions on a French keyboard whatever is printed there.
-		{hotkey.Combo{Key: hotkey.KeyMinus, Mods: mods | hotkey.Control}, ActionFurther},
-		{hotkey.Combo{Key: hotkey.KeyEqual, Mods: mods | hotkey.Control}, ActionCloser},
+		{hotkey.Combo{Key: hotkey.KeyMinus, Mods: mods | hotkey.Control}, ActionFurther, GroupDistance},
+		{hotkey.Combo{Key: hotkey.KeyEqual, Mods: mods | hotkey.Control}, ActionCloser, GroupDistance},
 		// And a way OUT, system-wide.
 		//
 		// This one is not a convenience. The desk takes a whole display and puts a
@@ -97,15 +138,15 @@ func DefaultShortcuts() []Shortcut {
 		//
 		// Escape rather than a letter because it is the key everybody already
 		// tries, and with three modifiers it is not one anybody hits by accident.
-		{hotkey.Combo{Key: hotkey.KeyEscape, Mods: mods | hotkey.Control}, ActionQuit},
+		{hotkey.Combo{Key: hotkey.KeyEscape, Mods: mods | hotkey.Control}, ActionQuit, ""},
 		// And the pointer, which has to be system-wide or it is nothing: the whole
 		// point of it is to be pressed while another application has the keyboard.
-		{hotkey.Combo{Key: hotkey.KeyM, Mods: mods | hotkey.Control}, ActionPoint},
+		{hotkey.Combo{Key: hotkey.KeyM, Mods: mods | hotkey.Control}, ActionPoint, ""},
 		// And the way back, which has to be system-wide MORE than that one does:
 		// it is pressed when the pointer is on a screen only the glasses show and
 		// the glasses are on the table, so nothing this program owns is in front
 		// of the person pressing it.
-		{hotkey.Combo{Key: hotkey.KeyH, Mods: mods | hotkey.Control}, ActionPointHome},
+		{hotkey.Combo{Key: hotkey.KeyH, Mods: mods | hotkey.Control}, ActionPointHome, ""},
 		// Following a head, on the initial of follow.
 		//
 		// ⛔ IT HAD NO KEY AT ALL and only a menu row -- "ca serait bien d'avoir
@@ -115,7 +156,7 @@ func DefaultShortcuts() []Shortcut {
 		// own window still means fullscreen; that table answers only while this
 		// program's window is in front, and this one has to answer when it is
 		// not.
-		{hotkey.Combo{Key: hotkey.KeyF, Mods: mods | hotkey.Control}, ActionFollowHead},
+		{hotkey.Combo{Key: hotkey.KeyF, Mods: mods | hotkey.Control}, ActionFollowHead, ""},
 		// The angle between the screens, on the same two keys the window uses.
 		//
 		// System-wide because a window-only shortcut is no use to a surface that
@@ -124,11 +165,11 @@ func DefaultShortcuts() []Shortcut {
 		// finds them somewhere else has learnt nothing. It needed KeyLeftBracket
 		// upstream (go-macos/hotkey v0.5.0), which is why the angle was the one
 		// setting that could only be given on the command line for an evening.
-		{hotkey.Combo{Key: hotkey.KeyLeftBracket, Mods: mods | hotkey.Control}, ActionFlatter},
-		{hotkey.Combo{Key: hotkey.KeyRightBracket, Mods: mods | hotkey.Control}, ActionRounder},
+		{hotkey.Combo{Key: hotkey.KeyLeftBracket, Mods: mods | hotkey.Control}, ActionFlatter, ""},
+		{hotkey.Combo{Key: hotkey.KeyRightBracket, Mods: mods | hotkey.Control}, ActionRounder, ""},
 		// The settings, for the same reason: the tray menu is the other way, and it
 		// needs a pointer.
-		{hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Control}, ActionSettings},
+		{hotkey.Combo{Key: hotkey.KeyS, Mods: mods | hotkey.Control}, ActionSettings, ""},
 		// The applications, on their own initial, and the spread beside it.
 		//
 		// These two matter more system-wide than most: choosing which application
@@ -136,8 +177,8 @@ func DefaultShortcuts() []Shortcut {
 		// the screens, so the keys have to work while the keyboard belongs to
 		// whatever is running on them.
 		// And the initial as well, for a keyboard where it does arrive.
-		{hotkey.Combo{Key: hotkey.KeyA, Mods: mods | hotkey.Control}, ActionApps},
-		{hotkey.Combo{Key: hotkey.KeyX, Mods: mods | hotkey.Control}, ActionSpread},
+		{hotkey.Combo{Key: hotkey.KeyA, Mods: mods | hotkey.Control}, ActionApps, ""},
+		{hotkey.Combo{Key: hotkey.KeyX, Mods: mods | hotkey.Control}, ActionSpread, ""},
 		// What a screen SHOWS, system-wide.
 		//
 		// The desk already offers the machine's own display as a source beside
@@ -155,9 +196,9 @@ func DefaultShortcuts() []Shortcut {
 		// conflict: undetectable from here.
 		//
 		// On C, which is what the desk's own window already uses for it.
-		{hotkey.Combo{Key: hotkey.KeyC, Mods: mods | hotkey.Control}, ActionCycle},
+		{hotkey.Combo{Key: hotkey.KeyC, Mods: mods | hotkey.Control}, ActionCycle, ""},
 		// And taking one away, on the key that deletes.
-		{hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods | hotkey.Control}, ActionRemove},
+		{hotkey.Combo{Key: hotkey.KeyDelete, Mods: mods | hotkey.Control}, ActionRemove, ""},
 		// Straight to a screen, without turning past the ones between or
 		// opening the gallery to point at it.
 		//
@@ -169,15 +210,15 @@ func DefaultShortcuts() []Shortcut {
 		//
 		// Registered by CODE like the rest, so they are the same nine positions
 		// on a French keyboard whatever is printed on them.
-		{hotkey.Combo{Key: hotkey.KeyN1, Mods: mods | hotkey.Control}, ActionScreen1},
-		{hotkey.Combo{Key: hotkey.KeyN2, Mods: mods | hotkey.Control}, ActionScreen2},
-		{hotkey.Combo{Key: hotkey.KeyN3, Mods: mods | hotkey.Control}, ActionScreen3},
-		{hotkey.Combo{Key: hotkey.KeyN4, Mods: mods | hotkey.Control}, ActionScreen4},
-		{hotkey.Combo{Key: hotkey.KeyN5, Mods: mods | hotkey.Control}, ActionScreen5},
-		{hotkey.Combo{Key: hotkey.KeyN6, Mods: mods | hotkey.Control}, ActionScreen6},
-		{hotkey.Combo{Key: hotkey.KeyN7, Mods: mods | hotkey.Control}, ActionScreen7},
-		{hotkey.Combo{Key: hotkey.KeyN8, Mods: mods | hotkey.Control}, ActionScreen8},
-		{hotkey.Combo{Key: hotkey.KeyN9, Mods: mods | hotkey.Control}, ActionScreen9},
+		{hotkey.Combo{Key: hotkey.KeyN1, Mods: mods | hotkey.Control}, ActionScreen1, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN2, Mods: mods | hotkey.Control}, ActionScreen2, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN3, Mods: mods | hotkey.Control}, ActionScreen3, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN4, Mods: mods | hotkey.Control}, ActionScreen4, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN5, Mods: mods | hotkey.Control}, ActionScreen5, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN6, Mods: mods | hotkey.Control}, ActionScreen6, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN7, Mods: mods | hotkey.Control}, ActionScreen7, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN8, Mods: mods | hotkey.Control}, ActionScreen8, GroupScreens},
+		{hotkey.Combo{Key: hotkey.KeyN9, Mods: mods | hotkey.Control}, ActionScreen9, GroupScreens},
 		// And back to ONE screen, as large as these glasses can show it.
 		//
 		// On zero, where it sits after the nine: the digits say "this screen",
@@ -186,7 +227,7 @@ func DefaultShortcuts() []Shortcut {
 		// a settings file that moves the distance keys onto the arrows frees
 		// it, and `shortcut "fit" { keys = "ctrl+alt+cmd+=" }` is then the
 		// obvious place for it.
-		{hotkey.Combo{Key: hotkey.KeyN0, Mods: mods | hotkey.Control}, ActionFit},
+		{hotkey.Combo{Key: hotkey.KeyN0, Mods: mods | hotkey.Control}, ActionFit, GroupDistance},
 
 		// ⭐ THE HEADSET'S OWN SETTINGS, ON THE KEYS A MAC ALREADY USES FOR THEM.
 		// F1 and F2 dim and brighten a Mac's screen; F10 to F12 are its sound.
@@ -199,11 +240,11 @@ func DefaultShortcuts() []Shortcut {
 		// without NSEventModifierFlagFunction does not fire and the same event
 		// with it does. A real keyboard sends it; a probe that forgets it
 		// reports a working shortcut as broken, which is what happened once.
-		{hotkey.Combo{Key: hotkey.KeyF1, Mods: mods | hotkey.Control}, ActionDimmer},
-		{hotkey.Combo{Key: hotkey.KeyF2, Mods: mods | hotkey.Control}, ActionBrighter},
-		{hotkey.Combo{Key: hotkey.KeyF10, Mods: mods | hotkey.Control}, ActionMute},
-		{hotkey.Combo{Key: hotkey.KeyF11, Mods: mods | hotkey.Control}, ActionQuieter},
-		{hotkey.Combo{Key: hotkey.KeyF12, Mods: mods | hotkey.Control}, ActionLouder},
+		{hotkey.Combo{Key: hotkey.KeyF1, Mods: mods | hotkey.Control}, ActionDimmer, ""},
+		{hotkey.Combo{Key: hotkey.KeyF2, Mods: mods | hotkey.Control}, ActionBrighter, ""},
+		{hotkey.Combo{Key: hotkey.KeyF10, Mods: mods | hotkey.Control}, ActionMute, ""},
+		{hotkey.Combo{Key: hotkey.KeyF11, Mods: mods | hotkey.Control}, ActionQuieter, ""},
+		{hotkey.Combo{Key: hotkey.KeyF12, Mods: mods | hotkey.Control}, ActionLouder, ""},
 		// Putting the glasses down, and picking them back up.
 		//
 		// ⭐ ON F6, WITH THE OTHER GLASSES KEYS, asked for after ⌃⌥⌘@ was
@@ -215,9 +256,9 @@ func DefaultShortcuts() []Shortcut {
 		// other combination goes back to the rest of the machine then, which
 		// is most of what putting them down means; this one stays, because a
 		// key that can only put down and never pick up is half a switch.
-		{hotkey.Combo{Key: hotkey.KeyF6, Mods: mods | hotkey.Control}, ActionPause},
+		{hotkey.Combo{Key: hotkey.KeyF6, Mods: mods | hotkey.Control}, ActionPause, ""},
 		// The room, beside the camera keys it belongs with.
-		{hotkey.Combo{Key: hotkey.KeyF7, Mods: mods | hotkey.Control}, ActionPassthrough},
+		{hotkey.Combo{Key: hotkey.KeyF7, Mods: mods | hotkey.Control}, ActionPassthrough, ""},
 		// The microphone, on the key beside the one that puts the glasses down.
 		//
 		// ⛔ WHAT IS ACTUALLY BEING SPOKEN INTO. Asked for as the VITURE
@@ -226,7 +267,7 @@ func DefaultShortcuts() []Shortcut {
 		// machine publishes at least one. So the key silences the input in use
 		// and NAMES it on the picture, because muting a different microphone
 		// than the one somebody meant is worse than saying you cannot.
-		{hotkey.Combo{Key: hotkey.KeyF5, Mods: mods | hotkey.Control}, ActionMic},
+		{hotkey.Combo{Key: hotkey.KeyF5, Mods: mods | hotkey.Control}, ActionMic, ""},
 		// Recentring, wanted with the glasses on and the hands nowhere near a
 		// menu. Following the head drifts about a degree per journey, so the
 		// remedy has to be reachable blind -- asked for in those words by the
@@ -237,26 +278,26 @@ func DefaultShortcuts() []Shortcut {
 		// were going to be given -- put here first, it moved the gallery off its
 		// key, and a test said so. A shortcut added today does not get to
 		// displace one somebody already has.
-		{hotkey.Combo{Key: hotkey.KeyR, Mods: mods | hotkey.Control}, ActionRecenter},
+		{hotkey.Combo{Key: hotkey.KeyR, Mods: mods | hotkey.Control}, ActionRecenter, ""},
 		// A picture of what the glasses are showing, on P.
 		//
 		// ⛔ AND LAST FOR THE SAME REASON AS RECENTRING: the ladder hands out
 		// fallbacks in order, so anything placed above CONSUMES CANDIDATES the
 		// entries below were going to be given. A shortcut added today does not
 		// get to displace one somebody already has.
-		{hotkey.Combo{Key: hotkey.KeyP, Mods: mods | hotkey.Control}, ActionCapture},
+		{hotkey.Combo{Key: hotkey.KeyP, Mods: mods | hotkey.Control}, ActionCapture, ""},
 		// The 2D/3D switch, on the initial of the dimension it adds. One key for
 		// both directions, because a key is pressed BLIND: a shortcut meaning
 		// "on" from outside and "off" from inside does the wrong thing every
 		// time somebody has lost track of which they are in. The menu row is the
 		// opposite case and carries a tick.
-		{hotkey.Combo{Key: hotkey.KeyD, Mods: mods | hotkey.Control}, ActionStereo3D},
+		{hotkey.Combo{Key: hotkey.KeyD, Mods: mods | hotkey.Control}, ActionStereo3D, ""},
 		// The camera, on the initial of its LENS -- because every word that
 		// describes this row is already spoken for. P is the OTHER picture, the
 		// one saved from the glasses; R recentres, C cycles a screen, F follows
 		// a head. A letter nobody can derive is better than one that means
 		// something else two rows away.
-		{hotkey.Combo{Key: hotkey.KeyL, Mods: mods | hotkey.Control}, ActionPhoto},
+		{hotkey.Combo{Key: hotkey.KeyL, Mods: mods | hotkey.Control}, ActionPhoto, ""},
 	}
 }
 
@@ -286,6 +327,8 @@ type Hotkeys struct {
 	wg    sync.WaitGroup
 	once  sync.Once
 	unmet []error
+	// asked runs beside held: what each claim was originally for.
+	asked []hotkey.Combo
 }
 
 // ClaimGlobal claims each shortcut, substituting when it has to.
@@ -306,18 +349,140 @@ func ClaimGlobal(shortcuts []Shortcut, opts *hotkey.Options) *Hotkeys {
 		opts = &hotkey.Options{Ladder: DefaultLadder, OnThisKeyboard: true}
 	}
 	h := &Hotkeys{ch: make(chan Action, len(shortcuts))}
-	for _, s := range shortcuts {
-		k, err := register(s.Want, opts)
-		if err != nil {
-			h.unmet = append(h.unmet, fmt.Errorf("%s (%s): %w", s.Want, s.Does, err))
-			continue
+	for _, g := range groupsOf(shortcuts) {
+		for _, c := range claimTogether(g, opts, h) {
+			h.held = append(h.held, c.key)
+			h.does = append(h.does, c.does)
+			h.asked = append(h.asked, c.asked)
+			h.wg.Add(1)
+			go h.pump(c.key, c.does)
 		}
-		h.held = append(h.held, k)
-		h.does = append(h.does, s.Does)
-		h.wg.Add(1)
-		go h.pump(k, s.Does)
 	}
 	return h
+}
+
+// held is one granted shortcut on its way into [Hotkeys].
+type held struct {
+	key  claimed
+	does Action
+	// asked is the combination the shortcut WANTED, before this file walked it
+	// up the ladder. Kept because the substitution is now the desk's own doing
+	// rather than the library's, so the claim no longer knows it happened -- and
+	// "(asked for ⌃⌥⌘↓, it was taken)" is the line that made the defect
+	// diagnosable in the first place.
+	asked hotkey.Combo
+}
+
+// groupsOf splits the shortcuts into the sets that must land on one rung,
+// keeping the order they were given in so the log still reads top to bottom.
+// Every ungrouped shortcut is a group of one, which is the old behaviour.
+func groupsOf(shortcuts []Shortcut) [][]Shortcut {
+	var out [][]Shortcut
+	at := map[string]int{}
+	for _, s := range shortcuts {
+		if s.Group == "" {
+			out = append(out, []Shortcut{s})
+			continue
+		}
+		if i, seen := at[s.Group]; seen {
+			out[i] = append(out[i], s)
+			continue
+		}
+		at[s.Group] = len(out)
+		out = append(out, []Shortcut{s})
+	}
+	return out
+}
+
+// claimTogether grants a whole group at ONE rung of the ladder, or as much of
+// it as any single rung allows.
+//
+// ⛔ THE LADDER IS CLIMBED BY THE GROUP, NOT BY ITS MEMBERS. Asking for each
+// shortcut separately is what put "further" on ⌃⌥⌘↑ and "closer" on ⌃⌥⇧⌘↓:
+// both were granted, and the pair was unusable. So each rung is tried for
+// EVERY member, and a rung that cannot hold all of them is released whole
+// before the next is tried -- released, because a claim left behind would make
+// the next rung compete with this function's own leftovers.
+//
+// ⚠ AND THE LAST RUNG IS KEPT EVEN WHEN INCOMPLETE. A group nobody can claim
+// entirely is still worth what can be had: refusing the lot would turn a
+// machine busy enough to displace one key into a desk with no band keys at
+// all. What must not happen is a SPLIT, and by then there is no rung left to
+// split across.
+func claimTogether(group []Shortcut, opts *hotkey.Options, h *Hotkeys) []held {
+	rungs := append([]hotkey.Modifier{0}, ladderOf(opts)...)
+	// One rung at a time and no fallback inside it: the fallback is this loop.
+	rung := &hotkey.Options{
+		Ladder:         []hotkey.Modifier{},
+		Reserved:       opts.Reserved,
+		OnThisKeyboard: opts.OnThisKeyboard,
+		BareKey:        opts.BareKey,
+	}
+
+	// ⛔⛔ NOTHING IS HELD BETWEEN RUNGS, or this function competes with itself.
+	// Found by its own test: the prefix already carries Control, so the Control
+	// rung asks for the SAME combination as the base one -- and asking for it
+	// while the base rung's claim is still held means asking the system for a
+	// key this very process holds. Every rung is therefore probed and released,
+	// and the winner is claimed again afterwards.
+	//
+	// ⚠ The cost is one extra round of registration when no rung holds the whole
+	// group, which is the rare case. The alternative was a claim held across a
+	// rung that competes with the next.
+	bestAt, bestN, bestErrs := 0, -1, []error(nil)
+	for at, extra := range rungs {
+		got, errs := probe(group, extra, rung)
+		if len(got) == len(group) {
+			h.unmet = append(h.unmet, errs...)
+			return got
+		}
+		release(got)
+		if len(got) > bestN {
+			bestAt, bestN, bestErrs = at, len(got), errs
+		}
+	}
+
+	// No rung held all of it. Claim the best one for real: a group nobody can
+	// have entirely is still worth what can be had, and what must not happen is
+	// a SPLIT -- by here there is no rung left to split across.
+	got, errs := probe(group, rungs[bestAt], rung)
+	if len(errs) > 0 {
+		bestErrs = errs
+	}
+	h.unmet = append(h.unmet, bestErrs...)
+	return got
+}
+
+// probe claims what it can of a group at one rung, reporting the rest.
+func probe(group []Shortcut, extra hotkey.Modifier, opts *hotkey.Options) ([]held, []error) {
+	var got []held
+	var errs []error
+	for _, s := range group {
+		want := s.Want
+		want.Mods |= extra
+		k, err := register(want, opts)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("%s (%s): %w", s.Want, s.Does, err))
+			continue
+		}
+		got = append(got, held{key: k, does: s.Does, asked: s.Want})
+	}
+	return got, errs
+}
+
+// release gives a probed rung back.
+func release(got []held) {
+	for _, c := range got {
+		_ = c.key.Close()
+	}
+}
+
+// ladderOf is the rungs above the wanted combination.
+func ladderOf(opts *hotkey.Options) []hotkey.Modifier {
+	if opts == nil || opts.Ladder == nil {
+		return hotkey.DefaultLadder
+	}
+	return opts.Ladder
 }
 
 // pump forwards one claim's presses as actions.
@@ -413,8 +578,14 @@ func (h *Hotkeys) describe(render func(hotkey.Combo) string) string {
 	var b strings.Builder
 	for i, k := range h.held {
 		fmt.Fprintf(&b, "%s: %s", h.does[i], render(k.Combo()))
-		if k.Substituted() {
-			fmt.Fprintf(&b, " (asked for %s, it was taken)", render(k.Wanted()))
+		// Either the library substituted, or this file did by walking the
+		// group up a rung. Both are "it was taken" to the person reading it.
+		sub, wanted := k.Substituted(), k.Wanted()
+		if i < len(h.asked) && h.asked[i] != (hotkey.Combo{}) && h.asked[i] != k.Combo() {
+			sub, wanted = true, h.asked[i]
+		}
+		if sub {
+			fmt.Fprintf(&b, " (asked for %s, it was taken)", render(wanted))
 		}
 		b.WriteByte('\n')
 	}
@@ -441,13 +612,13 @@ func (h *Hotkeys) describe(render func(hotkey.Combo) string) string {
 // Nobody is typing into anything while a gallery covers their view.
 func GalleryShortcuts() []Shortcut {
 	return []Shortcut{
-		{hotkey.Combo{Key: hotkey.KeyLeftArrow}, ActionPrev},
-		{hotkey.Combo{Key: hotkey.KeyRightArrow}, ActionNext},
-		{hotkey.Combo{Key: hotkey.KeyUpArrow}, ActionUp},
-		{hotkey.Combo{Key: hotkey.KeyDownArrow}, ActionDown},
-		{hotkey.Combo{Key: hotkey.KeyReturn}, ActionChoose},
-		{hotkey.Combo{Key: hotkey.KeyEscape}, ActionGalleryClose},
-		{hotkey.Combo{Key: hotkey.KeyDelete}, ActionRemove},
+		{hotkey.Combo{Key: hotkey.KeyLeftArrow}, ActionPrev, GroupBand},
+		{hotkey.Combo{Key: hotkey.KeyRightArrow}, ActionNext, GroupBand},
+		{hotkey.Combo{Key: hotkey.KeyUpArrow}, ActionUp, ""},
+		{hotkey.Combo{Key: hotkey.KeyDownArrow}, ActionDown, ""},
+		{hotkey.Combo{Key: hotkey.KeyReturn}, ActionChoose, ""},
+		{hotkey.Combo{Key: hotkey.KeyEscape}, ActionGalleryClose, ""},
+		{hotkey.Combo{Key: hotkey.KeyDelete}, ActionRemove, ""},
 	}
 }
 
