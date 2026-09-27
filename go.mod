@@ -11,7 +11,7 @@ require (
 	github.com/go-macos/avfoundation v0.11.0
 	github.com/go-macos/brightness v0.1.1
 	github.com/go-macos/coreaudio v0.2.0
-	github.com/go-macos/hotkey v0.10.0
+	github.com/go-macos/hotkey v0.10.1
 	github.com/go-macos/iokit v0.13.0
 	github.com/go-macos/multitouch v0.1.0
 	github.com/go-macos/objc v0.10.2
@@ -41,7 +41,7 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
-	github.com/ebitengine/purego v0.11.0 // indirect
+	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-crdt/collab v0.45.0 // indirect
 	github.com/go-crdt/crdt v0.46.0 // indirect
 	github.com/go-freedesktop/x11 v0.2.0 // indirect
