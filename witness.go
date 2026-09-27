@@ -4,7 +4,12 @@
 
 package desk
 
-import "strconv"
+import (
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+)
 
 // Witnesses is how many strings the desk allocates to catch the heap
 // corruption in the act.
@@ -23,26 +28,69 @@ import "strconv"
 // hit at once: one says a stray write, many says a sweep over a region, and the
 // two want different hunts.
 //
-// Sixty-four: enough that a sweep of any width lands on several, few enough to
-// cost nothing -- 64 short strings is under two kilobytes, allocated once.
-const Witnesses = 64
+// ⛔ FOUR AT EVERY LENGTH FROM 1 TO 64, because length is the only thing that
+// separates the three victims of 2026-09-27 from the two survivors, and an
+// instrument that holds it constant can only report "nothing happened". Four
+// rather than one so a single stray write cannot be mistaken for a whole length
+// class being hit, and 256 short strings still cost under eight kilobytes.
+const Witnesses = 256
+
+// WitnessLen is how long witness i is, in bytes.
+//
+// ⛔⛔ EVERY WITNESS WAS THE SAME LENGTH, AND THAT IS WHY THEY SAW NOTHING. On
+// 2026-09-27 an ordinary run damaged three strings and spared two, all read from
+// the same settings file in the same parse:
+//
+//	Wave          4 bytes   intact
+//	Firefox       7 bytes   intact
+//	Activity      8 bytes   DAMAGED
+//	Thunderbird  11 bytes   DAMAGED
+//	VITURE Beast 12 bytes   DAMAGED
+//
+// Sixty-four witnesses of thirty bytes each were beside them and not one was
+// touched. An instrument that holds the only thing that separates the victims
+// from the survivors CONSTANT can only ever report "nothing happened".
+//
+// So the witnesses now span 1 to 64 bytes, several at each length, which is the
+// difference between "something was hit" and "objects of THIS SHAPE are hit".
+// ⚠ It is a candidate and not the answer: length is what the five known cases
+// order cleanly, and the next run either confirms it or names something else.
+func WitnessLen(i int) int {
+	// 1..64 rather than 0..63: a zero-length string has no first four bytes to
+	// lose, so it could never carry the fault and its slot would be wasted.
+	return i%64 + 1
+}
 
 // WitnessText is what witness i is supposed to say.
 //
-// Short, and different in its first four bytes from every other: the damage
-// zeroes exactly those, so a witness whose head matched its neighbour's could
-// be damaged without anyone being able to tell.
+// ⛔ THE HEAD IS ITS OWN, AND IT SURVIVES THE SHORT ONES. The damage zeroes
+// exactly the first four bytes, so a witness whose head matched its neighbour's
+// could be damaged without anyone being able to tell WHERE the zeros began --
+// which is half of what this exists to establish. The index therefore leads,
+// base 36 so two characters reach 1295, and the rest is filler.
+//
+// ⚠ A witness of one, two or three bytes cannot carry a distinctive head, and
+// that is not a flaw to paper over: those are the lengths that test whether the
+// writer touches an object too small to hold four bytes at all. They are kept,
+// and [DamagedWitnesses] still sees them change.
 func WitnessText(i int) string {
-	// The index FIRST and zero-padded, so every witness's first four bytes are
-	// its own. Not decoration: the damage zeroes exactly those four, so a
-	// distinctive head is what lets the wreckage confirm the SHAPE of the fault
-	// -- four bytes at offset zero -- instead of only that something changed.
-	// With a shared head there is no telling where the zeros began.
-	pad := strconv.Itoa(i)
-	if i < 10 {
-		pad = "0" + pad
+	head := strconv.FormatInt(int64(i), 36)
+	for len(head) < 2 {
+		head = "0" + head
 	}
-	return "w" + pad + "-witness-VITURE-Thunderbird"
+	// head0 is the shortest a head can be, which is what the assertion needs.
+	const head0 = "00"
+	const filler = "-witness-VITURE-Thunderbird-Activity-Firefox-Wave-VITURE-Beast"
+	// ⛔ NO PADDING LOOP AND NO RUNTIME GUARD. The head is 2 bytes and the filler
+	// 63, so 65 always covers the 64 a witness can ask for. A loop that topped it
+	// up, or a panic that checked, would be a branch nothing can reach -- and a
+	// branch no test can cover honestly is a hole in the gate rather than safety.
+	// The line below refuses to COMPILE if the filler ever stops being enough,
+	// which is the same guarantee with none of the cost.
+	const _ = uint(len(head0) + len(filler) - 64)
+	s := head + filler
+	n := WitnessLen(i)
+	return s[:n]
 }
 
 // NewWitnesses allocates the witnesses, freshly, so they land in the heap the
@@ -100,8 +148,64 @@ func WitnessReport(hit []int, total int) string {
 		}
 		s += strconv.Itoa(at)
 	}
-	return s + ". One is a stray write; a run of neighbours is a sweep over a " +
-		"region. This run is worth keeping."
+	return s + " (" + lengthsHit(hit) + "). One is a stray write; a run of " +
+		"neighbours is a sweep over a region. This run is worth keeping."
+}
+
+// lengthsHit says which LENGTHS were damaged and how completely.
+//
+// ⛔⛔ THIS IS THE LINE THE INSTRUMENT EXISTS FOR NOW. The five known cases order
+// cleanly by length -- 4 and 7 bytes intact, 8, 11 and 12 damaged -- and nothing
+// else about them does. Indexes alone said "something was hit"; the lengths say
+// whether objects of a particular SHAPE are hit, and four witnesses per length
+// say whether a length was caught entirely or by one stray write.
+//
+// "4/4 at 8, 12" reads as: every witness of eight bytes and every one of twelve.
+// A length where one of four is damaged reads "1/4", and that is a very different
+// claim -- it is what a single stray pointer looks like.
+func lengthsHit(hit []int) string {
+	perLen := map[int]int{}
+	for _, at := range hit {
+		perLen[WitnessLen(at)]++
+	}
+	lens := make([]int, 0, len(perLen))
+	for n := range perLen {
+		lens = append(lens, n)
+	}
+	sort.Ints(lens)
+
+	// Every length has the same number of witnesses, so one count describes the
+	// lot: Witnesses is a whole multiple of the 64 lengths by construction.
+	const each = Witnesses / 64
+
+	// ⛔ CONTIGUOUS LENGTHS WITH THE SAME COUNT COLLAPSE, or the line that is
+	// supposed to name a shape becomes sixty-four clauses nobody reads. Its own
+	// test caught that: a sweep across every length printed "4/4 at 1, 4/4 at
+	// 2, ..." to the end. "4/4 at 1-64" is the same fact and is a SENTENCE.
+	var b strings.Builder
+	b.WriteString("by length: ")
+	runs := 0
+	for i := 0; i < len(lens); {
+		j, n := i, perLen[lens[i]]
+		for j+1 < len(lens) && lens[j+1] == lens[j]+1 && perLen[lens[j+1]] == n {
+			j++
+		}
+		if runs > 0 {
+			b.WriteString(", ")
+		}
+		if runs == 8 {
+			fmt.Fprintf(&b, "and %d more lengths", len(lens)-i)
+			break
+		}
+		if j == i {
+			fmt.Fprintf(&b, "%d/%d at %d", n, each, lens[i])
+		} else {
+			fmt.Fprintf(&b, "%d/%d at %d-%d", n, each, lens[i], lens[j])
+		}
+		runs++
+		i = j + 1
+	}
+	return b.String()
 }
 
 // SelfCheck arms the instrument by damaging a witness of its own, on purpose,
@@ -129,7 +233,11 @@ func SelfCheck() string { return selfCheck(DamagedWitnesses) }
 // returned the empty string.
 func selfCheck(damaged func([]string) []int) string {
 	ws := NewWitnesses()
-	const at = 0
+	// ⛔ A WITNESS LONG ENOUGH TO LOSE FOUR BYTES. Witness 0 is one byte now that
+	// the lengths vary, and zeroing four bytes of a one-byte string is a thing
+	// this control cannot do -- it would have panicked, on the startup path, in
+	// every run. 11 is twelve bytes, the length of "VITURE Beast".
+	const at = 11
 	ws[at] = "\x00\x00\x00\x00" + WitnessText(at)[4:]
 
 	hit := damaged(ws)

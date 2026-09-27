@@ -41,14 +41,43 @@ func TestTheWitnessesAreOnTheHeapAndEachItsOwn(t *testing.T) {
 
 	// ⛔ AND THEIR FIRST FOUR BYTES DIFFER, because the damage zeroes exactly
 	// those: two witnesses with the same head could be damaged without anyone
-	// being able to tell which.
+	// being able to tell which. Witnesses shorter than four bytes are exempt for
+	// the obvious reason, and they are kept on purpose -- they are the ones that
+	// test whether the writer touches an object too small to hold four bytes.
 	heads := map[string]int{}
 	for i := range ws {
-		h := WitnessText(i)[:4]
+		s := WitnessText(i)
+		if len(s) < 4 {
+			continue
+		}
+		h := s[:4]
 		if other, ok := heads[h]; ok {
 			t.Errorf("witnesses %d and %d both begin %q", other, i, h)
 		}
 		heads[h] = i
+	}
+
+	// ⛔⛔ AND EVERY LENGTH FROM 1 TO 64 IS PRESENT, SEVERAL TIMES. This is the
+	// whole change: the run of 2026-09-27 damaged strings of 8, 11 and 12 bytes
+	// and spared those of 4 and 7, with sixty-four witnesses of thirty bytes
+	// beside them seeing nothing. An instrument that holds the one thing
+	// separating victims from survivors constant reports "nothing happened" and
+	// is worse than none.
+	perLen := map[int]int{}
+	for i := range ws {
+		if got := len(ws[i]); got != WitnessLen(i) {
+			t.Fatalf("witness %d is %d bytes, want %d", i, got, WitnessLen(i))
+		}
+		perLen[WitnessLen(i)]++
+	}
+	for n := 1; n <= 64; n++ {
+		if perLen[n] < 2 {
+			t.Errorf("%d witnesses are %d bytes long; one alone cannot tell a "+
+				"length class being swept from a single stray write", perLen[n], n)
+		}
+	}
+	if len(perLen) != 64 {
+		t.Errorf("the witnesses cover %d lengths, want 64", len(perLen))
 	}
 }
 
@@ -92,7 +121,10 @@ func TestTheWitnessReportSaysHowManyAndWhere(t *testing.T) {
 	if !strings.Contains(long, strconv.Itoa(Witnesses)+" of "+strconv.Itoa(Witnesses)) {
 		t.Errorf("all damaged: %q", long)
 	}
-	if !strings.Contains(long, "and 56 more") {
+	// Computed, not written down: a test that hard-codes the count is a test
+	// that fails for the wrong reason the day the number of witnesses changes,
+	// which is exactly what happened when they went from 64 to 256.
+	if !strings.Contains(long, "and "+strconv.Itoa(Witnesses-8)+" more") {
 		t.Errorf("a long list was not shortened: %q", long)
 	}
 	if n := strings.Count(long, ","); n > 10 {
@@ -145,5 +177,74 @@ func TestTheSelfCheckRefusesABrokenDetector(t *testing.T) {
 				t.Error("a broken detector passed the self-check; it proves nothing")
 			}
 		})
+	}
+}
+
+// ⛔⛔ THE REPORT HAS TO TELL A LENGTH CLASS FROM A STRAY WRITE, which is the
+// whole reason the witnesses stopped being one length.
+//
+// The run of 2026-09-27 damaged strings of 8, 11 and 12 bytes and spared those
+// of 4 and 7. If that is a property of the SHAPE, every witness of those lengths
+// goes; if it was chance, one of the four does. Those are different hunts, and a
+// report that cannot separate them sends the reader on the wrong one.
+func TestTheReportTellsALengthClassFromAStrayWrite(t *testing.T) {
+	t.Parallel()
+
+	// The shape: every witness of 8, 11 and 12 bytes.
+	var swept []int
+	for i := 0; i < Witnesses; i++ {
+		switch WitnessLen(i) {
+		case 8, 11, 12:
+			swept = append(swept, i)
+		}
+	}
+	s := WitnessReport(swept, Witnesses)
+	const each = Witnesses / 64
+	for _, want := range []string{
+		strconv.Itoa(each) + "/" + strconv.Itoa(each) + " at 8",
+		strconv.Itoa(each) + "/" + strconv.Itoa(each) + " at 11-12",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("a whole length class does not read as one: missing %q in %q", want, s)
+		}
+	}
+
+	// The stray write: one witness, of twelve bytes like "VITURE Beast".
+	var one int
+	for i := 0; i < Witnesses; i++ {
+		if WitnessLen(i) == 12 {
+			one = i
+			break
+		}
+	}
+	s = WitnessReport([]int{one}, Witnesses)
+	if want := "1/" + strconv.Itoa(each) + " at 12"; !strings.Contains(s, want) {
+		t.Errorf("a single stray write does not read as one: missing %q in %q", want, s)
+	}
+	// ⛔ AND THE TWO DO NOT READ ALIKE. If they did, the length would be
+	// decoration rather than a measurement.
+	if strings.Contains(s, strconv.Itoa(each)+"/"+strconv.Itoa(each)+" at 12") {
+		t.Errorf("one witness of twelve bytes reads as the whole class: %q", s)
+	}
+}
+
+// ⚠ AND A REPORT WITH MORE RUNS THAN A SENTENCE HOLDS IS CUT. Damage every
+// other length and the runs no longer collapse: thirty-two of them is the
+// 3,939-line log again, smaller.
+func TestManyScatteredLengthsAreStillOneSentence(t *testing.T) {
+	t.Parallel()
+
+	var scattered []int
+	for i := 0; i < Witnesses; i++ {
+		if WitnessLen(i)%2 == 0 {
+			scattered = append(scattered, i)
+		}
+	}
+	s := WitnessReport(scattered, Witnesses)
+	if !strings.Contains(s, "more lengths") {
+		t.Errorf("thirty-two separate lengths were all printed: %q", s)
+	}
+	if n := strings.Count(s, ","); n > 20 {
+		t.Errorf("the report carries %d commas: %q", n, s)
 	}
 }
