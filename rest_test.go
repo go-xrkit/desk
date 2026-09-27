@@ -176,7 +176,7 @@ func TestAKeyPicksTheGlassesBackUp(t *testing.T) {
 	_, err := Await(context.Background(), AwaitOptions{
 		List:    func() ([]glasses.Display, error) { return []glasses.Display{theGlasses}, nil },
 		Resting: true,
-		Resume:  []Shortcut{{hotkey.Combo{Key: hotkey.KeyISOSection}, ActionPause}},
+		Resume:  []Shortcut{{hotkey.Combo{Key: hotkey.KeyISOSection}, ActionPause, ""}},
 	})
 	if !errors.Is(err, ErrAwaitResume) {
 		t.Fatalf("the key did not pick the glasses up: %v", err)
@@ -196,9 +196,9 @@ func TestAKeyPicksTheGlassesBackUp(t *testing.T) {
 func TestResumeOnlyTakesTheOneAndTakesItFromTheSameList(t *testing.T) {
 	moved := hotkey.Combo{Key: hotkey.KeyN7, Mods: hotkey.Command}
 	got := ResumeOnly([]Shortcut{
-		{hotkey.Combo{Key: hotkey.KeyS}, ActionSettings},
-		{moved, ActionPause},
-		{hotkey.Combo{Key: hotkey.KeyM}, ActionPoint},
+		{hotkey.Combo{Key: hotkey.KeyS}, ActionSettings, ""},
+		{moved, ActionPause, ""},
+		{hotkey.Combo{Key: hotkey.KeyM}, ActionPoint, ""},
 	})
 	if len(got) != 1 || got[0].Want != moved || got[0].Does != ActionPause {
 		t.Errorf("the resting claim is %v, not the one the settings moved it to", got)

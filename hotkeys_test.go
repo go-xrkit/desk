@@ -107,18 +107,22 @@ func TestAHeldKeyDoesNotQueue(t *testing.T) {
 }
 
 func TestDescribeNamesWhatWasActuallyClaimed(t *testing.T) {
-	// The middle one is taken, so the ladder substitutes; the last cannot be
-	// claimed at all.
+	// One of the band keys is taken, so the whole band moves up a rung; the
+	// gallery key cannot be claimed at ANY rung.
+	//
+	// ⛔ "EVERY CANDIDATE IS SPOKEN FOR" MEANS EVERY CANDIDATE. This fake used
+	// to refuse one exact combination and grant its neighbours, which made the
+	// sentence a lie the test could not see -- the ladder now belongs to
+	// [ClaimGlobal], so a fake that only refuses the base combination hands out
+	// the very rung the message says is unavailable.
 	taken := DefaultShortcuts()[1].Want
 	refused := DefaultShortcuts()[2].Want
 	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
-		switch want {
-		case refused:
+		if want.Key == refused.Key {
 			return nil, errors.New("every candidate is spoken for")
-		case taken:
-			got := want
-			got.Mods |= hotkey.Shift
-			return &fakeClaim{got: got, want: want, ch: make(chan hotkey.Event)}, nil
+		}
+		if want == taken {
+			return nil, errors.New("taken")
 		}
 		return &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}, nil
 	})
@@ -127,7 +131,10 @@ func TestDescribeNamesWhatWasActuallyClaimed(t *testing.T) {
 
 	d := h.Describe()
 	for _, want := range []string{
-		"previous: ⌃⌥⌘←\n",
+		// ⭐ BOTH HALVES OF THE BAND MOVED, which is the whole point: only → was
+		// refused, and ← followed it up the ladder rather than staying behind
+		// on a prefix its other half no longer answers to.
+		"previous: ⌃⌥⇧⌘← (asked for ⌃⌥⌘←, it was taken)",
 		"next: ⌃⌥⇧⌘→ (asked for ⌃⌥⌘→, it was taken)",
 		"no global shortcut for ⌃⌥⌘F3 (open the gallery): every candidate is spoken for",
 	} {
@@ -433,8 +440,8 @@ func TestGrantedIsWhatWasClaimedAndNotWhatWasAsked(t *testing.T) {
 	})
 
 	h := ClaimGlobal([]Shortcut{
-		{asked, ActionFit},
-		{hotkey.Combo{Key: hotkey.KeyM, Mods: hotkey.Command}, ActionPoint},
+		{asked, ActionFit, ""},
+		{hotkey.Combo{Key: hotkey.KeyM, Mods: hotkey.Command}, ActionPoint, ""},
 	}, nil)
 	defer h.Close()
 
@@ -452,7 +459,7 @@ func TestGrantedIsWhatWasClaimedAndNotWhatWasAsked(t *testing.T) {
 	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
 		return &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}, nil
 	})
-	h2 := ClaimGlobal([]Shortcut{{asked, ActionFit}}, nil)
+	h2 := ClaimGlobal([]Shortcut{{asked, ActionFit, ""}}, nil)
 	defer h2.Close()
 	if k := h2.Granted()[ActionFit]; k != asked {
 		t.Errorf("fit was granted %v, want the combination asked for, %v", k, asked)
@@ -480,12 +487,12 @@ func TestAskedForIsWhatTheMenuSaysBeforeThereIsASession(t *testing.T) {
 	second := hotkey.Combo{Key: hotkey.KeyN, Mods: hotkey.Command}
 
 	got := AskedFor([]Shortcut{
-		{settings, ActionSettings},
-		{first, ActionPoint},
+		{settings, ActionSettings, ""},
+		{first, ActionPoint, ""},
 		// ⛔ THE FIRST WINS, like a claim: a list naming one action twice
 		// claims the first and substitutes or refuses the second, so a menu
 		// built from the second would name a key that does something else.
-		{second, ActionPoint},
+		{second, ActionPoint, ""},
 	})
 	if len(got) != 2 {
 		t.Fatalf("AskedFor gave %d entries, want 2", len(got))
@@ -605,5 +612,195 @@ func TestAMovedShortcutSaysSo(t *testing.T) {
 		does: []Action{ActionPrev}, unmet: []error{errors.New("a")}}
 	if s := both.Moved(); !strings.Contains(s, ";") {
 		t.Errorf("a session with both said %q, want them joined", s)
+	}
+}
+
+// ⛔⛔ THE PAIR LANDS TOGETHER OR THE DESK IS UNUSABLE, and this is the run that
+// proved it: ⌃⌥⌘↑ pushed the band away sixteen times while ⌃⌥⌘↓ did nothing,
+// because "closer" had climbed to ⌃⌥⇧⌘↓ by itself. Every key was granted and
+// the journal said so; the person pressed the opposite of what had just worked
+// and stopped there.
+func TestAPairCannotMoveWithoutItsOtherHalf(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	up := hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods}
+	down := hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods}
+
+	// Something else holds ⌃⌥⌘↓ and nothing else -- exactly the machine that
+	// produced the defect.
+	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		if want == down {
+			return nil, errors.New("taken")
+		}
+		return &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}, nil
+	})
+
+	h := ClaimGlobal([]Shortcut{
+		{up, ActionFurther, GroupDistance},
+		{down, ActionCloser, GroupDistance},
+	}, nil)
+	defer h.Close()
+
+	keys := h.Granted()
+	further, closer := keys[ActionFurther], keys[ActionCloser]
+	if further.Mods != closer.Mods {
+		t.Errorf("further is on %v and closer on %v: pushing the band away works "+
+			"and bringing it back does not, which is how this was reported",
+			further, closer)
+	}
+	// AND BOTH ARE STILL THERE. Moving them together must not become refusing
+	// them together: a machine busy enough to displace one key would then have
+	// no band keys at all.
+	if _, ok := keys[ActionFurther]; !ok {
+		t.Error("further was not granted at all")
+	}
+	if _, ok := keys[ActionCloser]; !ok {
+		t.Error("closer was not granted at all")
+	}
+	// The rung they share is the FIRST one that holds both, not the last.
+	if further.Mods&hotkey.Shift == 0 {
+		t.Errorf("the pair stayed on %v, which was refused for closer", further)
+	}
+}
+
+// AND AN UNGROUPED SHORTCUT STILL CLIMBS ALONE, because most of them have no
+// other half and refusing to move one would cost it for nothing.
+func TestAShortcutWithNoGroupStillMovesByItself(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	taken := hotkey.Combo{Key: hotkey.KeyS, Mods: mods}
+	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		if want == taken {
+			return nil, errors.New("taken")
+		}
+		return &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}, nil
+	})
+
+	h := ClaimGlobal([]Shortcut{{taken, ActionSettings, ""}}, nil)
+	defer h.Close()
+
+	got, ok := h.Granted()[ActionSettings]
+	if !ok {
+		t.Fatal("a lone shortcut whose first choice was taken got nothing")
+	}
+	if got.Mods&hotkey.Shift == 0 {
+		t.Errorf("it was granted %v, which is the combination that was refused", got)
+	}
+}
+
+// ⚠ AND A GROUP NOBODY CAN GRANT WHOLE KEEPS THE BEST RUNG IT FOUND. Refusing
+// the lot would turn a machine busy enough to displace one key into a desk with
+// no band keys at all, so the rule is "never split", not "all or nothing".
+//
+// The rung kept must also be the BEST one rather than the last tried: here the
+// base rung grants one of the two and every rung above grants none, so the
+// claim from the base rung is the one that has to survive.
+func TestAGroupNobodyCanGrantWholeKeepsItsBestRung(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	up := hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods}
+	down := hotkey.Combo{Key: hotkey.KeyDownArrow, Mods: mods}
+
+	var made []*fakeClaim
+	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		// Only the bare prefix on ↑ is free. Everything else is spoken for,
+		// including every rung above.
+		if want != up {
+			return nil, errors.New("taken")
+		}
+		c := &fakeClaim{got: want, want: want, ch: make(chan hotkey.Event)}
+		made = append(made, c)
+		return c, nil
+	})
+
+	h := ClaimGlobal([]Shortcut{
+		{up, ActionFurther, GroupDistance},
+		{down, ActionCloser, GroupDistance},
+	}, nil)
+	defer h.Close()
+
+	keys := h.Granted()
+	if got, ok := keys[ActionFurther]; !ok || got != up {
+		t.Errorf("further was granted %v (%t), want the one rung that was free, %v", got, ok, up)
+	}
+	if _, ok := keys[ActionCloser]; ok {
+		t.Error("closer was granted something, though every rung refused it")
+	}
+	// ⛔ AND EVERY RUNG TRIED AND ABANDONED WAS RELEASED. A claim held by a rung
+	// this function walked away from would compete with the desk itself at the
+	// next rung -- and the prefix already carries Control, so the Control rung
+	// asks for the very combination the base rung is holding. Only the last
+	// claim, the one actually granted, is still held.
+	if len(made) < 2 {
+		t.Fatalf("%d claims were made; the rungs were not all probed", len(made))
+	}
+	for i, c := range made[:len(made)-1] {
+		if c.closes == 0 {
+			t.Errorf("probe %d was never released; it competes with the next rung", i)
+		}
+	}
+	if last := made[len(made)-1]; last.closes != 0 {
+		t.Errorf("the granted claim was released %d times", last.closes)
+	}
+	if s := h.Describe(); !strings.Contains(s, "no global shortcut for") {
+		t.Errorf("Describe() does not say the half that failed:\n%s", s)
+	}
+}
+
+// AND A CALLER'S OWN LADDER IS THE ONE CLIMBED, because a caller that passes
+// options has a reason to and silently using the default would be the third
+// way a shortcut goes missing.
+func TestTheLadderTheCallerPassedIsTheOneClimbed(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	want := hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods}
+
+	var asked []hotkey.Modifier
+	withRegister(t, func(c hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		asked = append(asked, c.Mods&^mods)
+		if c.Mods&hotkey.Control == 0 || c.Mods&hotkey.Shift != 0 {
+			return nil, errors.New("taken")
+		}
+		return &fakeClaim{got: c, want: c, ch: make(chan hotkey.Event)}, nil
+	})
+
+	// A ladder of one rung, and not the default's first: if the default were
+	// used, Shift would be tried and this would be granted on it.
+	h := ClaimGlobal([]Shortcut{{want, ActionFurther, GroupDistance}},
+		&hotkey.Options{Ladder: []hotkey.Modifier{hotkey.Control}})
+	defer h.Close()
+
+	if _, ok := h.Granted()[ActionFurther]; !ok {
+		t.Fatal("the rung the caller named was never tried")
+	}
+	for _, m := range asked {
+		if m&hotkey.Shift != 0 {
+			t.Errorf("Shift was tried, so the default ladder was used instead of the caller's: %v", asked)
+		}
+	}
+}
+
+// AND OPTIONS WITHOUT A LADDER GET THE DEFAULT ONE, which is the contract the
+// hotkey package states: a caller passes options for the other fields and does
+// not thereby lose the fallback. Losing it silently would be the third way a
+// shortcut goes missing -- granted, but not where anybody looks.
+func TestOptionsWithNoLadderStillClimbTheDefaultOne(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	want := hotkey.Combo{Key: hotkey.KeyUpArrow, Mods: mods}
+
+	withRegister(t, func(c hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		if c.Mods&hotkey.Shift == 0 {
+			return nil, errors.New("taken")
+		}
+		return &fakeClaim{got: c, want: c, ch: make(chan hotkey.Event)}, nil
+	})
+
+	// Options given, Ladder left nil: Shift is the default ladder's first rung.
+	h := ClaimGlobal([]Shortcut{{want, ActionFurther, GroupDistance}},
+		&hotkey.Options{OnThisKeyboard: true})
+	defer h.Close()
+
+	got, ok := h.Granted()[ActionFurther]
+	if !ok {
+		t.Fatal("nothing was granted, so no ladder was climbed at all")
+	}
+	if got.Mods&hotkey.Shift == 0 {
+		t.Errorf("granted %v, which is the combination that was refused", got)
 	}
 }
