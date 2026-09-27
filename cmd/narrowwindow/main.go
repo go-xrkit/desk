@@ -116,6 +116,13 @@ func run() int {
 				if *draw {
 					t.ShowShortcuts(hk.Granted())
 				}
+				if *verbose && r == 1 {
+					// ⭐ WHAT THIS MACHINE ACTUALLY GRANTED, once. Whether the
+					// halves of a gesture share a prefix is a question about the
+					// keys something else holds HERE, and no test can answer it:
+					// the fake register in the suite grants what it is told to.
+					fmt.Print(hk.Describe())
+				}
 				_ = hk.Close()
 			}
 			if *settle > 0 {
