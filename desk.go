@@ -176,6 +176,21 @@ const (
 	// obliquely instead, as real ones are. See [Anchoring].
 	ActionDeskStaysPut
 	ActionDeskFacesMe
+
+	// ActionWrapWide bends a WIDE screen round the viewer; ActionFlatWide
+	// leaves it flat.
+	//
+	// ⛔ TWO ROWS RATHER THAN A TOGGLE, like the two above and for the same
+	// reason: macOS draws NOTHING for an unticked row, so a toggle in a menu is
+	// invisible in one of its two states. And these are not on and off -- they
+	// are two desks, and somebody pressing the one already in force is asking
+	// which one that is.
+	//
+	// ⭐ THEY EXIST BECAUSE THE ANSWER IS JUDGED BY LOOKING. The curve was
+	// rejected in August by wearing it, and comparing two builds through a
+	// restart is not comparing. One key, both shapes, same second.
+	ActionWrapWide
+	ActionFlatWide
 	// ActionApps opens the gallery of running APPLICATIONS, or closes it.
 	//
 	// It is the other gallery. The screen gallery answers "which desktop am I
@@ -537,6 +552,10 @@ func (a Action) String() string {
 		return "leave the desk where it is"
 	case ActionDeskFacesMe:
 		return "turn each screen towards me"
+	case ActionWrapWide:
+		return "wrap the wide screen round me"
+	case ActionFlatWide:
+		return "leave the wide screen flat"
 	case ActionApps:
 		return "the applications"
 	case ActionSpread:
@@ -1197,13 +1216,17 @@ func (d *Desk) Do(a Action) {
 		d.err = d.reshape(d.plan.WithDistance(MinDistance))
 		d.notice.say("one screen, as large as these glasses show it")
 	case ActionFlatter:
-		d.curveBy(-SplayStep)
+		d.splayBy(-SplayStep)
 	case ActionRounder:
-		d.curveBy(+SplayStep)
+		d.splayBy(+SplayStep)
 	case ActionDeskStaysPut:
 		d.anchorAs(AnchorFixed)
 	case ActionDeskFacesMe:
 		d.anchorAs(AnchorOnGaze)
+	case ActionWrapWide:
+		d.bendAs(DefaultBend)
+	case ActionFlatWide:
+		d.bendAs(FlatBend)
 	}
 	d.mu.Unlock()
 	if cycle != nil {
@@ -1774,7 +1797,7 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 		fan.SetSourceWidths(widths)
 		// And a wide screen curves, if the settings asked and it is wide enough
 		// to have a geometry worth correcting. See [Plan.Curve].
-		fan.SetCurves(plan.Curves())
+		fan.SetBends(plan.Bends())
 	}
 	return r, strip, grid, fan, nil
 }
@@ -1790,8 +1813,14 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 //
 // The caller holds the lock.
 func (d *Desk) reshape(plan Plan) error {
+	// ⛔ THE BEND IS PART OF "ALREADY THERE". It was added to the plan and left
+	// out of this comparison, so asking to wrap the wide screen was answered
+	// with "you already are" and the plan never changed -- the action reached
+	// bendAs, bendAs called reshape, and reshape quietly did nothing. A list of
+	// what makes two plans the same has to grow with the plan.
 	if plan.Distance() == d.plan.Distance() && plan.Count() == d.plan.Count() &&
-		plan.SplayDeg() == d.plan.SplayDeg() && plan.sameShapes(d.plan) {
+		plan.SplayDeg() == d.plan.SplayDeg() && plan.BendAsked() == d.plan.BendAsked() &&
+		plan.sameShapes(d.plan) {
 		// Already there: at either end of the range every further press means
 		// this, and rebuilding the band to put it back exactly as it was would
 		// make the desk twitch for nothing.

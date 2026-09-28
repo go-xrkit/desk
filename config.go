@@ -117,7 +117,7 @@ type ConfigRibbon struct {
 	// is what a physical curved monitor does. Nil or zero is flat.
 	//
 	// ⛔ It touches only screens wider than the panel. See [Plan.Curve].
-	Curve *float64 `hcl:"curve"`
+	Bend *float64 `hcl:"bend"`
 
 	// Distance is how far the band sits from the viewer, as a multiple of the
 	// distance at which one screen fills the view. Nil, or anything below one,
@@ -607,10 +607,10 @@ func WidePlan(p Plan, wide int) Plan {
 	return p.WithScreenWidth(0, wide)
 }
 
-// Curve is the radius a wide screen is curved at, or [FlatCurve].
-func (c Config) Curve() float64 {
-	if c.Ribbon == nil || c.Ribbon.Curve == nil || *c.Ribbon.Curve <= FlatCurve {
-		return FlatCurve
+// Curve is the radius a wide screen is curved at, or [FlatBend].
+func (c Config) Bend() float64 {
+	if c.Ribbon == nil || c.Ribbon.Bend == nil || *c.Ribbon.Bend <= FlatBend {
+		return FlatBend
 	}
-	return *c.Ribbon.Curve
+	return *c.Ribbon.Bend
 }

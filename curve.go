@@ -6,7 +6,7 @@ package desk
 
 import "math"
 
-// DefaultCurve is the radius a curved screen takes when none is named: the
+// DefaultBend is the radius a curved screen takes when none is named: the
 // viewing distance itself, which puts every pixel the same distance from the eye.
 //
 // ⭐ IT IS THE PHYSICAL CASE, not a number chosen to look good. A 49-inch
@@ -14,12 +14,12 @@ import "math"
 // desk allows, its arc (1200/1000 = 1.2 rad) and the angle it subtends
 // (2·atan(600/800) ≈ 1.29 rad) are the same to within a few degrees. Curvature
 // radius ≈ viewing distance is what "curved monitor" has always meant.
-const DefaultCurve = 1.0
+const DefaultBend = 1.0
 
-// FlatCurve is what asks for no curve at all, and it is a NAME rather than a
+// FlatBend is what asks for no curve at all, and it is a NAME rather than a
 // magic zero because a person reading `curve = 0` in a settings file has no way
 // to tell "flat" from "unset".
-const FlatCurve = 0.0
+const FlatBend = 0.0
 
 // MaxFacetDeg is the most one facet may turn.
 //
@@ -37,7 +37,7 @@ const MaxFacetDeg = 2.0
 // so a nonsense curve cannot ask for thousands.
 const MaxFacets = 256
 
-// curveFacets is how a curved screen is cut: how many facets, and how far each
+// bendFacets is how a curved screen is cut: how many facets, and how far each
 // turns from the last.
 //
 // ⛔ THE ARC COMES FROM THE SCREEN'S OWN WIDTH, not from a number in the
@@ -48,19 +48,19 @@ const MaxFacets = 256
 //
 // views is the screen's width as a multiple of the view's; fovDeg is what one
 // view subtends; curve is the radius as a multiple of the viewing distance, so
-// [DefaultCurve] is "every pixel equidistant" and larger is flatter.
+// [DefaultBend] is "every pixel equidistant" and larger is flatter.
 //
 // ⚠ A FLAT SCREEN COMES BACK AS ONE FACET TURNING BY NOTHING, rather than as a
 // special case the caller has to remember. One facet of the whole source at zero
 // degrees IS the flat screen, and saying it this way means the flat path and the
 // curved one are the same code.
-func curveFacets(views, fovDeg, curve float64) (n int, degPerFacet float64) {
-	if views <= 0 || fovDeg <= 0 || curve <= FlatCurve || math.IsInf(curve, 0) || math.IsNaN(curve) {
+func bendFacets(views, fovDeg, bend float64) (n int, degPerFacet float64) {
+	if views <= 0 || fovDeg <= 0 || bend <= FlatBend || math.IsInf(bend, 0) || math.IsNaN(bend) {
 		return 1, 0
 	}
 	// The whole arc, in degrees: the angle the screen subtends, divided by the
 	// radius in units of the viewing distance. At curve 1 they are equal.
-	arc := views * fovDeg / curve
+	arc := views * fovDeg / bend
 	// ⚠ No floor at one: the guard above leaves views, fovDeg and curve all
 	// positive, so arc is positive and its ceiling over two is at least one. A
 	// guard here would be a branch no test could reach honestly -- a hole in the
@@ -99,7 +99,7 @@ type facetRing struct {
 //
 // widthOf gives screen s its source width in pixels; hwOf its half-width in
 // world units; curveOf the radius it is curved at, as a multiple of the viewing
-// distance, or [FlatCurve].
+// distance, or [FlatBend].
 func newFacetRing(n int, splayDeg, gap, fovDeg float64,
 	widthOf func(s int) int, hwOf func(s int) float64, curveOf func(s int) float64,
 	panelW int) *facetRing {
@@ -112,7 +112,7 @@ func newFacetRing(n int, splayDeg, gap, fovDeg float64,
 		if panelW > 0 {
 			views = float64(w) / float64(panelW)
 		}
-		count, deg := curveFacets(views, fovDeg, curveOf(s))
+		count, deg := bendFacets(views, fovDeg, curveOf(s))
 		for i := range count {
 			// ⛔ THE FIRST FACET OF A SCREEN TURNS BY THE SPLAY, the rest by the
 			// facet angle. The fold between two SCREENS is a different thing

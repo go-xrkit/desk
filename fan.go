@@ -51,7 +51,7 @@ type Fan struct {
 	ring *facetRing
 	// curves is the radius each screen is curved at, as a multiple of the viewing
 	// distance. Nil or zero is flat.
-	curves []float64
+	bends  []float64
 	fovDeg float64
 
 	// slots holds one column buffer per panel a frame can show, reused frame to
@@ -410,15 +410,15 @@ func (f *Fan) rebuildRing() {
 	f.ring = newFacetRing(f.n, f.splayDeg, f.gap, f.fovDeg,
 		f.sourceWidth,
 		func(s int) float64 { return f.hw * float64(f.sourceWidth(s)) / float64(f.srcW) },
-		f.curveOf, f.srcW)
+		f.bendOf, f.srcW)
 }
 
-// curveOf is the radius screen s is curved at, or [FlatCurve].
-func (f *Fan) curveOf(s int) float64 {
-	if s < 0 || s >= len(f.curves) {
-		return FlatCurve
+// curveOf is the radius screen s is curved at, or [FlatBend].
+func (f *Fan) bendOf(s int) float64 {
+	if s < 0 || s >= len(f.bends) {
+		return FlatBend
 	}
-	return f.curves[s]
+	return f.bends[s]
 }
 
 // SetCurves gives screens their own curvature radius, as a multiple of the
@@ -427,9 +427,9 @@ func (f *Fan) curveOf(s int) float64 {
 //
 // ⭐ PER SCREEN, because the case this serves is ONE wide screen beside ordinary
 // ones: curving a panel-sized screen bows the thing you are reading, which is
-// what was measured, worn and rejected. See [DefaultCurve].
-func (f *Fan) SetCurves(c []float64) {
-	f.curves = c
+// what was measured, worn and rejected. See [DefaultBend].
+func (f *Fan) SetBends(c []float64) {
+	f.bends = c
 	f.rebuildRing()
 }
 

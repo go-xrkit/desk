@@ -21,22 +21,22 @@ func TestFlatComesBackAsOneFacetTurningByNothing(t *testing.T) {
 		name  string
 		views float64
 		fov   float64
-		curve float64
+		bend  float64
 	}{
-		{"asked to be flat", 3.3, 51.57, FlatCurve},
+		{"asked to be flat", 3.3, 51.57, FlatBend},
 		{"a negative radius", 3.3, 51.57, -1},
 		{"an infinite one, which is what flat MEANS geometrically", 3.3, 51.57, math.Inf(1)},
 		{"not a number", 3.3, 51.57, math.NaN()},
-		{"a screen of no width", 0, 51.57, DefaultCurve},
-		{"glasses that report no field of view", 3.3, 0, DefaultCurve},
+		{"a screen of no width", 0, 51.57, DefaultBend},
+		{"glasses that report no field of view", 3.3, 0, DefaultBend},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			n, deg := curveFacets(c.views, c.fov, c.curve)
+			n, deg := bendFacets(c.views, c.fov, c.bend)
 			if n != 1 || deg != 0 {
-				t.Errorf("curveFacets(%g, %g, %g) = %d facets of %g°, want 1 of 0",
-					c.views, c.fov, c.curve, n, deg)
+				t.Errorf("bendFacets(%g, %g, %g) = %d facets of %g°, want 1 of 0",
+					c.views, c.fov, c.bend, n, deg)
 			}
 		})
 	}
@@ -52,29 +52,29 @@ func TestTheArcIsTheScreensOwnWidth(t *testing.T) {
 
 	const fov = 51.57
 	for _, c := range []struct {
-		views, curve, wantArc float64
+		views, bend, wantArc float64
 	}{
 		// 6400 pixels in a 1920 panel: 3.33 views.
-		{6400.0 / 1920, DefaultCurve, 3.3333 * fov},
-		{5120.0 / 1920, DefaultCurve, 2.6667 * fov},
+		{6400.0 / 1920, DefaultBend, 3.3333 * fov},
+		{5120.0 / 1920, DefaultBend, 2.6667 * fov},
 		// One view across is one field of view, whatever else is true.
-		{1, DefaultCurve, fov},
+		{1, DefaultBend, fov},
 		// ⭐ Twice the radius is half the arc: a flatter screen wraps less.
-		{6400.0 / 1920, 2 * DefaultCurve, 3.3333 * fov / 2},
+		{6400.0 / 1920, 2 * DefaultBend, 3.3333 * fov / 2},
 	} {
-		n, deg := curveFacets(c.views, fov, c.curve)
+		n, deg := bendFacets(c.views, fov, c.bend)
 		if got := float64(n) * deg; math.Abs(got-c.wantArc) > 0.01 {
 			t.Errorf("%g views at curve %g wrap %g°, want %g°",
-				c.views, c.curve, got, c.wantArc)
+				c.views, c.bend, got, c.wantArc)
 		}
 		// ⚠ And no facet turns more than the ceiling, which is what keeps the
 		// joins from being findable.
 		if deg > MaxFacetDeg+1e-9 {
 			t.Errorf("%g views at curve %g: a facet turns %g°, more than %g",
-				c.views, c.curve, deg, MaxFacetDeg)
+				c.views, c.bend, deg, MaxFacetDeg)
 		}
 		if n < 1 || n > MaxFacets {
-			t.Errorf("%g views at curve %g: %d facets", c.views, c.curve, n)
+			t.Errorf("%g views at curve %g: %d facets", c.views, c.bend, n)
 		}
 	}
 }
@@ -85,7 +85,7 @@ func TestTheArcIsTheScreensOwnWidth(t *testing.T) {
 func TestAnAbsurdCurveIsCapped(t *testing.T) {
 	t.Parallel()
 
-	n, deg := curveFacets(3.3, 51.57, 1e-6)
+	n, deg := bendFacets(3.3, 51.57, 1e-6)
 	if n != MaxFacets {
 		t.Errorf("a radius of a millionth gave %d facets, want the ceiling %d", n, MaxFacets)
 	}
@@ -106,7 +106,7 @@ func TestAFlatRingIsTheChainThatWasThere(t *testing.T) {
 		r := newFacetRing(n, splay, gap, fov,
 			func(int) int { return panelW },
 			func(int) float64 { return 0.48 },
-			func(int) float64 { return FlatCurve },
+			func(int) float64 { return FlatBend },
 			panelW)
 
 		if len(r.f) != n {
@@ -149,9 +149,9 @@ func TestACurvedScreenCutsItsSourceOnceAndLeavesNoGapInside(t *testing.T) {
 		func(int) float64 { return 0.48 },
 		func(s int) float64 {
 			if s == 1 {
-				return DefaultCurve
+				return DefaultBend
 			}
-			return FlatCurve
+			return FlatBend
 		},
 		panelW)
 
@@ -241,13 +241,13 @@ func TestACurvedPlanReachesTheFanAsFacets(t *testing.T) {
 	}
 
 	// The same desk with screen 1 wide and curved.
-	q := p.WithScreenWidth(1, 6400).WithCurve(DefaultCurve)
+	q := p.WithScreenWidth(1, 6400).WithBend(DefaultBend)
 	curved, err := NewFan(q)
 	if err != nil {
 		t.Fatal(err)
 	}
 	curved.SetSourceWidths([]int{1920, 6400})
-	curved.SetCurves(q.Curves())
+	curved.SetBends(q.Bends())
 
 	var facets []facet
 	for _, fa := range curved.ring.f {
@@ -319,14 +319,64 @@ func TestFacetsSaysWhatTheBandIsDrawnFrom(t *testing.T) {
 		t.Errorf("a flat desk of 2 is drawn from %d facets, want 2", got)
 	}
 
-	q := p.WithScreenWidth(1, 6400).WithCurve(DefaultCurve)
+	q := p.WithScreenWidth(1, 6400).WithBend(DefaultBend)
 	curved, err := NewFan(q)
 	if err != nil {
 		t.Fatal(err)
 	}
 	curved.SetSourceWidths([]int{1920, 6400})
-	curved.SetCurves(q.Curves())
+	curved.SetBends(q.Bends())
 	if got := curved.Facets(); got <= 2 {
 		t.Errorf("a curved wide screen is drawn from %d facets, want more than the 2 screens", got)
+	}
+}
+
+// ⛔⛔ THE BEND IS JUDGED BY LOOKING, so it has to change WHILE the desk runs.
+// The curve was rejected in August by wearing it; comparing two builds through
+// a restart is not comparing, and a setting that needs a relaunch is a setting
+// nobody will weigh twice.
+func TestTheWideScreenBendsAndFlattensWhileTheDeskRuns(t *testing.T) {
+	// ⚠ A FOLDED band, not testPlan's flat one: a flat band is drawn by the
+	// strip, which has no panels to cut into facets. Bending belongs to the fan.
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = p.WithScreenWidth(0, p.ScreenW*3)
+	d, err := New(p, feedsFor(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	if got := d.Plan().BendAsked(); got != FlatBend {
+		t.Fatalf("a desk nobody told starts bent at %g, want flat", got)
+	}
+	flat := d.Facets()
+
+	d.Do(ActionWrapWide)
+	if got := d.Plan().BendAsked(); got != DefaultBend {
+		t.Errorf("after asking to wrap it, the plan says %g", got)
+	}
+	bent := d.Facets()
+	if bent <= flat {
+		t.Errorf("wrapping drew %d facets against %d flat; a bend is more pieces", bent, flat)
+	}
+
+	d.Do(ActionFlatWide)
+	if got := d.Plan().BendAsked(); got != FlatBend {
+		t.Errorf("after asking for it flat, the plan says %g", got)
+	}
+	if got := d.Facets(); got != flat {
+		t.Errorf("flattening drew %d facets, want the %d it started with", got, flat)
+	}
+
+	// ⭐ AND ASKING FOR THE SHAPE IT IS ALREADY IN DOES NOTHING. Rebuilding the
+	// band, the gallery and the fan to arrive back where it started is work
+	// nobody asked for -- once per press, held.
+	d.Do(ActionFlatWide)
+	if got := d.Facets(); got != flat {
+		t.Errorf("asking twice for flat drew %d facets, want %d", got, flat)
 	}
 }
