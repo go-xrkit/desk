@@ -246,10 +246,17 @@ func slantChain(j int, angleAt func(k float64) float64, hwOf func(k int) float64
 // landing entirely off the canvas. The Cols slice is appended to scratch, so a
 // caller drawing every frame keeps one buffer instead of allocating per panel per
 // frame -- which means a slant must be DRAWN before the next one is asked for.
+// ⭐ srcX0 AND srcX1 ARE THE SLICE OF THE SOURCE THIS PANEL SHOWS, which is the
+// whole source for a screen and one facet of it for a curved one. A curved wide
+// screen is several panels of ONE source, hinged by a fraction of a degree each
+// -- flat facets, no per-pixel warp, none of the 2.8 ms the panorama cost.
+//
+// ⚠ With the whole source the arithmetic below is unchanged: u/z at the left
+// edge is srcX0/lz, and srcX0 is zero.
 func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
-	viewW, viewH, srcW, srcH int) (Slant, bool) {
+	viewW, viewH, srcX0, srcX1, srcH int) (Slant, bool) {
 
-	if viewW <= 0 || viewH <= 0 || srcW <= 0 || srcH <= 0 || panelH <= 0 || f <= 0 {
+	if viewW <= 0 || viewH <= 0 || srcX1 <= srcX0 || srcX0 < 0 || srcH <= 0 || panelH <= 0 || f <= 0 {
 		return Slant{}, false
 	}
 	// Behind the viewer, or through them: the divisions below would be
@@ -302,7 +309,7 @@ func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
 	// along the surface as the angle grows, which reads as the picture sliding
 	// under the screen rather than the screen turning.
 	invZ0, invZ1 := 1/lz, 1/rz
-	uOverZ0, uOverZ1 := 0.0, float64(srcW)*invZ1
+	uOverZ0, uOverZ1 := float64(srcX0)*invZ0, float64(srcX1)*invZ1
 
 	out := scratch[:0]
 	first, last := max(left, 0), min(right, viewW)
@@ -312,7 +319,7 @@ func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
 		invZ := invZ0 + t*(invZ1-invZ0)
 		u := (uOverZ0 + t*(uOverZ1-uOverZ0)) / invZ
 		col := SlantCol{Src: -1}
-		if u >= 0 && u < float64(srcW) {
+		if u >= float64(srcX0) && u < float64(srcX1) {
 			col.Src = int32(u)
 		}
 		h := f * panelH * invZ

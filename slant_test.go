@@ -30,7 +30,7 @@ func TestASplayOfNothingIsTheFlatBand(t *testing.T) {
 		hw, panelH, f := slantOptics(fov, viewW, viewW, viewH)
 		for _, j := range []int{-1, 0, 1} {
 			lx, lz, rx, rz := slantChain(j, uniformAngle(0), sameWidth(hw), uniformGap(slantGap(hw, viewW)), d, 0)
-			s, ok := slantOf(nil, j+1, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
+			s, ok := slantOf(nil, j+1, lx, lz, rx, rz, panelH, f, viewW, viewH, 0, viewW, viewH)
 			if !ok {
 				if j != 0 && d == 1 {
 					continue // a neighbour at distance 1 is off the canvas, rightly
@@ -203,7 +203,7 @@ func TestTheChainTurnsWithTheViewer(t *testing.T) {
 
 	before := project(t, 1, splay, hw, panelH, f, dist, viewW, viewH)
 	lx, lz, rx, rz = slantChain(1, uniformAngle(splay), sameWidth(hw), uniformGap(slantGap(hw, viewW)), dist, turn)
-	after, ok := slantOf(nil, 1, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
+	after, ok := slantOf(nil, 1, lx, lz, rx, rz, panelH, f, viewW, viewH, 0, viewW, viewH)
 	if !ok {
 		t.Fatal("the panel disappeared when the viewer turned to it")
 	}
@@ -247,7 +247,7 @@ func TestASlantRefusesWhatCannotBeDrawn(t *testing.T) {
 		{"far off to the side", 40, 1, 42, 1, panelH, f, viewW, viewH, 100, 100},
 	} {
 		if _, ok := slantOf(nil, 0, c.lx, c.lz, c.rx, c.rz, c.panelH, c.f,
-			c.viewW, c.viewH, c.srcW, c.srcH); ok {
+			c.viewW, c.viewH, 0, c.srcW, c.srcH); ok {
 			t.Errorf("%s: projected anyway", c.what)
 		}
 	}
@@ -402,7 +402,7 @@ func projectInto(t *testing.T, scratch []SlantCol, j int, splay, hw, panelH, f, 
 	viewW, viewH int) Slant {
 	t.Helper()
 	lx, lz, rx, rz := slantChain(j, uniformAngle(splay), sameWidth(hw), uniformGap(slantGap(hw, viewW)), dist, 0)
-	s, ok := slantOf(scratch, j, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
+	s, ok := slantOf(scratch, j, lx, lz, rx, rz, panelH, f, viewW, viewH, 0, viewW, viewH)
 	if !ok {
 		t.Fatalf("panel %d at splay %g, distance %g: no projection", j, splay, dist)
 	}
@@ -433,7 +433,7 @@ func TestASlantOfSomethingTooThinToSeeIsStillDrawn(t *testing.T) {
 
 	for _, d := range []float64{1, 4, 40} {
 		lx, lz, rx, rz := slantChain(0, uniformAngle(0), sameWidth(hw), uniformGap(slantGap(hw, viewW)), d, 0)
-		s, ok := slantOf(nil, 0, lx, lz, rx, rz, panelH, f, viewW, viewH, 4000, 1)
+		s, ok := slantOf(nil, 0, lx, lz, rx, rz, panelH, f, viewW, viewH, 0, 4000, 1)
 		if !ok {
 			t.Fatalf("distance %g: a one-pixel screen was dropped", d)
 		}
@@ -640,5 +640,62 @@ func TestTheCumulativeChainIsTheUniformOne(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// ⛔⛔ TWO FACETS OF ONE SOURCE COVER IT EXACTLY ONCE, which is the whole claim a
+// curved screen rests on: it is the same picture, hinged, and not a picture
+// drawn twice or with a strip missing down the fold.
+//
+// The panel is left flat here on purpose. Curving it is the NEXT thing, and a
+// test that curved and sliced at once could not say which half was wrong.
+func TestTwoFacetsCoverTheSourceExactlyOnce(t *testing.T) {
+	t.Parallel()
+
+	const viewW, viewH, panelH, f = 1920, 1080, 1080.0, 1600.0
+	const srcW = 800
+	// One flat panel, square on, two units away.
+	lx, lz, rx, rz := -400.0, 1600.0, 400.0, 1600.0
+
+	whole, ok := slantOf(nil, 0, lx, lz, rx, rz, panelH, f, viewW, viewH, 0, srcW, viewH)
+	if !ok {
+		t.Fatal("the whole panel did not project")
+	}
+	// The same panel, as its two halves: each covers half the WIDTH and half
+	// the SOURCE.
+	left, okL := slantOf(nil, 0, lx, lz, 0, lz, panelH, f, viewW, viewH, 0, srcW/2, viewH)
+	right, okR := slantOf(nil, 0, 0, lz, rx, rz, panelH, f, viewW, viewH, srcW/2, srcW, viewH)
+	if !okL || !okR {
+		t.Fatalf("a facet did not project: left %t right %t", okL, okR)
+	}
+
+	// Every destination column the whole panel drew, drawn once by a facet,
+	// showing the same source column.
+	got := map[int]int32{}
+	for _, s := range []Slant{left, right} {
+		for i, c := range s.Cols {
+			x := s.Dst.X + i
+			if was, seen := got[x]; seen {
+				t.Errorf("column %d drawn twice: source %d then %d", x, was, c.Src)
+			}
+			got[x] = c.Src
+		}
+	}
+	for i, c := range whole.Cols {
+		x := whole.Dst.X + i
+		src, drawn := got[x]
+		if !drawn {
+			t.Errorf("column %d is in the whole panel and in neither facet", x)
+			continue
+		}
+		// ⚠ Off by one is allowed and nothing else. The facets meet at a source
+		// boundary, and a column whose centre lands within half a pixel of it
+		// rounds to either side -- that is the fold, not a gap.
+		if d := int(c.Src) - int(src); d < -1 || d > 1 {
+			t.Errorf("column %d shows source %d whole and %d in facets", x, c.Src, src)
+		}
+	}
+	if len(got) != len(whole.Cols) {
+		t.Errorf("the facets drew %d columns, the whole panel %d", len(got), len(whole.Cols))
 	}
 }

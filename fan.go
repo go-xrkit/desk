@@ -292,7 +292,7 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 		lx, lz, rx, rz := slantChain(j, angleAt, hwOf, gapAt, f.distance, turn)
 		at := f.screenAt(focus + j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
-			f.panelH, f.f, f.viewW, f.viewH, f.sourceWidth(at), f.srcH)
+			f.panelH, f.f, f.viewW, f.viewH, 0, f.sourceWidth(at), f.srcH)
 		if !ok {
 			continue
 		}
