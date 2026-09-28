@@ -115,6 +115,10 @@ type Plan struct {
 	// one eye's viewport, which is the most the glasses can show at once.
 	ScreenW, ScreenH int
 
+	// curve is the radius a WIDE screen is curved at, as a multiple of the
+	// viewing distance. See [Plan.Curve].
+	curve float64
+
 	// Stereoscopic reports whether the display is in a side-by-side 3D mode, in
 	// which case the two eyes get different pixels of the same frame.
 	Stereoscopic bool
@@ -754,4 +758,40 @@ func (p Plan) sameShapes(q Plan) bool {
 		}
 	}
 	return true
+}
+
+// Curve is the radius screen i is curved at, as a multiple of the viewing
+// distance, or [FlatCurve].
+//
+// ⭐ ONLY A SCREEN WIDER THAN THE PANEL CURVES, whatever the setting says, and
+// that is the doctrine rather than a shortcut. Curving a panel-sized screen bows
+// the thing you are reading and argues with the depth the glasses already
+// present -- measured, worn and rejected on 2026-08-26. A screen three views
+// across is a different object: its edges really are further away than its
+// middle, exactly as on a physical ultrawide, and the curve corrects a geometry
+// that exists rather than inventing one.
+func (p Plan) Curve(i int) float64 {
+	if p.curve <= FlatCurve || p.ScreenWidth(i) <= p.ScreenW {
+		return FlatCurve
+	}
+	return p.curve
+}
+
+// WithCurve returns the plan with its wide screens curved at that radius. Zero
+// or less is flat.
+func (p Plan) WithCurve(c float64) Plan {
+	if c < FlatCurve {
+		c = FlatCurve
+	}
+	p.curve = c
+	return p
+}
+
+// Curves is the radius of every screen, in order, for [Fan.SetCurves].
+func (p Plan) Curves() []float64 {
+	out := make([]float64, p.count)
+	for i := range out {
+		out[i] = p.Curve(i)
+	}
+	return out
 }

@@ -1762,6 +1762,9 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 		// stretched picture but a PANIC.
 		fan.SetAnchoring(plan.Anchoring())
 		fan.SetSourceWidths(widths)
+		// And a wide screen curves, if the settings asked and it is wide enough
+		// to have a geometry worth correcting. See [Plan.Curve].
+		fan.SetCurves(plan.Curves())
 	}
 	return r, strip, grid, fan, nil
 }

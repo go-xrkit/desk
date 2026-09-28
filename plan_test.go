@@ -839,3 +839,40 @@ func TestWidePlanWidensScreenZeroAndNothingElse(t *testing.T) {
 		t.Errorf("the count changed to %d; this helper does not count", got)
 	}
 }
+
+// ⛔⛔ ONLY A SCREEN WIDER THAN THE PANEL CURVES, whatever the setting says.
+// Curving a panel-sized screen bows the thing you are reading and argues with
+// the depth the glasses already present -- that was measured, worn and rejected
+// on 2026-08-26, in those words: "la courbure n'apporte rien". A screen three
+// views across is a different object, and this test is what keeps the old
+// decision from being undone by a setting.
+func TestOnlyAWideScreenCurves(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = p.WithScreenWidth(1, 6400).WithCurve(DefaultCurve)
+
+	if got := p.Curve(0); got != FlatCurve {
+		t.Errorf("a panel-sized screen curves at %g, want flat", got)
+	}
+	if got := p.Curve(1); got != DefaultCurve {
+		t.Errorf("the wide screen curves at %g, want %g", got, DefaultCurve)
+	}
+	// And asking for no curve leaves the wide one flat too: the setting is the
+	// person's, and "wide" is not by itself a request to bend anything.
+	if got := p.WithCurve(FlatCurve).Curve(1); got != FlatCurve {
+		t.Errorf("with no curve asked for, the wide screen curves at %g", got)
+	}
+	// ⚠ A negative radius is flat, not its absolute value: this comes from a
+	// file somebody edits.
+	if got := p.WithCurve(-2).Curve(1); got != FlatCurve {
+		t.Errorf("a negative radius gave %g", got)
+	}
+	if got := p.Curves(); len(got) != 2 || got[0] != FlatCurve || got[1] != DefaultCurve {
+		t.Errorf("Curves() = %v, want [flat, %g]", got, DefaultCurve)
+	}
+}
