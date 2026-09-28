@@ -139,3 +139,44 @@ func TestThePlanCarriesTheDistanceAndTheSplay(t *testing.T) {
 		t.Errorf("a band asked to be flat is splayed %g°", got)
 	}
 }
+
+// ⛔⛔ THE MIRROR OCCUPIES POSITION ZERO, and forgetting it cost a session.
+// With -wide asking for one screen and the mirror on, the desk planned one
+// position, made one virtual display for it, and then had TWO feeds -- the
+// Mac's own screen and the wide one -- for a single place to put them. It
+// stopped with "no screens: 2 feeds for 1 screens".
+//
+// Every unit test passed. It took running the thing to find out, which is why
+// the arithmetic now lives in a function a test can reach.
+func TestAWideDeskCountsTheMirrorIn(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name   string
+		n      int
+		wide   int
+		mirror bool
+		want   int
+	}{
+		// A spreadsheet is one window and a window lives on one display, so the
+		// ribbon of six becomes the wide one -- plus the Mac's screen when it
+		// is on the band.
+		{"wide, with the Mac on the band", 6, 6400, true, 2},
+		{"wide, without it", 6, 6400, false, 1},
+		// ⚠ And no width changes nothing at all: -wide is opt-in, and a desk
+		// that quietly became two screens because the mirror is on would be a
+		// setting nobody asked for.
+		{"no width, mirror on", 6, 0, true, 6},
+		{"no width, mirror off", 6, 0, false, 6},
+		{"no width, and the plan chooses", 0, 0, true, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := screensForWide(c.n, c.wide, c.mirror); got != c.want {
+				t.Errorf("screensForWide(%d, %d, %t) = %d, want %d",
+					c.n, c.wide, c.mirror, got, c.want)
+			}
+		})
+	}
+}

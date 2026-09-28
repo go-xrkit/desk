@@ -586,3 +586,32 @@ func TestARibbonWithNothingInItWritesNoBlock(t *testing.T) {
 		t.Errorf("an empty ribbon block was written:\n%s", data)
 	}
 }
+
+// ⛔ A NONSENSE WIDTH IS THE RIBBON, not an error. These settings are edited by
+// hand, and every number beside this one answers a typo with its default rather
+// than refusing to start a desk.
+func TestWideForgivesNonsense(t *testing.T) {
+	t.Parallel()
+
+	zero, neg, wide := 0, -6400, 6400
+	for _, c := range []struct {
+		name string
+		conf Config
+		want int
+	}{
+		{"no ribbon block at all", Config{}, 0},
+		{"a ribbon that says nothing", Config{Ribbon: &ConfigRibbon{}}, 0},
+		{"a width", Config{Ribbon: &ConfigRibbon{Wide: &wide}}, 6400},
+		{"zero is the ribbon", Config{Ribbon: &ConfigRibbon{Wide: &zero}}, 0},
+		{"negative is the ribbon, not its absolute value",
+			Config{Ribbon: &ConfigRibbon{Wide: &neg}}, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := c.conf.Wide(); got != c.want {
+				t.Errorf("Wide() = %d, want %d", got, c.want)
+			}
+		})
+	}
+}

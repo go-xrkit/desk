@@ -86,6 +86,11 @@ func run() int {
 	screen := flag.String("screen", "", "which display to take over, matched by name")
 	fov := flag.Float64("fov", 0, "horizontal field of view in degrees, when the catalogue does not know")
 	count := flag.Int("screens", 0, fmt.Sprintf("how many screens on the ribbon, 1 to %d (0 = the setting, or six)", desk.MaxScreens))
+	wide := flag.Int("wide", 0,
+		"one screen this many pixels across instead of the ribbon, for a window "+
+			"that does not fit one panel -- a wide spreadsheet. 0 = the setting. "+
+			"Shown one source pixel per panel pixel and panned by turning the head; "+
+			"5120 and 6400 open on every machine measured, 3840 and 7680 are refused")
 	distance := flag.Float64("distance", 0, fmt.Sprintf("how far the band sits, 1 to %g screens across the view (0 = the setting, or one)", desk.MaxDistance))
 	splay := flag.Float64("splay", 0,
 		fmt.Sprintf("the angle between one screen and the next, 0 to %g degrees "+
@@ -370,7 +375,10 @@ func run() int {
 		// defaults and the only way to move either was the keys. Found by using
 		// the flag as an instrument and reading the note beside the picture it
 		// took: "-distance 2" came back "curved 20.0° at 1.00x".
-		plan, err := planFor(chosen, n, dist, splay, *fov,
+		// The flag if it was given, else the settings -- the same shape as every
+		// other number here.
+		wideW := wideOr(*wide, settings)
+		plan, err := planFor(chosen, screensForWide(n, wideW, settings.Mirror()), dist, splay, *fov,
 			desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
 			settings.Anchoring())
 		if err != nil {
@@ -400,6 +408,13 @@ func run() int {
 		if mirror {
 			made = plan.WithScreens(plan.Count() - 1)
 		}
+		// ⛔ THE WIDTH GOES ON THE PLAN THAT IS MADE, NOT ON THE BAND'S. They do
+		// not index alike: with the mirror in front, band position i is the
+		// display made at i-1, so widening the band's screen zero would widen
+		// the MAC'S screen and lose the wide one entirely. The band picks the
+		// shape up by itself once the source is that wide -- it already takes
+		// the shape of what it shows.
+		made = desk.WidePlan(made, wideW)
 		screens, err := desk.Provide(ctx, made, logf)
 		if err != nil {
 			// Back to waiting rather than out of the program.
@@ -1174,8 +1189,42 @@ func ribbonIDs(mirror bool, mac uint64, made []uint64) []uint64 {
 func planFor(d glasses.Display, screens int, dist, splay, fov float64,
 	usb *glasses.USB, anchor desk.Anchoring) (desk.Plan, error) {
 
-	return desk.NewPlan(d, desk.Options{
+	p, err := desk.NewPlan(d, desk.Options{
 		Screens: screens, FOVDeg: fov, Distance: dist, SplayDeg: splay, USB: usb,
 		Anchor: anchor,
 	})
+	return p, err
+}
+
+// screensForWide is how many ribbon POSITIONS a wide desk needs.
+//
+// ⛔⛔ THE MIRROR OCCUPIES POSITION ZERO, and forgetting it cost a session: with
+// -wide asking for one screen and the mirror on, the desk planned one position,
+// made one virtual display for it, and then had two feeds -- the Mac's own
+// screen and the wide one -- for a single place to put them. It stopped with
+// "no screens: 2 feeds for 1 screens", and every unit test had passed.
+//
+// So: two positions when the Mac's screen is on the band, one when it is not.
+func screensForWide(n, wide int, mirror bool) int {
+	if wide <= 0 {
+		return n
+	}
+	if mirror {
+		return 2
+	}
+	return 1
+}
+
+// wideOr is the flag if it was given, else the settings file.
+//
+// ⛔ THE SAME SHAPE AS EVERY OTHER NUMBER HERE, and deliberately so: -screens,
+// -distance and -splay all read "0 means the setting". A wide screen that
+// alone took its default from somewhere else would be the one a person gets
+// wrong, and this file has already paid once for a flag that was accepted and
+// then dropped on the floor -- see planFor.
+func wideOr(flag int, settings desk.Config) int {
+	if flag > 0 {
+		return flag
+	}
+	return settings.Wide()
 }

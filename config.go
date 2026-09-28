@@ -92,6 +92,26 @@ type ConfigRibbon struct {
 	// [DefaultSplayDeg]; zero is the flat band. See [Plan.SplayDeg].
 	Splay *float64 `hcl:"splay"`
 
+	// Wide asks for ONE screen that many pixels across, instead of a ribbon of
+	// panel-sized ones. Nil or zero is the ribbon.
+	//
+	// ⭐ IT EXISTS BECAUSE A SPREADSHEET IS ONE WINDOW. Asked for in those
+	// words -- "en deplacement on peut avoir besoin de traiter des fichiers
+	// excel tres large" -- and a ribbon does not help: a window lives on ONE
+	// display, so six screens of 1920 are six places to put six windows, not
+	// one place to put a wide sheet.
+	//
+	// The band already shows it correctly. Distance is the pixel scale of the
+	// band, so at one a 6400-pixel screen occupies 6400 pixels of band of which
+	// the view shows 1920 -- ONE SOURCE PIXEL PER PANEL PIXEL, readable, and
+	// panned by turning the head. Nothing here scales it down.
+	//
+	// ⚠ PARTICULAR WIDTHS ARE REFUSED by the window server, on every machine
+	// measured: 3840, 4096 and 7680 at every height tried, while 5120 and 6400
+	// open. See widthsToTry. A refused width falls back a pixel either side,
+	// which is enough for most of them and is said out loud when it happens.
+	Wide *int `hcl:"wide"`
+
 	// Distance is how far the band sits from the viewer, as a multiple of the
 	// distance at which one screen fills the view. Nil, or anything below one,
 	// means one. See [Plan.Distance].
@@ -543,4 +563,39 @@ func (c Config) Anchoring() Anchoring {
 		return AnchorOnGaze
 	}
 	return AnchorFixed
+}
+
+// Wide is how many pixels across the single wide screen should be, or 0 for
+// the ordinary ribbon.
+//
+// ⛔ A NEGATIVE WIDTH IS THE RIBBON, not an error and not an absolute value.
+// This is read from a file a person edits by hand, and the settings that came
+// before it all answer a nonsense value with the default rather than refusing
+// to start a desk over a typo.
+func (c Config) Wide() int {
+	if c.Ribbon == nil || c.Ribbon.Wide == nil || *c.Ribbon.Wide <= 0 {
+		return 0
+	}
+	return *c.Ribbon.Wide
+}
+
+// WidePlan is the plan with its single wide screen applied, or the plan
+// unchanged when no width was asked for.
+//
+// ⚠ IT WIDENS SCREEN ZERO AND COUNTS NOTHING. Asking for ONE screen is the
+// caller's job, and the command does it -- a spreadsheet is one window and a
+// window lives on one display, so a wide screen beside a ribbon of ordinary
+// ones is not what was asked for. Enforcing it here was tempting and wrong: a
+// plan's count is fixed when it is built, so this could only have SILENTLY
+// ignored a caller that wanted both, which is worse than letting it happen.
+//
+// ⚠ It does not clamp the width. The window server refuses particular widths
+// whatever they are (3840, 4096 and 7680 on every machine measured), and
+// Provide answers a refusal by trying a pixel either side and saying so. A
+// ceiling invented here would refuse sizes that machine would have granted.
+func WidePlan(p Plan, wide int) Plan {
+	if wide <= 0 {
+		return p
+	}
+	return p.WithScreenWidth(0, wide)
 }
