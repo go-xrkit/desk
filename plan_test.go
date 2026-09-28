@@ -854,25 +854,25 @@ func TestOnlyAWideScreenCurves(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p = p.WithScreenWidth(1, 6400).WithCurve(DefaultCurve)
+	p = p.WithScreenWidth(1, 6400).WithBend(DefaultBend)
 
-	if got := p.Curve(0); got != FlatCurve {
+	if got := p.Bend(0); got != FlatBend {
 		t.Errorf("a panel-sized screen curves at %g, want flat", got)
 	}
-	if got := p.Curve(1); got != DefaultCurve {
-		t.Errorf("the wide screen curves at %g, want %g", got, DefaultCurve)
+	if got := p.Bend(1); got != DefaultBend {
+		t.Errorf("the wide screen curves at %g, want %g", got, DefaultBend)
 	}
 	// And asking for no curve leaves the wide one flat too: the setting is the
 	// person's, and "wide" is not by itself a request to bend anything.
-	if got := p.WithCurve(FlatCurve).Curve(1); got != FlatCurve {
+	if got := p.WithBend(FlatBend).Bend(1); got != FlatBend {
 		t.Errorf("with no curve asked for, the wide screen curves at %g", got)
 	}
 	// ⚠ A negative radius is flat, not its absolute value: this comes from a
 	// file somebody edits.
-	if got := p.WithCurve(-2).Curve(1); got != FlatCurve {
+	if got := p.WithBend(-2).Bend(1); got != FlatBend {
 		t.Errorf("a negative radius gave %g", got)
 	}
-	if got := p.Curves(); len(got) != 2 || got[0] != FlatCurve || got[1] != DefaultCurve {
-		t.Errorf("Curves() = %v, want [flat, %g]", got, DefaultCurve)
+	if got := p.Bends(); len(got) != 2 || got[0] != FlatBend || got[1] != DefaultBend {
+		t.Errorf("Curves() = %v, want [flat, %g]", got, DefaultBend)
 	}
 }

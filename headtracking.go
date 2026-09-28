@@ -384,15 +384,21 @@ func (d *Desk) closeHead() {
 	}
 }
 
-// curveBy turns every screen a little further towards the viewer, or a little
+// splayBy turns every screen a little further towards the viewer, or a little
 // flatter. The caller holds the lock.
+//
+// ⛔ IT WAS CALLED curveBy AND THAT WAS THE WRONG WORD, harmlessly until a
+// screen could genuinely curve. What it changes is the SPLAY -- the fold
+// between one screen and the next -- and not the bend of any screen's own
+// surface. Two meanings of "curve" in one package is the trap this file has
+// caught elsewhere; see [Plan.Bend].
 //
 // ⭐ A STEPPER AT ITS STOP DOES NOTHING, QUIETLY. Nobody expects a volume key to
 // report anything at maximum; they expect it to stop. [Plan.WithSplay] clamps to
 // 0..[MaxSplayDeg], so a press past either end asks for the shape the desk is
 // already in -- and rebuilding the band, the gallery and the fan to arrive back
 // where it started is work nobody asked for, once per press, held.
-func (d *Desk) curveBy(deg float64) {
+func (d *Desk) splayBy(deg float64) {
 	want := d.plan.WithSplay(d.plan.SplayDeg() + deg)
 	if want.SplayDeg() == d.plan.SplayDeg() {
 		return
@@ -403,7 +409,7 @@ func (d *Desk) curveBy(deg float64) {
 // anchorAs changes what the chain does when the gaze moves, and says so. The
 // caller holds the lock.
 //
-// ⭐ ASKING FOR THE DESK IT IS ALREADY IN DOES NOTHING, QUIETLY, like curveBy
+// ⭐ ASKING FOR THE DESK IT IS ALREADY IN DOES NOTHING, QUIETLY, like splayBy
 // beside it: rebuilding the band, the gallery and the fan to arrive back where
 // it started is work nobody asked for. It still SAYS which desk this is,
 // because the two rows are not on and off -- somebody who presses the one that
@@ -421,4 +427,21 @@ func (d *Desk) anchorAs(a Anchoring) {
 		d.fan.SetAnchoring(d.plan.Anchoring())
 	}
 	d.notice.say(a.said())
+}
+
+// bendAs bends the wide screen round the viewer, or leaves it flat, and rebuilds
+// the band. The caller holds the lock.
+//
+// ⭐ ASKING FOR THE DESK IT IS ALREADY IN DOES NOTHING, QUIETLY, like splayBy
+// beside it: rebuilding the band, the gallery and the fan to arrive back where
+// it started is work nobody asked for, once per press.
+//
+// ⚠ IT REBUILDS, unlike anchorAs. The anchoring changes one number the fan reads
+// per frame; a bend changes how many panels there ARE, so the fan's slot buffers
+// and the ring both have to be made again.
+func (d *Desk) bendAs(b float64) {
+	if d.plan.BendAsked() == b {
+		return
+	}
+	d.err = d.reshape(d.plan.WithBend(b))
 }

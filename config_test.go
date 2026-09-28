@@ -628,17 +628,17 @@ func TestCurveTellsFlatFromUnset(t *testing.T) {
 		conf Config
 		want float64
 	}{
-		{"no ribbon block", Config{}, FlatCurve},
-		{"a ribbon that says nothing", Config{Ribbon: &ConfigRibbon{}}, FlatCurve},
-		{"asked to be flat", Config{Ribbon: &ConfigRibbon{Curve: &zero}}, FlatCurve},
-		{"the physical case", Config{Ribbon: &ConfigRibbon{Curve: &one}}, DefaultCurve},
+		{"no ribbon block", Config{}, FlatBend},
+		{"a ribbon that says nothing", Config{Ribbon: &ConfigRibbon{}}, FlatBend},
+		{"asked to be flat", Config{Ribbon: &ConfigRibbon{Bend: &zero}}, FlatBend},
+		{"the physical case", Config{Ribbon: &ConfigRibbon{Bend: &one}}, DefaultBend},
 		{"a negative radius is flat, not its absolute value",
-			Config{Ribbon: &ConfigRibbon{Curve: &neg}}, FlatCurve},
+			Config{Ribbon: &ConfigRibbon{Bend: &neg}}, FlatBend},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := c.conf.Curve(); got != c.want {
+			if got := c.conf.Bend(); got != c.want {
 				t.Errorf("Curve() = %g, want %g", got, c.want)
 			}
 		})

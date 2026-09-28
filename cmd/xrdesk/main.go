@@ -86,8 +86,8 @@ func run() int {
 	screen := flag.String("screen", "", "which display to take over, matched by name")
 	fov := flag.Float64("fov", 0, "horizontal field of view in degrees, when the catalogue does not know")
 	count := flag.Int("screens", 0, fmt.Sprintf("how many screens on the ribbon, 1 to %d (0 = the setting, or six)", desk.MaxScreens))
-	curve := flag.Float64("curve", -1,
-		"how far a WIDE screen is curved, as a multiple of the viewing distance: "+
+	bend := flag.Float64("bend", -1,
+		"how far a WIDE screen is bent round you, as a multiple of the viewing distance: "+
 			"1 puts every pixel the same distance from the eye, like a physical "+
 			"curved monitor; 0 is flat; -1 = the setting. Panel-sized screens stay flat")
 	wide := flag.Int("wide", 0,
@@ -382,7 +382,7 @@ func run() int {
 		// The flag if it was given, else the settings -- the same shape as every
 		// other number here.
 		wideW := wideOr(*wide, settings)
-		curveR := curveOr(*curve, settings)
+		bendR := bendOr(*bend, settings)
 		plan, err := planFor(chosen, screensForWide(n, wideW, settings.Mirror()), dist, splay, *fov,
 			desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
 			settings.Anchoring())
@@ -422,7 +422,7 @@ func run() int {
 		made = desk.WidePlan(made, wideW)
 		// The band carries the curve; the plan that is MADE does not need it,
 		// since nothing about creating a display depends on how it is drawn.
-		plan = plan.WithCurve(curveR)
+		plan = plan.WithBend(bendR)
 		screens, err := desk.Provide(ctx, made, logf)
 		if err != nil {
 			// Back to waiting rather than out of the program.
@@ -1237,14 +1237,14 @@ func wideOr(flag int, settings desk.Config) int {
 	return settings.Wide()
 }
 
-// curveOr is the flag if it was given, else the settings file.
+// bendOr is the flag if it was given, else the settings file.
 //
 // ⚠ THE FLAG'S "NOT GIVEN" IS -1, NOT ZERO, because zero is a real answer here:
-// it means flat, and a person who writes -curve 0 is overriding a curve in
+// it means flat, and a person who writes -bend 0 is overriding a bend in
 // their settings rather than declining to say anything.
-func curveOr(flag float64, settings desk.Config) float64 {
+func bendOr(flag float64, settings desk.Config) float64 {
 	if flag >= 0 {
 		return flag
 	}
-	return settings.Curve()
+	return settings.Bend()
 }

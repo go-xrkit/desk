@@ -117,7 +117,7 @@ type Plan struct {
 
 	// curve is the radius a WIDE screen is curved at, as a multiple of the
 	// viewing distance. See [Plan.Curve].
-	curve float64
+	bend float64
 
 	// Stereoscopic reports whether the display is in a side-by-side 3D mode, in
 	// which case the two eyes get different pixels of the same frame.
@@ -761,7 +761,7 @@ func (p Plan) sameShapes(q Plan) bool {
 }
 
 // Curve is the radius screen i is curved at, as a multiple of the viewing
-// distance, or [FlatCurve].
+// distance, or [FlatBend].
 //
 // ⭐ ONLY A SCREEN WIDER THAN THE PANEL CURVES, whatever the setting says, and
 // that is the doctrine rather than a shortcut. Curving a panel-sized screen bows
@@ -770,28 +770,36 @@ func (p Plan) sameShapes(q Plan) bool {
 // across is a different object: its edges really are further away than its
 // middle, exactly as on a physical ultrawide, and the curve corrects a geometry
 // that exists rather than inventing one.
-func (p Plan) Curve(i int) float64 {
-	if p.curve <= FlatCurve || p.ScreenWidth(i) <= p.ScreenW {
-		return FlatCurve
+func (p Plan) Bend(i int) float64 {
+	if p.bend <= FlatBend || p.ScreenWidth(i) <= p.ScreenW {
+		return FlatBend
 	}
-	return p.curve
+	return p.bend
 }
 
 // WithCurve returns the plan with its wide screens curved at that radius. Zero
 // or less is flat.
-func (p Plan) WithCurve(c float64) Plan {
-	if c < FlatCurve {
-		c = FlatCurve
+func (p Plan) WithBend(c float64) Plan {
+	if c < FlatBend {
+		c = FlatBend
 	}
-	p.curve = c
+	p.bend = c
 	return p
 }
 
 // Curves is the radius of every screen, in order, for [Fan.SetCurves].
-func (p Plan) Curves() []float64 {
+func (p Plan) Bends() []float64 {
 	out := make([]float64, p.count)
 	for i := range out {
-		out[i] = p.Curve(i)
+		out[i] = p.Bend(i)
 	}
 	return out
 }
+
+// BendAsked is the bend the plan was given, whatever its screens are.
+//
+// ⚠ NOT [Plan.Bend], which answers per screen and returns flat for one no wider
+// than the panel. A desk whose wide screen has not arrived yet would otherwise
+// look flat to a caller asking "is the bend already what I want", and pressing
+// the row would rebuild the band for nothing -- or worse, never take effect.
+func (p Plan) BendAsked() float64 { return p.bend }

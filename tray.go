@@ -245,7 +245,7 @@ func TrayRows() []TrayRow {
 			// at their hands: "the minus has to be to the left of the plus".
 			// Listed the other way round it was reported as inverted, and it was.
 			{Title: "Flatter", Action: ActionFlatter, Symbol: "rectangle"},
-			{Title: "More curved", Action: ActionRounder, Symbol: "arrow.left.and.right"},
+			{Title: "More folded", Action: ActionRounder, Symbol: "arrow.left.and.right"},
 			// ⛔ TWO ROWS AND NOT A TICK. macOS draws nothing at all for a
 			// checkbox that is off, so one toggling row would say which way it is
 			// only half the time -- and these two are not on and off, they are
@@ -254,6 +254,15 @@ func TrayRows() []TrayRow {
 				Symbol: "mappin.and.ellipse"},
 			{Title: "Turn each screen towards me", Action: ActionDeskFacesMe,
 				Symbol: "perspective"},
+			// ⭐ TWO ROWS, NOT A TICK, for the reason the two above are: macOS
+			// draws nothing for an unticked row, and these are two shapes rather
+			// than a state. They are here because the answer is judged by
+			// LOOKING -- the curve was rejected in August by wearing it, and
+			// comparing two builds through a restart is not comparing.
+			{Title: "Wrap the wide screen round me", Action: ActionWrapWide,
+				Symbol: "circle.righthalf.filled"},
+			{Title: "Leave the wide screen flat", Action: ActionFlatWide,
+				Symbol: "rectangle.split.3x1"},
 		}},
 		{Title: "The screens", Symbol: "rectangle.stack", Rows: []TrayRow{
 			{Title: "Show the gallery", Action: ActionGalleryOpen,
