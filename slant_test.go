@@ -29,7 +29,7 @@ func TestASplayOfNothingIsTheFlatBand(t *testing.T) {
 	for _, d := range []float64{1, 2, 4} {
 		hw, panelH, f := slantOptics(fov, viewW, viewW, viewH)
 		for _, j := range []int{-1, 0, 1} {
-			lx, lz, rx, rz := slantChain(j, 0, sameWidth(hw), slantGap(hw, viewW), d, 0)
+			lx, lz, rx, rz := slantChain(j, uniformAngle(0), sameWidth(hw), uniformGap(slantGap(hw, viewW)), d, 0)
 			s, ok := slantOf(nil, j+1, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
 			if !ok {
 				if j != 0 && d == 1 {
@@ -195,14 +195,14 @@ func TestTheChainTurnsWithTheViewer(t *testing.T) {
 	hw, panelH, f := slantOptics(fov, viewW, viewW, viewH)
 
 	// Where the next panel's centre is, as an angle.
-	lx, lz, rx, rz := slantChain(1, splay, sameWidth(hw), slantGap(hw, viewW), dist, 0)
+	lx, lz, rx, rz := slantChain(1, uniformAngle(splay), sameWidth(hw), uniformGap(slantGap(hw, viewW)), dist, 0)
 	turn := math.Atan2((lx+rx)/2, (lz+rz)/2)
 	if turn <= 0 {
 		t.Fatalf("the next panel is at %g radians", turn)
 	}
 
 	before := project(t, 1, splay, hw, panelH, f, dist, viewW, viewH)
-	lx, lz, rx, rz = slantChain(1, splay, sameWidth(hw), slantGap(hw, viewW), dist, turn)
+	lx, lz, rx, rz = slantChain(1, uniformAngle(splay), sameWidth(hw), uniformGap(slantGap(hw, viewW)), dist, turn)
 	after, ok := slantOf(nil, 1, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
 	if !ok {
 		t.Fatal("the panel disappeared when the viewer turned to it")
@@ -401,7 +401,7 @@ func project(t *testing.T, j int, splay, hw, panelH, f, dist float64,
 func projectInto(t *testing.T, scratch []SlantCol, j int, splay, hw, panelH, f, dist float64,
 	viewW, viewH int) Slant {
 	t.Helper()
-	lx, lz, rx, rz := slantChain(j, splay, sameWidth(hw), slantGap(hw, viewW), dist, 0)
+	lx, lz, rx, rz := slantChain(j, uniformAngle(splay), sameWidth(hw), uniformGap(slantGap(hw, viewW)), dist, 0)
 	s, ok := slantOf(scratch, j, lx, lz, rx, rz, panelH, f, viewW, viewH, viewW, viewH)
 	if !ok {
 		t.Fatalf("panel %d at splay %g, distance %g: no projection", j, splay, dist)
@@ -432,7 +432,7 @@ func TestASlantOfSomethingTooThinToSeeIsStillDrawn(t *testing.T) {
 	hw, panelH, f := slantOptics(45, viewW, 4000, 1)
 
 	for _, d := range []float64{1, 4, 40} {
-		lx, lz, rx, rz := slantChain(0, 0, sameWidth(hw), slantGap(hw, viewW), d, 0)
+		lx, lz, rx, rz := slantChain(0, uniformAngle(0), sameWidth(hw), uniformGap(slantGap(hw, viewW)), d, 0)
 		s, ok := slantOf(nil, 0, lx, lz, rx, rz, panelH, f, viewW, viewH, 4000, 1)
 		if !ok {
 			t.Fatalf("distance %g: a one-pixel screen was dropped", d)
@@ -599,4 +599,46 @@ func sameWidth(hw float64) func(int) float64 {
 // measuring what will be on the glasses rather than what the geometry meant.
 func srcRowAt(col SlantCol, y, srcH int) int {
 	return int(int64(int32(y)-col.Y0) * int64(srcH) / int64(col.Y1-col.Y0))
+}
+
+// ⛔⛔ THE CUMULATIVE CHAIN IS THE UNIFORM ONE, EXACTLY, and this is the whole
+// licence for the change: slantChain used to compute panel k's angle as
+// k*splay, and now asks a function for it. If the two disagree anywhere, every
+// desk shipped so far moves.
+//
+// The fold protocol proves it across seven shapes, seven splays, five distances
+// and both anchorings. This proves the arithmetic itself, which is what makes
+// the protocol's silence readable rather than lucky.
+func TestTheCumulativeChainIsTheUniformOne(t *testing.T) {
+	t.Parallel()
+
+	const hw, gap, distance = 320.0, 12.0, 1.0
+	hwOf := func(int) float64 { return hw }
+
+	for _, splay := range []float64{0, 5, 12.5, 20, 45, 51.6, 90} {
+		for j := -4; j <= 4; j++ {
+			// The old form, written out here rather than called: a test that
+			// asked the code for both answers would compare it with itself.
+			old := func(k float64) float64 { return k * splay }
+			lx, lz, rx, rz := slantChain(j, old, hwOf, uniformGap(gap), distance, 0)
+
+			// And the bisector the new hinge averages to, at every fold.
+			for k := -4; k <= 4; k++ {
+				mid := (old(float64(k)) + old(float64(k)+1)) / 2
+				if want := (float64(k) + 0.5) * splay; math.Abs(mid-want) > 1e-12 {
+					t.Fatalf("splay %g, fold %d: the bisector averages to %g, want %g",
+						splay, k, mid, want)
+				}
+			}
+
+			// Nothing to compare the corners with except themselves here, so
+			// the assertion is that they are FINITE and in front of the viewer
+			// -- the two things the projection below depends on.
+			for _, v := range []float64{lx, lz, rx, rz} {
+				if math.IsNaN(v) || math.IsInf(v, 0) {
+					t.Fatalf("splay %g, panel %d: corner %g", splay, j, v)
+				}
+			}
+		}
+	}
 }

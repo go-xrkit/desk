@@ -167,8 +167,8 @@ func slantGap(hw float64, srcW int) float64 {
 //
 // The returned edges are the panel's left and right vertical edges, and panelH
 // its world height.
-func slantChain(j int, splayDeg float64, hwOf func(k int) float64,
-	gap, distance, turn float64) (lx, lz, rx, rz float64) {
+func slantChain(j int, angleAt func(k float64) float64, hwOf func(k int) float64,
+	gapAt func(k int) float64, distance, turn float64) (lx, lz, rx, rz float64) {
 	// Walk out to panel j along the chain, hinge by hinge. Only |j| steps, and a
 	// desk is nine screens: the loop is cheaper than the trigonometry it would
 	// take to close the form, and it cannot drift from the definition.
@@ -178,10 +178,19 @@ func slantChain(j int, splayDeg float64, hwOf func(k int) float64,
 	// widen every screen by it -- the pixels would stretch and nothing would
 	// look wrong enough to notice.
 	ax, az := -hwOf(0), distance
-	along := func(k, w float64) (float64, float64) {
-		a := rad(k * splayDeg)
-		return w * math.Cos(a), -w * math.Sin(a)
+	// ⛔ THE ANGLE IS CUMULATIVE, NOT k TIMES ONE SPLAY. Both say the same thing
+	// while every hinge folds by the same amount, and only the cumulative form
+	// can say anything else -- which is what a CURVED screen needs: its facets
+	// fold by a fraction of a degree each, between screens that fold by twenty.
+	//
+	// ⚠ And it is exactly equal in the uniform case, by construction:
+	// angleAt(k) = k*splay, and the bisector below averages to (k+0.5)*splay.
+	// The fold protocol proves it rather than this comment.
+	atAngle := func(a, w float64) (float64, float64) {
+		r := rad(a)
+		return w * math.Cos(r), -w * math.Sin(r)
 	}
+	along := func(k, w float64) (float64, float64) { return atAngle(angleAt(k), w) }
 	// hinge is the offset from panel k's left edge to panel k+1's left edge: the
 	// panel's own extent along its OWN direction, then the gap along the
 	// BISECTOR of the fold.
@@ -194,7 +203,11 @@ func slantChain(j int, splayDeg float64, hwOf func(k int) float64,
 	// against 438/402. Half the fold each is the only split with no side to it.
 	hinge := func(k int) (float64, float64) {
 		sx, sz := along(float64(k), 2*hwOf(k))
-		gx, gz := along(float64(k)+0.5, gap)
+		// The bisector of THIS fold: halfway between the two panels it joins,
+		// which is (k+0.5)*splay when every fold is the same and is the only
+		// thing that stays symmetric when they are not.
+		mid := (angleAt(float64(k)) + angleAt(float64(k)+1)) / 2
+		gx, gz := atAngle(mid, gapAt(k))
 		return sx + gx, sz + gz
 	}
 	switch {
@@ -346,4 +359,19 @@ func slantOptics(fovDeg float64, viewW, srcW, srcH int) (hw, panelH, f float64) 
 	f = float64(viewW) / 2 / hw
 	panelH = 2 * hw * float64(srcH) / float64(srcW)
 	return hw, panelH, f
+}
+
+// uniformAngle is the chain every desk had before a screen could curve: every
+// hinge folds by the same splay, so panel k sits at k times it.
+//
+// ⚠ IT TAKES A FLOAT k, and that is not carelessness: the bisector of a fold
+// asks for the angle half a panel along, which is the one place the index is
+// not whole.
+func uniformAngle(splayDeg float64) func(k float64) float64 {
+	return func(k float64) float64 { return k * splayDeg }
+}
+
+// uniformGap is the same gap at every hinge.
+func uniformGap(g float64) func(int) float64 {
+	return func(int) float64 { return g }
 }

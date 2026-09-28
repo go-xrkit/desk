@@ -29,8 +29,13 @@ import (
 // faces. See [Slant] for what one turned panel projects to, and why that is a
 // trapezoid rather than a guess.
 type Fan struct {
-	n                  int
-	splayDeg           float64
+	n        int
+	splayDeg float64
+	// angleAt and gapAt describe the chain: built once here rather than per
+	// panel per frame, which is sixty times a second times however many are in
+	// shot.
+	angleAt            func(k float64) float64
+	gapAt              func(k int) float64
 	distance           float64
 	hw, gap, panelH, f float64
 	// anchor is what the chain does when the gaze moves. See [Anchoring].
@@ -158,7 +163,8 @@ func (f *Fan) hwOf(focus int) func(k int) float64 {
 // screen a panel shows depends on where the chain was built from. A chain of
 // identical screens does not care and every other one does.
 func (f *Fan) centre(focus, j int) (x, z float64) {
-	lx, lz, rx, rz := slantChain(j, f.splayDeg, f.hwOf(focus), f.gap, f.distance, 0)
+	angleAt, gapAt := f.chainOf()
+	lx, lz, rx, rz := slantChain(j, angleAt, f.hwOf(focus), gapAt, f.distance, 0)
 	return (lx + rx) / 2, (lz + rz) / 2
 }
 
@@ -280,9 +286,10 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// where they are LOOKING -- centred on the anchor instead would leave the
 	// half of the view they turned towards empty.
 	hwOf := f.hwOf(focus)
+	angleAt, gapAt := f.chainOf()
 	slot := 0
 	for j := base - reach; j <= base+reach; j++ {
-		lx, lz, rx, rz := slantChain(j, f.splayDeg, hwOf, f.gap, f.distance, turn)
+		lx, lz, rx, rz := slantChain(j, angleAt, hwOf, gapAt, f.distance, turn)
 		at := f.screenAt(focus + j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
 			f.panelH, f.f, f.viewW, f.viewH, f.sourceWidth(at), f.srcH)
@@ -339,4 +346,21 @@ func (a Anchoring) said() string {
 		return "the desk stays where it is"
 	}
 	return "each screen turns towards you"
+}
+
+// chainOf is the chain this fan walks: its own if it was given one, the uniform
+// splay-and-gap chain otherwise.
+//
+// ⛔ RESOLVED ONCE PER FRAME, NOT PER PANEL. A closure built inside the loop
+// would be built for every panel in shot, sixty times a second, to say the same
+// thing each time.
+func (f *Fan) chainOf() (func(float64) float64, func(int) float64) {
+	angleAt, gapAt := f.angleAt, f.gapAt
+	if angleAt == nil {
+		angleAt = uniformAngle(f.splayDeg)
+	}
+	if gapAt == nil {
+		gapAt = uniformGap(f.gap)
+	}
+	return angleAt, gapAt
 }
