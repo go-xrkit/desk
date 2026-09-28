@@ -811,6 +811,16 @@ func New(plan Plan, feeds []Feed) (*Desk, error) {
 // Plan returns what this desk was built from.
 func (d *Desk) Plan() Plan { return d.plan }
 
+// Facets is how many flat pieces the band is drawn from: one per screen until a
+// screen curves, and several for a wide one that does. Zero when the band is
+// flat and drawn by the strip, which has no facets to count.
+func (d *Desk) Facets() int {
+	if d.fan == nil {
+		return 0
+	}
+	return d.fan.Facets()
+}
+
 // Nav exposes the navigator, for a caller that wants to ask where the ribbon is.
 func (d *Desk) Nav() *ribbon.Nav { return d.nav }
 

@@ -347,7 +347,19 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 	feeds := make([]Feed, plan.Count())
 	for i := 0; i < plan.Count() && i < len(s.IDs); i++ {
 		st, err := screencapture.CaptureDisplay(ctx,
-			screencapture.Display{ID: uint32(s.IDs[i]), Width: plan.ScreenW, Height: plan.ScreenH},
+			// ⛔⛔ THIS SCREEN'S OWN WIDTH, NOT THE PANEL'S. Asking for plan.ScreenW
+			// made ScreenCaptureKit SCALE a wide display down to panel size before
+			// the desk ever saw it: a 6400-pixel screen arrived as 1920, and the
+			// band -- which takes the shape of what it shows -- dutifully treated
+			// it as panel-sized. Every claim about one source pixel per panel
+			// pixel was false at this line, and nothing downstream could tell:
+			// the picture was sharp, sixty frames a second, and three times too
+			// small.
+			//
+			// Found by making the journal say what the band believed its screens
+			// were: "2 facet(s) for 2 screen(s) of [1670 1920]", with a 6400-wide
+			// display listed three lines above.
+			screencapture.Display{ID: uint32(s.IDs[i]), Width: plan.ScreenWidth(i), Height: plan.ScreenH},
 			screencapture.Options{
 				Width:  plan.ScreenW,
 				Height: plan.ScreenH,

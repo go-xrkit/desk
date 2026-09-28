@@ -446,3 +446,17 @@ func (f *Fan) faceAt(focus, j int) (screen, srcX0, srcX1 int) {
 	fa := f.ring.at(f.firstFacet(focus) + j)
 	return fa.screen, fa.srcX0, fa.srcX1
 }
+
+// Facets is how many flat pieces the band is drawn from, which is one per
+// screen until a screen curves.
+//
+// ⛔ IT EXISTS TO BE SAID OUT LOUD. A curved screen and a flat one draw the
+// same picture at the same speed, so a journal that does not name the facet
+// count leaves "did the curve apply?" answerable only by squinting through the
+// glasses -- and the first run of it looked perfect while proving nothing.
+func (f *Fan) Facets() int {
+	if f.ring == nil {
+		return f.n
+	}
+	return len(f.ring.f)
+}

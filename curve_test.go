@@ -284,3 +284,49 @@ func TestACurvedPlanReachesTheFanAsFacets(t *testing.T) {
 		t.Errorf("the panel-sized screen was cut into %d, want 1 -- only a wide screen curves", ones)
 	}
 }
+
+// ⛔⛔ Facets IS THE LINE THAT FOUND THE DEFECT, so it is tested like one. A
+// curved screen and a flat one draw the same picture at the same speed: the
+// first curved run through the glasses looked perfect and proved nothing,
+// because nothing could say which of the two it was.
+func TestFacetsSaysWhatTheBandIsDrawnFrom(t *testing.T) {
+	t.Parallel()
+
+	// A fan with no ring answers with its screens, which is what it drew from
+	// before facets existed.
+	if got := (&Fan{n: 4, srcW: 1920}).Facets(); got != 4 {
+		t.Errorf("with no ring, Facets() = %d, want the 4 screens", got)
+	}
+	// A desk with no fan is drawn by the strip, which has no facets to count.
+	if got := (&Desk{}).Facets(); got != 0 {
+		t.Errorf("with no fan, Facets() = %d, want 0", got)
+	}
+	// And one WITH a fan answers from it.
+	if got := (&Desk{fan: &Fan{n: 3, srcW: 1920}}).Facets(); got != 3 {
+		t.Errorf("with a fan of 3, Facets() = %d, want 3", got)
+	}
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	p, err := NewPlan(beast, Options{Screens: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	flat, err := NewFan(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := flat.Facets(); got != 2 {
+		t.Errorf("a flat desk of 2 is drawn from %d facets, want 2", got)
+	}
+
+	q := p.WithScreenWidth(1, 6400).WithCurve(DefaultCurve)
+	curved, err := NewFan(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	curved.SetSourceWidths([]int{1920, 6400})
+	curved.SetCurves(q.Curves())
+	if got := curved.Facets(); got <= 2 {
+		t.Errorf("a curved wide screen is drawn from %d facets, want more than the 2 screens", got)
+	}
+}
