@@ -200,8 +200,17 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	// from four goroutines. The window server serialises the work whoever asks,
 	// so concurrency here buys NOTHING, and it would cost the simple failure
 	// path below, which closes what it made when one is refused.
-	usedW := plan.ScreenW
+	// ⛔ THE NUDGE IS CARRIED, NOT THE WIDTH. Screens no longer all have the
+	// same one: a desk can be a single wide screen for a spreadsheet, or a
+	// ribbon of panel-sized ones, and Plan.ScreenWidth says which. Carrying the
+	// absolute width that worked would then ask for 6400 where 1920 was
+	// planned. What generalises is the OFFSET -- this machine refuses certain
+	// widths and one pixel escapes them, so the pixel that escaped is worth
+	// remembering and the width is not.
+	usedNudge := 0
+	widthsUsed := make([]int, 0, plan.Count())
 	for i := 0; i < plan.Count(); i++ {
+		planned := plan.ScreenWidth(i)
 		// ASKED AGAIN BEFORE GIVING UP. Measured, with the glasses on: "display
 		// 141 never became active within 5s" on the first of five, and the whole
 		// session fell back to the two screens the machine already had -- one of
@@ -215,7 +224,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 		// again -- a minute of startup to be told six times what the first
 		// screen had already found out. Starting from the answer costs one
 		// half-second attempt per screen instead.
-		widths := widthsToTry(usedW)
+		widths := widthsToTry(planned + usedNudge)
 		for try, w := range widths {
 			d, err = virtualdisplay.Open(virtualdisplay.Spec{
 				Name:   fmt.Sprintf("XR desk %d", i+1),
@@ -226,7 +235,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 				// process on the way out.
 			})
 			if err == nil {
-				if w != plan.ScreenW && usedW == plan.ScreenW {
+				if w != planned && usedNudge == 0 {
 					// SAID OUT LOUD, ONCE. A screen quietly a pixel off the
 					// planned width would turn up later as an unexplained
 					// difference in somebody else's measurement -- and saying it
@@ -235,9 +244,10 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 						"%d wide however many times it is asked, and one pixel is enough "+
 						"to escape it (measured 2026-09-07; the cause is not known). "+
 						"The screens after this one start there",
-						i+1, plan.Count(), w, plan.ScreenH, plan.ScreenW)
+						i+1, plan.Count(), w, plan.ScreenH, planned)
 				}
-				usedW = w
+				usedNudge = w - planned
+				widthsUsed = append(widthsUsed, w)
 				break
 			}
 			if try < len(widths)-1 {
@@ -266,7 +276,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	// The width ACTUALLY used, not the one planned: when a width had to be
 	// nudged, a Why that still named the planned one would be a sentence the
 	// display list contradicts.
-	s.Why = fmt.Sprintf("%d virtual displays of %dx%d", len(s.IDs), usedW, plan.ScreenH)
+	s.Why = DescribeWidths(widthsUsed, plan.ScreenH)
 	logf("%s", s.Why)
 	// Say where they can be SEEN. A person who goes looking for these in System
 	// Settings needs to know what they are called there, and that they last

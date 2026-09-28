@@ -812,3 +812,30 @@ func TestADamagedNameIsNotAnExcuseToGuess(t *testing.T) {
 		}
 	}
 }
+
+// ⚠ WidePlan WIDENS SCREEN ZERO AND COUNTS NOTHING, which is exactly what its
+// comment claims. Asking for one screen is the command's job; a helper that
+// silently overrode a caller's count would be the "comment says one thing, the
+// code does another" defect this package keeps finding elsewhere.
+func TestWidePlanWidensScreenZeroAndNothingElse(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := WidePlan(p, 0).ScreenWidth(0); got != p.ScreenW {
+		t.Errorf("a width of zero changed screen 0 to %d", got)
+	}
+	w := WidePlan(p, 6400)
+	if got := w.ScreenWidth(0); got != 6400 {
+		t.Errorf("screen 0 is %d wide, want 6400", got)
+	}
+	if got := w.ScreenWidth(1); got != p.ScreenW {
+		t.Errorf("screen 1 became %d wide; only screen zero was asked for", got)
+	}
+	if got := w.Count(); got != 3 {
+		t.Errorf("the count changed to %d; this helper does not count", got)
+	}
+}
