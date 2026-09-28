@@ -16,7 +16,7 @@ require (
 	github.com/go-macos/multitouch v0.1.0
 	github.com/go-macos/objc v0.10.2
 	github.com/go-macos/pointer v0.1.0
-	github.com/go-macos/screencapture v0.1.1
+	github.com/go-macos/screencapture v0.1.2
 	github.com/go-macos/virtualdisplay v0.3.0
 	github.com/go-mswin/screencapture v0.2.0
 	github.com/go-viture/beast v0.3.0
