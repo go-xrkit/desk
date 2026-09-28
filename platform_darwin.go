@@ -347,9 +347,26 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 	feeds := make([]Feed, plan.Count())
 	for i := 0; i < plan.Count() && i < len(s.IDs); i++ {
 		st, err := screencapture.CaptureDisplay(ctx,
-			screencapture.Display{ID: uint32(s.IDs[i]), Width: plan.ScreenW, Height: plan.ScreenH},
+			// The display AS IT IS: this field describes the screen, it does not
+			// ask for anything.
+			screencapture.Display{ID: uint32(s.IDs[i]), Width: plan.ScreenWidth(i), Height: plan.ScreenH},
 			screencapture.Options{
-				Width:  plan.ScreenW,
+				// ⛔⛔ THIS SCREEN'S OWN WIDTH, NOT THE PANEL'S, and it is THIS
+				// field that asks. Options is the request; Display above is a
+				// description, and correcting that one first changed nothing at
+				// all -- the run came back identical and said so.
+				//
+				// With plan.ScreenW here, ScreenCaptureKit scaled a 6400-pixel
+				// screen down to 1920 before the desk ever saw it, and the band --
+				// which takes the shape of what it shows -- treated it as
+				// panel-sized. Sharp, sixty frames a second, three times too
+				// small, and every claim about one source pixel per panel pixel
+				// false at this line.
+				//
+				// Found by making the journal say what the band BELIEVED: "2
+				// facet(s) for 2 screen(s) of [1670 1920]", with a 6400-wide
+				// display listed three lines above it.
+				Width:  plan.ScreenWidth(i),
 				Height: plan.ScreenH,
 				FPS:    60,
 				// The cursor belongs on the screen it is on, and a viewer looking

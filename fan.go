@@ -45,6 +45,15 @@ type Fan struct {
 	// band. See [Fan.SetSourceWidths].
 	srcWidths []int
 
+	// ring is one turn of the band cut into facets: one per screen while nothing
+	// is curved, several for a screen that is. Rebuilt whenever a width or a
+	// curve changes, and read every frame.
+	ring *facetRing
+	// curves is the radius each screen is curved at, as a multiple of the viewing
+	// distance. Nil or zero is flat.
+	curves []float64
+	fovDeg float64
+
 	// slots holds one column buffer per panel a frame can show, reused frame to
 	// frame. A slant's columns are a slice into one of these, so a caller may
 	// hold every slant of a frame at once -- which the drawing loop does.
@@ -127,11 +136,12 @@ func NewFan(plan Plan) (*Fan, error) {
 	gap := slantGap(hw, plan.ScreenW)
 	fan := &Fan{
 		n: plan.Count(), splayDeg: plan.SplayDeg(), distance: plan.Distance(),
-		hw: hw, gap: gap, panelH: panelH, f: f,
+		hw: hw, gap: gap, panelH: panelH, f: f, fovDeg: plan.HFOVDeg,
 		viewW: plan.ScreenW, viewH: plan.ScreenH,
 		srcW: plan.ScreenW, srcH: plan.ScreenH,
 		slots: make([][]SlantCol, 2*FanReach+1),
 	}
+	fan.rebuildRing()
 	for i := range fan.slots {
 		fan.slots[i] = make([]SlantCol, 0, plan.ScreenW)
 	}
@@ -145,10 +155,16 @@ func NewFan(plan Plan) (*Fan, error) {
 // band's own width is the default, and a screen that is not that shape gets its
 // own. See the note on [slantChain] for the desk that made this necessary.
 func (f *Fan) hwOf(focus int) func(k int) float64 {
-	return func(k int) float64 {
-		at := f.screenAt(focus + k)
-		return f.hw * float64(f.sourceWidth(at)) / float64(f.srcW)
+	if f.ring == nil {
+		return func(k int) float64 {
+			at := f.screenAt(focus + k)
+			return f.hw * float64(f.sourceWidth(at)) / float64(f.srcW)
+		}
 	}
+	// A FACET's half-width, which is its screen's divided by however many it
+	// was cut into -- and is the screen's exactly when that is one.
+	first := f.firstFacet(focus)
+	return func(k int) float64 { return f.ring.at(first + k).hw }
 }
 
 // centre is the middle of panel j of a chain built around focus, in camera
@@ -163,7 +179,7 @@ func (f *Fan) hwOf(focus int) func(k int) float64 {
 // screen a panel shows depends on where the chain was built from. A chain of
 // identical screens does not care and every other one does.
 func (f *Fan) centre(focus, j int) (x, z float64) {
-	angleAt, gapAt := f.chainOf()
+	angleAt, gapAt := f.chainOf(focus)
 	lx, lz, rx, rz := slantChain(j, angleAt, f.hwOf(focus), gapAt, f.distance, 0)
 	return (lx + rx) / 2, (lz + rz) / 2
 }
@@ -286,13 +302,15 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// where they are LOOKING -- centred on the anchor instead would leave the
 	// half of the view they turned towards empty.
 	hwOf := f.hwOf(focus)
-	angleAt, gapAt := f.chainOf()
+	angleAt, gapAt := f.chainOf(focus)
 	slot := 0
 	for j := base - reach; j <= base+reach; j++ {
 		lx, lz, rx, rz := slantChain(j, angleAt, hwOf, gapAt, f.distance, turn)
-		at := f.screenAt(focus + j)
+		// Which screen this panel shows, and which SLICE of it: the whole
+		// source for a flat screen, one facet of it for a curved one.
+		at, x0, x1 := f.faceAt(focus, j)
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
-			f.panelH, f.f, f.viewW, f.viewH, 0, f.sourceWidth(at), f.srcH)
+			f.panelH, f.f, f.viewW, f.viewH, x0, x1, f.srcH)
 		if !ok {
 			continue
 		}
@@ -326,6 +344,10 @@ func (f *Fan) screenAt(j int) int {
 // every other screen has.
 func (f *Fan) SetSourceWidths(w []int) {
 	f.srcWidths = append(f.srcWidths[:0], w...)
+	// A width is how wide a screen IS, and how wide it is decides how far it
+	// wraps when curved. The ring has to be cut again or the facets describe a
+	// screen that is no longer there.
+	f.rebuildRing()
 }
 
 // sourceWidth is how wide screen i's pixels are.
@@ -354,13 +376,87 @@ func (a Anchoring) said() string {
 // ⛔ RESOLVED ONCE PER FRAME, NOT PER PANEL. A closure built inside the loop
 // would be built for every panel in shot, sixty times a second, to say the same
 // thing each time.
-func (f *Fan) chainOf() (func(float64) float64, func(int) float64) {
-	angleAt, gapAt := f.angleAt, f.gapAt
-	if angleAt == nil {
-		angleAt = uniformAngle(f.splayDeg)
+func (f *Fan) chainOf(focus int) (func(float64) float64, func(int) float64) {
+	if f.ring == nil {
+		// A Fan built as a literal, which the suite does. The uniform chain is
+		// what it would have walked before facets existed.
+		return uniformAngle(f.splayDeg), uniformGap(f.gap)
 	}
-	if gapAt == nil {
-		gapAt = uniformGap(f.gap)
+	// ⛔ RELATIVE TO THE FOCUS. slantChain places panel 0 at angle zero and
+	// walks out from there, so the ring's absolute angles have to be shifted by
+	// the focused facet's own -- otherwise the whole band arrives rotated by
+	// wherever screen zero happens to be.
+	first := f.firstFacet(focus)
+	base := f.ring.angleAt(float64(first))
+	return func(k float64) float64 { return f.ring.angleAt(float64(first)+k) - base },
+		func(k int) float64 { return f.ring.gapAt(first + k) }
+}
+
+// firstFacet is where screen s starts on the ring.
+func (f *Fan) firstFacet(s int) int {
+	if f.ring == nil || len(f.ring.firstOf) == 0 {
+		return s
 	}
-	return angleAt, gapAt
+	n := len(f.ring.firstOf)
+	return f.ring.firstOf[((s%n)+n)%n]
+}
+
+// rebuildRing cuts the band into facets again, which is needed whenever a
+// source width or a curve changes.
+//
+// ⛔ NOT LAZY. A ring built on demand inside the frame loop would be built while
+// a slant already handed out points into the slots it sizes.
+func (f *Fan) rebuildRing() {
+	f.ring = newFacetRing(f.n, f.splayDeg, f.gap, f.fovDeg,
+		f.sourceWidth,
+		func(s int) float64 { return f.hw * float64(f.sourceWidth(s)) / float64(f.srcW) },
+		f.curveOf, f.srcW)
+}
+
+// curveOf is the radius screen s is curved at, or [FlatCurve].
+func (f *Fan) curveOf(s int) float64 {
+	if s < 0 || s >= len(f.curves) {
+		return FlatCurve
+	}
+	return f.curves[s]
+}
+
+// SetCurves gives screens their own curvature radius, as a multiple of the
+// viewing distance. A nil or short slice, or an entry of zero, leaves that
+// screen flat.
+//
+// ⭐ PER SCREEN, because the case this serves is ONE wide screen beside ordinary
+// ones: curving a panel-sized screen bows the thing you are reading, which is
+// what was measured, worn and rejected. See [DefaultCurve].
+func (f *Fan) SetCurves(c []float64) {
+	f.curves = c
+	f.rebuildRing()
+}
+
+// faceAt is the screen panel j shows and the slice of its source it shows.
+//
+// ⚠ A Fan with no ring -- built as a literal, which the suite does -- answers
+// the whole source of the screen the old mapping names, which is what it did
+// before facets existed.
+func (f *Fan) faceAt(focus, j int) (screen, srcX0, srcX1 int) {
+	if f.ring == nil {
+		at := f.screenAt(focus + j)
+		return at, 0, f.sourceWidth(at)
+	}
+	fa := f.ring.at(f.firstFacet(focus) + j)
+	return fa.screen, fa.srcX0, fa.srcX1
+}
+
+// Facets is how many flat pieces the band is drawn from, which is one per
+// screen until a screen curves.
+//
+// ⛔ IT EXISTS TO BE SAID OUT LOUD. A curved screen and a flat one draw the
+// same picture at the same speed, so a journal that does not name the facet
+// count leaves "did the curve apply?" answerable only by squinting through the
+// glasses -- and the first run of it looked perfect while proving nothing.
+func (f *Fan) Facets() int {
+	if f.ring == nil {
+		return f.n
+	}
+	return len(f.ring.f)
 }

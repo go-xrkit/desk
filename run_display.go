@@ -643,6 +643,13 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	} else {
 		logf("%d witness strings are watching; a head set to zero is seen", len(witnesses))
 	}
+	// ⛔⛔ THE FACET COUNT IS SAID WHEN IT CHANGES, NOT AT STARTUP. Said once
+	// here it reported "flat" truthfully and uselessly: the band takes the
+	// shape of what it shows, so a wide screen is still panel-sized when this
+	// line first runs and only widens once a source has arrived. A reading
+	// taken before the thing it measures exists is worse than none, because it
+	// looks like an answer.
+	facetsSaid := -1
 
 	lookedAt := time.Now()
 	watch := func(now time.Time) {
@@ -654,6 +661,16 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// damaged -- so a report on every beat would bury the run in one
 		// sentence, which is exactly what happened before #163: 3,939 identical
 		// lines out of 4,797.
+		if n := d.Facets(); n != facetsSaid {
+			facetsSaid = n
+			p := d.Plan()
+			ws := make([]int, p.Count())
+			for i := range ws {
+				ws[i] = p.ScreenWidth(i)
+			}
+			logf("the band is drawn from %d facet(s) for %d screen(s) of %v",
+				n, p.Count(), ws)
+		}
 		if !caught {
 			if hit := DamagedWitnesses(witnesses); len(hit) > 0 {
 				caught = true

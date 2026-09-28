@@ -615,3 +615,32 @@ func TestWideForgivesNonsense(t *testing.T) {
 		})
 	}
 }
+
+// ⚠ ZERO IS A REAL ANSWER FOR A CURVE, unlike every other number in this file.
+// "Flat" is a thing a person asks for, so the settings distinguish absent from
+// zero -- and the flag's "not given" is -1 rather than 0 for the same reason.
+func TestCurveTellsFlatFromUnset(t *testing.T) {
+	t.Parallel()
+
+	zero, one, neg := 0.0, 1.0, -2.0
+	for _, c := range []struct {
+		name string
+		conf Config
+		want float64
+	}{
+		{"no ribbon block", Config{}, FlatCurve},
+		{"a ribbon that says nothing", Config{Ribbon: &ConfigRibbon{}}, FlatCurve},
+		{"asked to be flat", Config{Ribbon: &ConfigRibbon{Curve: &zero}}, FlatCurve},
+		{"the physical case", Config{Ribbon: &ConfigRibbon{Curve: &one}}, DefaultCurve},
+		{"a negative radius is flat, not its absolute value",
+			Config{Ribbon: &ConfigRibbon{Curve: &neg}}, FlatCurve},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := c.conf.Curve(); got != c.want {
+				t.Errorf("Curve() = %g, want %g", got, c.want)
+			}
+		})
+	}
+}
