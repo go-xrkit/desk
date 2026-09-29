@@ -403,7 +403,10 @@ func run() int {
 		// taken goes to the machine's own screen. Everything that maps a ribbon
 		// position to a display goes through ribbonIDs from here on, because
 		// screens.IDs is now the virtual ones only and position i is IDs[i-1].
-		mirror := settings.Mirror()
+		// ⛔ AND NO MIRROR IN WIDE MODE. One screen means one screen; the Mac's
+		// own panel on the band beside it would be the band this mode exists to
+		// stop being, and with a single position there is nowhere to put it.
+		mirror := settings.Mirror() && wideW <= 0
 		// macID is the display screen 1 shows, so that every place that maps a
 		// ribbon POSITION to a display can do it: with the mirror in front,
 		// position i is the screen this program made at i-1, and position 0 is
@@ -1204,21 +1207,23 @@ func planFor(d glasses.Display, screens int, dist, splay, fov float64,
 	return p, err
 }
 
-// screensForWide is how many ribbon POSITIONS a wide desk needs.
+// screensForWide is how many ribbon POSITIONS a wide desk needs: ONE.
 //
-// ⛔⛔ THE MIRROR OCCUPIES POSITION ZERO, and forgetting it cost a session: with
-// -wide asking for one screen and the mirror on, the desk planned one position,
-// made one virtual display for it, and then had two feeds -- the Mac's own
-// screen and the wide one -- for a single place to put them. It stopped with
-// "no screens: 2 feeds for 1 screens", and every unit test had passed.
+// ⛔⛔ ONE SCREEN MEANS ONE SCREEN, and I got this wrong by supposing otherwise.
+// The first version kept the Mac's own screen on the band beside the wide one,
+// on the reasoning that somebody would want both. Reported from the glasses:
+// "en mode ecran large on ne veux que un ecran, la j'en vois plusieurs".
 //
-// So: two positions when the Mac's screen is on the band, one when it is not.
+// The point of a wide screen is that a window too big for a panel has somewhere
+// to go. A second screen beside it is a band again, and a band is what the wide
+// mode exists to stop being.
+//
+// ⚠ The mirror is therefore OFF in this mode -- see where it is read. Leaving it
+// on with one position gave "no screens: 2 feeds for 1 screens": two pictures,
+// one place to put them.
 func screensForWide(n, wide int, mirror bool) int {
 	if wide <= 0 {
 		return n
-	}
-	if mirror {
-		return 2
 	}
 	return 1
 }

@@ -290,8 +290,15 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// squarely enough turned to pass every test it makes. Half a turn along the
 	// chain is the far side of the desk, and the far side of a desk is not in
 	// shot.
-	reach := FanReach
-	if f.splayDeg > 0 {
+	// ⛔⛔ THE REACH IS COUNTED IN PANELS, AND A PANEL IS NOW A FACET. FanReach
+	// is four because four SCREENS span the view at the far end of the distance
+	// range. Cut a screen into 86 facets and four panels either side is nine
+	// eighty-sixths of it: the desk drew a correct picture of a tenth of the
+	// screen. Reported from the glasses in three words -- "tres etroit" -- and
+	// invisible to every test, all of which ask what a panel projects to and
+	// none of which asks how many there should be.
+	reach := f.reachIn()
+	if f.splayDeg > 0 && f.ring == nil {
 		if half := int(180 / f.splayDeg); half < reach {
 			reach = half
 		}
@@ -411,6 +418,22 @@ func (f *Fan) rebuildRing() {
 		f.sourceWidth,
 		func(s int) float64 { return f.hw * float64(f.sourceWidth(s)) / float64(f.srcW) },
 		f.bendOf, f.srcW)
+
+	// ⛔⛔ AND THE COLUMN BUFFERS FOLLOW THE REACH. There is one per panel a
+	// frame can show, and cutting a screen into facets multiplies those: sized
+	// for FanReach alone, the very first curved frame would index past the end
+	// of the slice and PANIC. The reach is derived from the ring, so the buffers
+	// have to be rebuilt with it.
+	if want := 2*f.reachIn() + 1; want != len(f.slots) {
+		slots := make([][]SlantCol, want)
+		copy(slots, f.slots)
+		for i := range slots {
+			if slots[i] == nil {
+				slots[i] = make([]SlantCol, 0, f.srcW)
+			}
+		}
+		f.slots = slots
+	}
 }
 
 // curveOf is the radius screen s is curved at, or [FlatBend].
@@ -459,4 +482,50 @@ func (f *Fan) Facets() int {
 		return f.n
 	}
 	return len(f.ring.f)
+}
+
+// reachIn is how many panels either side of the middle one a frame considers,
+// in the units the chain actually walks.
+//
+// ⛔ IT IS DERIVED, NOT CHOSEN, because the answer changes with how finely a
+// screen is cut. The view spans one field of view; the band is compressed by the
+// distance, so at the far end MaxDistance times as much of it is in shot. The
+// smallest fold in the ring therefore decides: the more finely a screen is cut,
+// the more of its facets cross the view.
+//
+// ⚠ Two to spare, for the same reason FanReach had one: considering one panel
+// too many costs a projection that comes back refused, and considering one too
+// few loses part of a screen with nothing to say so.
+func (f *Fan) reachIn() int {
+	if f.ring == nil || f.fovDeg <= 0 {
+		return FanReach
+	}
+	smallest := f.splayDeg
+	for _, fa := range f.ring.f {
+		if fa.turnBy > 0 && fa.turnBy < smallest {
+			smallest = fa.turnBy
+		}
+	}
+	if smallest <= 0 {
+		return FanReach
+	}
+	n := int(math.Ceil(MaxDistance*f.fovDeg/smallest))/2 + 2
+	// ⛔⛔ AND NEVER PAST HALF A TURN, which is what the old int(180/splay) cap
+	// said in screens. Walk further and the chain comes round the ring and draws
+	// the far side of the band ON TOP of the near one -- the fold protocol caught
+	// exactly that, "screen 2 runs to x=1920 and screen 6 starts at x=0: they
+	// overlap by 1920", the moment the reach grew without the cap growing with it.
+	// ⚠ THE FLOOR FIRST, THEN THE CAP, and not the other way round. Written with
+	// the floor last it silently undid the half-turn cap on any desk whose ring
+	// closes in fewer than four panels -- six screens at sixty degrees -- and the
+	// fold protocol reported 460 overlaps rather than 6.
+	if n < FanReach {
+		n = FanReach
+	}
+	if f.ring.total > 0 {
+		if half := int(float64(len(f.ring.f)) * 180 / f.ring.total); half < n {
+			n = half
+		}
+	}
+	return n
 }

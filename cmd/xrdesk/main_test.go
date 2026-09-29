@@ -158,11 +158,12 @@ func TestAWideDeskCountsTheMirrorIn(t *testing.T) {
 		mirror bool
 		want   int
 	}{
-		// A spreadsheet is one window and a window lives on one display, so the
-		// ribbon of six becomes the wide one -- plus the Mac's screen when it
-		// is on the band.
-		{"wide, with the Mac on the band", 6, 6400, true, 2},
-		{"wide, without it", 6, 6400, false, 1},
+		// ⛔ ONE SCREEN, WHATEVER THE MIRROR SAYS. Reported from the glasses:
+		// "en mode ecran large on ne veux que un ecran, la j'en vois
+		// plusieurs". A second screen beside the wide one is a band again, and
+		// a band is what this mode exists to stop being.
+		{"wide, whatever the mirror setting says", 6, 6400, true, 1},
+		{"wide, mirror off", 6, 6400, false, 1},
 		// ⚠ And no width changes nothing at all: -wide is opt-in, and a desk
 		// that quietly became two screens because the mirror is on would be a
 		// setting nobody asked for.
