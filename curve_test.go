@@ -453,12 +453,20 @@ func TestAFrameCoversTheWholeView(t *testing.T) {
 			// most of them. Neither half is landed because together they are not
 			// yet green, and a renderer that is nearly right is worse than one
 			// whose limits are written down.
-			if c.wide > 0 && c.bend == FlatBend {
-				t.Skip("a flat screen wider than the view is one panel, so toward " +
-					"steps to its own next copy: 1538 of 1920 columns unpainted " +
-					"at a quarter step. Curve it, or cut it into panels -- see " +
-					"TestFlatComesBackAsOneFacetTurningByNothing")
-			}
+			// ⛔⛔ CHARACTERISED, NOT SKIPPED, and the difference is not cosmetic.
+			// A t.Skip here stopped the frame being DRAWN at all, and the 100%
+			// coverage gate caught it at once: Frame fell to 95.0% and reachIn to
+			// 88.2%, because the flat wide screen is the only case in the suite
+			// that walks those branches. A skip that stops exercising the code is
+			// how a known defect becomes an unknown one.
+			//
+			// ⭐ SO IT FAILS WHEN THE DEFECT IS FIXED. The frame is drawn, the
+			// blank columns are counted, and a case marked known must STILL come
+			// back blank -- otherwise this says so and asks for the marker to be
+			// taken out. A characterisation test that cannot notice being fixed
+			// is a comment with a test's name on it.
+			known := c.wide > 0 && c.bend == FlatBend
+			worstKnown := 0
 
 			// ⛔ WIDE MODE IS ONE SCREEN, so that is the desk this asks about. A
 			// wide screen BESIDE an ordinary one is an arrangement the command no
@@ -518,11 +526,30 @@ func TestAFrameCoversTheWholeView(t *testing.T) {
 					// ⚠ A few columns may legitimately be background -- the gap
 					// between two screens crosses the view. A TENTH of the view
 					// painted is the defect; nine tenths blank is not a gap.
+					if known {
+						if blank > worstKnown {
+							worstKnown = blank
+						}
+						continue
+					}
 					if blank > len(painted)/2 {
 						t.Errorf("focus %d, %.2f along: %d of %d columns are unpainted",
 							focus, toward, blank, len(painted))
 					}
 				}
+			}
+			// ⭐ AND THE KNOWN DEFECT HAS TO STILL BE THERE. Measured at 1538 of
+			// 1920 when this was written; anything above half the view is the
+			// same defect. If it comes back under that, somebody has fixed it --
+			// which is good news and means this marker and the one in
+			// TestFlatComesBackAsOneFacetTurningByNothing should go, and the
+			// stashed facet split should be re-measured against the fold
+			// protocol rather than left in a stash.
+			if known && worstKnown <= p.ScreenW/2 {
+				t.Errorf("a flat screen %d wide now leaves at worst %d of %d "+
+					"columns unpainted, where it left 1538: the defect this case "+
+					"characterises is fixed, so take the marker out and assert "+
+					"coverage like the others", c.wide, worstKnown, p.ScreenW)
 			}
 		})
 	}

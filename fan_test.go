@@ -896,3 +896,104 @@ func TestAFixedDeskDoesNotStepWhenTheGazeCrossesAScreen(t *testing.T) {
 			gaze, gazeAt, fixed)
 	}
 }
+
+// ⛔⛔ THE REACH HAS THREE ANSWERS AND ONLY ONE WAS EVER ASKED FOR. reachIn
+// derives how far along the chain a frame looks, and the derivation has two
+// guards around it that no test reached: the coverage gate on the portable logic
+// caught them at 88.2%, having been at 100% before the reach was derived at all.
+//
+// ⚠ AND A GUARD NOTHING EXERCISES IS A GUARD NOTHING HOLDS. Each case below is
+// the state a guard exists FOR, not an input chosen to walk the line.
+func TestTheReachFallsBackWhenItCannotBeDerived(t *testing.T) {
+	t.Parallel()
+
+	// A ring whose facets turn by nothing, which is what a chain with no splay
+	// is: there is no smallest positive angle to divide the field of view by, so
+	// the derivation has nothing to work with and FanReach is the answer.
+	flatRing := &facetRing{
+		f:      []facet{{screen: 0, hw: 0.5}, {screen: 1, hw: 0.5}},
+		prefix: []float64{0, 0},
+	}
+	// A ring that closes in a few large steps: the derivation comes out BELOW
+	// FanReach, and the floor is what stops a frame considering fewer panels
+	// than can be in shot.
+	wideStep := &facetRing{
+		f:      []facet{{screen: 0, hw: 0.5, turnBy: 60}, {screen: 1, hw: 0.5, turnBy: 60}},
+		prefix: []float64{0, 60}, total: 120,
+	}
+	// A ring of right angles: the derivation comes out at three, BELOW FanReach,
+	// so the floor is what raises it -- and the cap then cuts it to two, because
+	// four right angles is a full turn and two is half of it.
+	rightAngles := &facetRing{
+		f:      []facet{{screen: 0, hw: 0.5, turnBy: 90}, {screen: 1, hw: 0.5, turnBy: 90}},
+		prefix: []float64{0, 90}, total: 180,
+	}
+	for _, c := range []struct {
+		name string
+		fan  *Fan
+		want int
+	}{
+		{"no ring at all, which is the chain before a width is known",
+			&Fan{splayDeg: 20, fovDeg: 51.57}, FanReach},
+		{"a derivation under the floor, raised by it and then cut by the cap",
+			&Fan{splayDeg: 90, fovDeg: 51.57, ring: rightAngles}, 2},
+		{"glasses that report no field of view",
+			&Fan{splayDeg: 20, fovDeg: 0, ring: wideStep}, FanReach},
+		{"a chain with no angle to divide by",
+			&Fan{splayDeg: 0, fovDeg: 51.57, ring: flatRing}, FanReach},
+		// ⛔⛔ THE FLOOR APPLIES AND THE CAP THEN OVERRIDES IT, which is the
+		// ORDER reachIn insists on and the one thing here that is not obvious.
+		// Written the other way round -- the floor last -- it silently undid the
+		// half-turn cap on any desk whose ring closes in fewer than four panels,
+		// and the fold protocol reported 460 overlaps rather than 6. Two facets
+		// closing in 120° is half a turn in three, so three is the answer even
+		// though the floor is four: a fourth panel would be the far side of the
+		// band drawn over the near one.
+		{"steps so wide the derivation comes out under the floor, which the cap " +
+			"then cuts below it anyway", &Fan{splayDeg: 60, fovDeg: 51.57, ring: wideStep}, 3},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := c.fan.reachIn(); got != c.want {
+				t.Errorf("reachIn = %d, want %d -- a reach that is not derived "+
+					"must be the floor, or a frame silently considers the wrong "+
+					"number of panels and nothing says so", got, c.want)
+			}
+		})
+	}
+}
+
+// ⛔ AND THE HALF-TURN CAP HAS A SECOND FORM, for a chain with no ring: there the
+// panels are screens and the cap is 180 over the splay, which is what it said
+// before facets existed. Frame carries both because a Fan built by hand -- which
+// the flat-band comparison below does -- has no ring until a width is set.
+func TestTheHalfTurnCapHoldsWithoutARing(t *testing.T) {
+	t.Parallel()
+
+	// Sixty degrees: half a turn is three panels, well under the reach, so the
+	// cap is what decides and a wrapped panel cannot be drawn over a real one.
+	fan := &Fan{
+		n: 6, splayDeg: 60, fovDeg: 51.57, distance: 1,
+		hw: 0.5, gap: 0.01, panelH: 1, f: 1000,
+		viewW: 1920, viewH: 1080, srcW: 1920, srcH: 1080,
+		slots: make([][]SlantCol, 2*FanReach+1),
+	}
+	for i := range fan.slots {
+		fan.slots[i] = make([]SlantCol, 0, 1920)
+	}
+	seen := map[int]int{}
+	for _, s := range fan.Frame(nil, 0, 0) {
+		seen[s.Screen]++
+	}
+	if len(seen) == 0 {
+		t.Fatal("nothing was drawn, so the cap is not what this measured")
+	}
+	for screen, times := range seen {
+		if times > 1 {
+			t.Errorf("screen %d is drawn %d times in one frame: the chain came "+
+				"round the ring and the far side of the band is on top of the "+
+				"near one", screen+1, times)
+		}
+	}
+}
