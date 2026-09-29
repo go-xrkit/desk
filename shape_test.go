@@ -302,3 +302,67 @@ func TestATurnedScreenShowingANarrowerSourceDoesNotCrash(t *testing.T) {
 	c := NewCanvas(p.ScreenW, p.ScreenH)
 	c.ComposeSlants(fan.Frame(nil, 1, 0), sources, [4]byte{})
 }
+
+// ⛔⛔ A WIDTH A PERSON ASKED FOR IS CLAMPED, NEVER DROPPED. [Plan.WithScreenWidth]
+// refuses a width outside the band's aspect range and a refusal there means "no
+// width of its own" -- which is right for the MEASUREMENT path it serves, where
+// the number is a captured source's shape and one out of range is a capture that
+// has gone wrong (see TestAShapeNobodyCouldHaveMeantIsRefused, which feeds a
+// source 9720 wide).
+//
+// It was wrong for the REQUEST path. `-wide 9000` on a 1080-high band came back
+// as an ordinary 1920 screen, and the bend went with it, because [Plan.Bend] is
+// flat unless the screen is wider than the band: somebody asking for a wide
+// CURVED screen a little over the limit got a plain one and was told nothing.
+// Measured, ScreenH 1080 and ceiling 8640: 8192 gave 111 facets and 9000 gave 1.
+//
+// The two callers want opposite things from the same number and the difference
+// is WHO SAID IT, which WithScreenWidth cannot see -- so [WidePlan] clamps and
+// WithScreenWidth goes on refusing.
+func TestAWidthAPersonAskedForIsClampedNotDropped(t *testing.T) {
+	p := testPlan(t)
+	lo, hi := p.WidthLimits()
+	for _, c := range []struct {
+		name string
+		ask  int
+		want int
+	}{
+		{"a width the band can hold", hi - 448, hi - 448},
+		{"exactly the ceiling", hi, hi},
+		{"one pixel over it", hi + 1, hi},
+		{"far over it", 3 * hi, hi},
+		{"under the floor", lo - 1, lo},
+		// Zero is documented as the way back to the shape of the glasses, and
+		// WidePlan hands it straight back rather than clamping it up to lo.
+		{"not asked for at all", 0, p.ScreenW},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			q := WidePlan(p, c.ask)
+			if got := q.ScreenWidth(0); got != c.want {
+				t.Errorf("-wide %d gave a screen %d wide, want %d", c.ask, got, c.want)
+			}
+		})
+	}
+
+	// ⭐ AND THE BEND SURVIVES IT, which is the half that made the silence
+	// expensive: a clamped width is still wider than the band, so the screen is
+	// still curved. Under the old refusal this came back flat -- one facet for a
+	// screen that should have had over a hundred.
+	// A splay, because NewFan refuses the flat band on purpose -- a Strip
+	// draws that better. Any angle does; this asks about width and curve.
+	q := WidePlan(p, 3*hi).WithBend(DefaultBend).WithSplay(20)
+	if q.Bend(0) != DefaultBend {
+		t.Errorf("a clamped wide screen has bend %g, want %g -- the width was "+
+			"refused and took the curve with it", q.Bend(0), DefaultBend)
+	}
+	f, err := NewFan(q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.SetSourceWidths([]int{q.ScreenWidth(0)})
+	f.SetBends(q.Bends())
+	if f.ring == nil || len(f.ring.f) < 2 {
+		t.Errorf("a curved screen %d wide is drawn from %d facet(s): the bend "+
+			"was lost with the width", q.ScreenWidth(0), len(f.ring.f))
+	}
+}

@@ -232,6 +232,17 @@ func (p Plan) ScreenWidth(i int) int {
 	return p.widths[i]
 }
 
+// WidthLimits is the narrowest and widest a screen on this band may be, in
+// pixels: the aspect range applied to the band's own height.
+//
+// ⭐ IT IS EXPORTED SO THE CEILING CAN BE NAMED TO WHOEVER TYPED THE NUMBER.
+// [WidePlan] clamps to it, and a caller reading a person's `-wide` can compare
+// first and say "8640 is as wide as these glasses go" instead of handing back a
+// desk that quietly is not what was asked for.
+func (p Plan) WidthLimits() (lo, hi int) {
+	return p.ScreenH * MinAspectNum / MinAspectDen, p.ScreenH * MaxAspectNum / MaxAspectDen
+}
+
 // WithScreenWidth returns the plan with screen i that many pixels wide, at the
 // same height as every other screen. A width of zero or less puts it back to
 // the shape of the glasses.
@@ -244,6 +255,17 @@ func (p Plan) WithScreenWidth(i, w int) Plan {
 	}
 	widths := make([]int, p.count)
 	copy(widths, p.widths)
+	// ⛔⛔ OUT OF RANGE IS REFUSED HERE, AND THAT IS NOT THE SAME AS CLAMPING IT.
+	// This is the MEASUREMENT path: Desk.fit hands it the width of a captured
+	// source every frame, so a width outside the range is a capture that has
+	// gone wrong -- and the honest answer to a broken measurement is to ignore
+	// it, not to dress it up as the nearest legal ultrawide. See
+	// TestAShapeNobodyCouldHaveMeantIsRefused, which feeds a source 9720 wide.
+	//
+	// ⭐ A PERSON'S REQUEST IS CLAMPED INSTEAD, in [WidePlan], which is the only
+	// other caller. The two want opposite things from the same number and the
+	// difference is WHO SAID IT, which this function cannot see -- so the
+	// clamping belongs to the caller that knows.
 	if w >= p.ScreenH*MinAspectNum/MinAspectDen && w <= p.ScreenH*MaxAspectNum/MaxAspectDen {
 		widths[i] = w
 	} else {

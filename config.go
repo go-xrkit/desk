@@ -596,13 +596,34 @@ func (c Config) Wide() int {
 // plan's count is fixed when it is built, so this could only have SILENTLY
 // ignored a caller that wanted both, which is worse than letting it happen.
 //
-// ⚠ It does not clamp the width. The window server refuses particular widths
-// whatever they are (3840, 4096 and 7680 on every machine measured), and
+// ⚠ It does not second-guess the WINDOW SERVER. That one refuses particular
+// widths whatever they are (3840, 4096 and 7680 on every machine measured), and
 // Provide answers a refusal by trying a pixel either side and saying so. A
 // ceiling invented here would refuse sizes that machine would have granted.
+//
+// ⛔⛔ BUT IT DOES HOLD THE NUMBER TO THE BAND'S OWN SHAPE, because the
+// alternative turned out to be losing it in silence. [Plan.WithScreenWidth]
+// refuses a width outside the aspect range and a refusal there means "no width
+// of its own" -- so `-wide 9000` on a 1080-high band came back as an ORDINARY
+// 1920 screen, and the bend went with it, since [Plan.Bend] is flat unless the
+// screen is wider than the band. Measured, ScreenH 1080, ceiling 8640: 8192 gave
+// 111 facets and 9000 gave 1. The person had asked for a wide curved screen and
+// got a plain one, with nothing said.
+//
+// ⭐ CLAMPED, NOT REFUSED, which is the choice [NewPlan] already makes for
+// MaxScreens: the nearest shape the band can hold beats both the silent
+// discard and an outright error, and [Plan.WidthLimits] lets whoever read the
+// number say so to the person who typed it.
 func WidePlan(p Plan, wide int) Plan {
 	if wide <= 0 {
 		return p
+	}
+	lo, hi := p.WidthLimits()
+	if wide < lo {
+		wide = lo
+	}
+	if wide > hi {
+		wide = hi
 	}
 	return p.WithScreenWidth(0, wide)
 }
