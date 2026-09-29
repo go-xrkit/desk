@@ -468,6 +468,26 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// of it in one run. What is worth a line is the pointer arriving somewhere
 	// NEW.
 	said := -1
+	// ⛔⛔ AND THE WAY OUT IS SAID WHERE THE PERSON WHO NEEDS IT CAN READ IT.
+	// [ActionPointHome] has existed since #181 and is announced at start-up --
+	// "bring the pointer back to this Mac: ⌃⌥⌘H" -- in a LOG, which is the one
+	// place somebody wearing the glasses is not looking. Reported: "j'ai perdu
+	// l'acces a la sourie qui est bloquee dans les lunettes", and the log of that
+	// very session holds no trace of the key ever being pressed: not "the pointer
+	// is back on this Mac", not an error. The mechanism was not broken. It was
+	// unfindable, by exactly the person it was built for.
+	//
+	// ⭐ THE SAME LESSON THIS FILE ALREADY LEARNED sixty lines down, for a
+	// shortcut the ladder had MOVED: "it is said where the person is looking".
+	// It was never applied to the way OUT, which is the one message whose reader
+	// is by definition unable to see the picture they came from.
+	//
+	// Said ONCE, when the pointer first arrives on a desk screen, because the
+	// moment it leaves is the moment the way back is worth knowing -- and
+	// because a line repeated every time the pointer changes screen is how a
+	// notice stops being read.
+	wayOut := func() {}
+	toldTheWayOut := false
 	hold := func() {
 		at := d.Focus()
 		moved, err := fence.Step(showing(), at)
@@ -481,6 +501,10 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		if moved && at != said {
 			said = at
 			logf("the pointer is on screen %d", at+1)
+			if !toldTheWayOut {
+				toldTheWayOut = true
+				wayOut()
+			}
 		}
 	}
 	surface := toolkit.NewSurface(v.frame)
@@ -540,6 +564,18 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// "previous: ⌃⌥⇧⌘← (asked for ⌃⌥⌘←, it was taken)" all along.
 		if s := hk.Moved(); s != "" {
 			d.say(s)
+		}
+		// ⛔ AND THE KEY IS THE ONE THAT WAS GRANTED, NOT THE ONE ASKED FOR. The
+		// ladder moves a combination somebody else already holds -- two moved in
+		// the session this was written in, `fit` and `the applications` -- so a
+		// glyph written into this sentence by hand would one day name a key that
+		// does nothing, in the one message a person reads when they are already
+		// lost. Granted answers what the window server actually gave us.
+		if c, ok := hk.Granted()[ActionPointHome]; ok {
+			key := c.Glyphs()
+			wayOut = func() {
+				d.say("the pointer is on the desk now — " + key + " brings it back to this Mac")
+			}
 		}
 	}
 
