@@ -399,13 +399,38 @@ func (f *Fan) chainOf(focus int) (func(float64) float64, func(int) float64) {
 		func(k int) float64 { return f.ring.gapAt(first + k) }
 }
 
-// firstFacet is where screen s starts on the ring.
+// firstFacet is the facet of screen s that panel 0 of the chain shows: the one
+// in the MIDDLE of it, not the one it starts with.
+//
+// ⛔⛔ IT USED TO BE THE FIRST, AND THAT PUT THE SCREEN'S LEFT EDGE DEAD AHEAD.
+// slantChain places panel 0 square on at the viewing distance and walks out from
+// there, so whichever facet this names is the piece the viewer is looking
+// straight at. Naming the screen's first facet aims the eye at its left edge and
+// wraps the whole rest of it round behind: reported from inside the glasses as
+// "dans les lunettes je vois la gauche d'un ecran a droite et la droite a
+// gauche".
+//
+// ⭐ MEASURED ON THE CONFIGURATION THAT WAS RUNNING, one screen of 6400 curved
+// at the viewing distance, 86 facets: the view's left edge showed source column
+// 5608 and its right edge column 933 -- the end of the screen on the left, the
+// beginning on the right, with the ring's own wrap seam through the middle.
+//
+// ⚠ INERT FOR A DESK OF ORDINARY SCREENS, which is why it shipped. A flat screen
+// is one facet, so first and middle are the same facet and every number the
+// chain walks is unchanged. It is wrong only where a screen is several panels,
+// and the only instrument that sweeps those is off; see SweepCurvedDesks.
 func (f *Fan) firstFacet(s int) int {
 	if f.ring == nil || len(f.ring.firstOf) == 0 {
 		return s
 	}
 	n := len(f.ring.firstOf)
-	return f.ring.firstOf[((s%n)+n)%n]
+	i := ((s % n) + n) % n
+	start := f.ring.firstOf[i]
+	end := len(f.ring.f)
+	if i+1 < n {
+		end = f.ring.firstOf[i+1]
+	}
+	return start + (end-start)/2
 }
 
 // rebuildRing cuts the band into facets again, which is needed whenever a

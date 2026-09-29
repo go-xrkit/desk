@@ -554,3 +554,113 @@ func TestAFrameCoversTheWholeView(t *testing.T) {
 		})
 	}
 }
+
+// ⛔⛔ A SCREEN READS LEFT TO RIGHT, AND NOTHING ASKED THAT ACROSS ITS PANELS.
+// The fold protocol checks that the source runs forwards WITHIN one panel -- "a
+// source that runs the wrong way at one end is how a mirrored panel would look"
+// -- and the facet-join check added with it only runs when consecutive panels
+// show the same screen, which on a flat desk never happens. So a screen drawn in
+// pieces could have its pieces in any order at all and every test stayed green.
+//
+// ⭐ IT WAS NOT HYPOTHETICAL. Panel 0 of the chain showed a screen's FIRST facet,
+// and slantChain puts panel 0 square on at the viewing distance -- so the eye was
+// aimed at the screen's left edge and the whole rest of it wrapped round behind
+// and came back on the other side. Reported from inside the glasses in exactly
+// these terms: "dans les lunettes je vois la gauche d'un ecran a droite et la
+// droite a gauche". Measured on the configuration that was running, one screen
+// of 6400 curved at the viewing distance: the view's left edge showed source
+// column 5608 and its right edge 933.
+//
+// ⚠ AND TestAFrameCoversTheWholeView COULD NOT SEE IT, which is the lesson
+// worth more than the fix. It counts how many columns are PAINTED and never asks
+// WHICH source lands in them, so a frame with every column filled from the wrong
+// places scores perfectly. A coverage measure is blind to content by
+// construction; this is the test that reads it.
+func TestAScreenReadsLeftToRight(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	for _, c := range []struct {
+		name    string
+		screens int
+		wide    int
+		bend    float64
+	}{
+		{"one wide screen, bent, which is what was reported", 1, 6400, DefaultBend},
+		{"a wider one still", 1, 10240, DefaultBend},
+		{"a gentler curve", 1, 6400, 2 * DefaultBend},
+		{"an ordinary desk, where this has always held", 6, 0, FlatBend},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			p, err := NewPlan(beast, Options{Screens: c.screens})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.wide > 0 {
+				p = WidePlan(p, c.wide).WithBend(c.bend)
+			}
+			f, err := NewFan(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			widths := make([]int, p.Count())
+			for i := range widths {
+				widths[i] = p.ScreenWidth(i)
+			}
+			f.SetSourceWidths(widths)
+			f.SetBends(p.Bends())
+
+			for focus := range p.Count() {
+				for _, toward := range []float64{0, 0.25, 0.5} {
+					// The panels of ONE screen, in the order the view puts them.
+					// Panels of other screens are skipped rather than compared:
+					// two different screens may sit either way round on the band.
+					last := map[int]int32{}
+					lastAt := map[int]int{}
+					for _, s := range f.Frame(nil, focus, toward) {
+						if len(s.Cols) == 0 {
+							continue
+						}
+						first := s.Cols[0].Src
+						if prev, seen := last[s.Screen]; seen && first < prev {
+							t.Errorf("focus %d, %.2f along: screen %d shows source "+
+								"column %d at x=%d after column %d at x=%d -- it "+
+								"reads right to left, which is the screen wrapped "+
+								"round the viewer rather than laid out in front",
+								focus, toward, s.Screen+1, first, s.Dst.X,
+								prev, lastAt[s.Screen])
+						}
+						last[s.Screen] = s.Cols[len(s.Cols)-1].Src
+						lastAt[s.Screen] = s.Dst.X
+					}
+				}
+			}
+
+			// ⭐ AND THE SCREEN BEING LOOKED AT IS CENTRED ON ITS MIDDLE, which is
+			// the property the fix rests on: panel 0 is square on at the viewing
+			// distance, so whichever facet it shows is what the eye is aimed at.
+			// Before, that was the screen's first facet -- its left edge.
+			if c.wide == 0 {
+				return
+			}
+			mid, half := p.ScreenW/2, p.ScreenWidth(0)/2
+			for _, s := range f.Frame(nil, 0, 0) {
+				if s.Dst.X <= mid && mid < s.Dst.X+s.Dst.W && len(s.Cols) > 0 {
+					got := int(s.Cols[len(s.Cols)/2].Src)
+					// Within one facet of the middle: 86 facets of a 6400-wide
+					// screen is 74 columns each, and the centre column of the
+					// view falls inside one of them rather than on its centre.
+					if tol := p.ScreenWidth(0)/len(f.ring.f) + 1; got < half-tol || got > half+tol {
+						t.Errorf("the middle of the view shows source column %d "+
+							"of a screen %d wide: the eye is aimed %d columns "+
+							"from its centre", got, p.ScreenWidth(0), got-half)
+					}
+					return
+				}
+			}
+			t.Error("no panel covers the middle of the view")
+		})
+	}
+}
