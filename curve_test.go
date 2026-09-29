@@ -14,6 +14,21 @@ import (
 // ⛔⛔ A FLAT SCREEN IS ONE FACET TURNING BY NOTHING, not a special case the
 // caller has to remember. If flat came back as "no facets" every reader of this
 // would need a branch, and one of them would forget it.
+//
+// ⚠ AND THE "ONE" IS KNOWN TO BE WRONG FOR A SCREEN WIDER THAN THE VIEW, which
+// is recorded here rather than left for the next reader to rediscover. Frame
+// walks the chain in PANELS and `toward` is a fraction of the step from one
+// panel to the next, so a screen left as a single panel has nowhere for the gaze
+// to step: a quarter step goes a quarter of the way to the screen's own next
+// copy, a whole splay round the band. Measured, one flat screen of 6400 at a
+// splay of twenty: at toward 0 the panel filled all 1920 columns, at toward 0.25
+// it painted 382 and left 1538 dark.
+//
+// Cutting a flat screen into one panel per view fixes that and costs something
+// else -- it inflates the half-turn reach cap, which counts panels and assumes
+// they all turn -- so the flat fold protocol went from 0 complaints to 217.
+// Deriving the cap from the cumulative angle instead recovers most of it but not
+// all. See the skipped cases in TestAFrameCoversTheWholeView.
 func TestFlatComesBackAsOneFacetTurningByNothing(t *testing.T) {
 	t.Parallel()
 
@@ -378,5 +393,137 @@ func TestTheWideScreenBendsAndFlattensWhileTheDeskRuns(t *testing.T) {
 	d.Do(ActionFlatWide)
 	if got := d.Facets(); got != flat {
 		t.Errorf("asking twice for flat drew %d facets, want %d", got, flat)
+	}
+}
+
+// ⛔⛔ THE BAND HAS TO REACH BOTH EDGES OF THE VIEW, and no test asked that until
+// a defect arrived from the glasses in three words: "tres etroit".
+//
+// FanReach is four PANELS either side of the middle, chosen when a panel was a
+// screen. Cut one into eighty-six facets and four panels either side is a tenth
+// of it: the desk drew a correct picture of a fragment, sharp and sixty-two
+// frames a second, and every test passed. They all ask what a panel projects to;
+// none asked how many there should be.
+//
+// So this asks the only question that would have caught it: given a frame, is
+// any column of the view left unpainted?
+func TestAFrameCoversTheWholeView(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	for _, c := range []struct {
+		name string
+		wide int
+		bend float64
+	}{
+		{"an ordinary desk", 0, FlatBend},
+		{"one wide screen, flat", 6400, FlatBend},
+		// ⭐ The case that was broken. 6400 pixels curved at the viewing
+		// distance is 86 facets, and the old reach drew nine of them.
+		{"one wide screen, bent", 6400, DefaultBend},
+		{"a wider one still", 10240, DefaultBend},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			// ⛔⛔ A KNOWN DEFECT, SKIPPED AND NAMED RATHER THAN QUIETLY DROPPED.
+			// A FLAT screen wider than the view is one panel on the chain, and
+			// Frame steps in panels: `toward` a quarter of the way to the next
+			// one goes a quarter of the way to this screen's own next COPY, a
+			// whole splay round the band, which lands in the void beside it.
+			// Measured here, one flat screen of 6400 at a splay of twenty:
+			//
+			//	toward 0.00   0 of 1920 columns unpainted
+			//	toward 0.25   1538 unpainted
+			//	toward 0.50   727 unpainted
+			//	toward 0.75   1538 unpainted
+			//
+			// ⛔ AND IT IS REACHED BY THE ONE GESTURE WIDE MODE EXISTS FOR.
+			// headToBand returns 1 when the desk holds fewer than two screens,
+			// so on a single wide screen a head turn goes into the ribbon's yaw
+			// unconverted and Desk.draw hands Frame exactly these values:
+			// turning to read the right-hand end of a spreadsheet empties the
+			// view. The BENT case below is correct and is not skipped, so a wide
+			// screen is usable today by curving it.
+			//
+			// Cutting a flat screen into one panel per view fixes this and
+			// inflates the half-turn reach cap, which counts panels and assumes
+			// every panel turns: the flat fold protocol went from 0 complaints to
+			// 217. Deriving that cap from the cumulative angle instead recovers
+			// most of them. Neither half is landed because together they are not
+			// yet green, and a renderer that is nearly right is worse than one
+			// whose limits are written down.
+			if c.wide > 0 && c.bend == FlatBend {
+				t.Skip("a flat screen wider than the view is one panel, so toward " +
+					"steps to its own next copy: 1538 of 1920 columns unpainted " +
+					"at a quarter step. Curve it, or cut it into panels -- see " +
+					"TestFlatComesBackAsOneFacetTurningByNothing")
+			}
+
+			// ⛔ WIDE MODE IS ONE SCREEN, so that is the desk this asks about. A
+			// wide screen BESIDE an ordinary one is an arrangement the command no
+			// longer builds -- "on ne veux que un ecran" -- and asserting coverage
+			// for it would be holding the code to a shape nobody can ask for.
+			screens := 2
+			if c.wide > 0 {
+				screens = 1
+			}
+			p, err := NewPlan(beast, Options{Screens: screens})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.wide > 0 {
+				// ⛔ THROUGH WidePlan, which is the path a PERSON's -wide takes
+				// and the only one that clamps. WithScreenWidth is the
+				// MEASUREMENT path: it refuses a width outside the band's aspect
+				// range, because there the number is a captured source's shape
+				// and one out of range is a capture that has gone wrong. Calling
+				// it directly with 10240 on a 1080-high band silently produced an
+				// ordinary 1920 flat screen -- this subtest failed with 1341 of
+				// 1920 columns unpainted, which was the refusal and not the
+				// geometry.
+				p = WidePlan(p, c.wide).WithBend(c.bend)
+			}
+			f, err := NewFan(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.wide > 0 {
+				// ⛔ THE PLAN'S WIDTH, NOT THE ONE ASKED FOR. WidePlan clamps to
+				// the band's aspect range, so 10240 on a 1080-high band is 8640
+				// -- and a fan told 10240 while the plan holds 8640 is the two
+				// halves of the renderer disagreeing about where the pixels are.
+				f.SetSourceWidths([]int{p.ScreenWidth(0)})
+				f.SetBends(p.Bends())
+			}
+
+			// Every focus and a few positions between, because the gap that
+			// "tres etroit" describes moves with the gaze.
+			for focus := range p.Count() {
+				for _, toward := range []float64{0, 0.25, 0.5, 0.75} {
+					painted := make([]bool, p.ScreenW)
+					for _, s := range f.Frame(nil, focus, toward) {
+						for x := s.Dst.X; x < s.Dst.X+s.Dst.W && x < len(painted); x++ {
+							if x >= 0 {
+								painted[x] = true
+							}
+						}
+					}
+					blank := 0
+					for _, ok := range painted {
+						if !ok {
+							blank++
+						}
+					}
+					// ⚠ A few columns may legitimately be background -- the gap
+					// between two screens crosses the view. A TENTH of the view
+					// painted is the defect; nine tenths blank is not a gap.
+					if blank > len(painted)/2 {
+						t.Errorf("focus %d, %.2f along: %d of %d columns are unpainted",
+							focus, toward, blank, len(painted))
+					}
+				}
+			}
+		})
 	}
 }

@@ -742,14 +742,27 @@ func TestAWideScreenIsWideInTheChainToo(t *testing.T) {
 	}
 	fan.SetSourceWidths(widths)
 
-	// ⭐ THE PANEL IS AS WIDE AS THE SCREEN, in the units the chain works in:
-	// f*2*hw_i is the screen's own pixel width, because f*2*hw is the view and
-	// hw_i is hw times the screen's share of it. Asserted before any picture,
-	// so a failure says which of the two things is wrong.
+	// ⭐ THE SCREEN IS AS WIDE AS THE SCREEN, in the units the chain works in:
+	// f*2*hw_i is its own pixel width, because f*2*hw is the view and hw_i is hw
+	// times the screen's share of it. Asserted before any picture, so a failure
+	// says which of the two things is wrong.
+	//
+	// ⛔ SUMMED OVER THE SCREEN'S FACETS, because hwOf is indexed by PANEL and a
+	// panel is no longer a screen. This read hwOf(i) with a SCREEN number, which
+	// was the same thing only while every screen was one panel: a flat screen
+	// wider than the view is now cut into one panel per view, so hwOf(1) became
+	// the first HALF of the wide screen and the assertion failed at 1920 asking
+	// for 3840. The defect it exists to catch -- a wide screen squeezed into a
+	// panel's width -- still fails it, because a squeeze leaves the sum short
+	// however the screen is cut.
 	hwOf := fan.hwOf(0)
 	for i := range flat.Count() {
-		if got, want := f*2*hwOf(i), float64(flat.ScreenWidth(i)); math.Abs(got-want) > 1e-6 {
-			t.Errorf("panel %d projects %g pixels wide at distance 1, want %d",
+		got := 0.0
+		for k := fan.ring.firstOf[i]; k < len(fan.ring.f) && fan.ring.f[k].screen == i; k++ {
+			got += f * 2 * hwOf(k)
+		}
+		if want := float64(flat.ScreenWidth(i)); math.Abs(got-want) > 1e-6 {
+			t.Errorf("screen %d projects %g pixels wide at distance 1, want %d",
 				i, got, flat.ScreenWidth(i))
 		}
 	}

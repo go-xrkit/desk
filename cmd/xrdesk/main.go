@@ -422,6 +422,17 @@ func run() int {
 		// the MAC'S screen and lose the wide one entirely. The band picks the
 		// shape up by itself once the source is that wide -- it already takes
 		// the shape of what it shows.
+		// ⛔ AND THE CEILING IS NAMED TO WHOEVER TYPED THE NUMBER. WidePlan
+		// clamps a width the band cannot hold, which is the right answer and a
+		// silent one: somebody who asked for 10240 and got 8640 would spend the
+		// session wondering why the sheet is narrower than they set it. The
+		// number came from a PERSON here, so this is the place that can say so.
+		// It used to be worse than silent -- the width was DROPPED and the
+		// screen came back ordinary and flat.
+		if lo, hi := made.WidthLimits(); wideW > 0 && (wideW < lo || wideW > hi) {
+			logf("a screen %d wide is not a shape these glasses can hold; using %d",
+				wideW, desk.WidePlan(made, wideW).ScreenWidth(0))
+		}
 		made = desk.WidePlan(made, wideW)
 		// The band carries the curve; the plan that is MADE does not need it,
 		// since nothing about creating a display depends on how it is drawn.

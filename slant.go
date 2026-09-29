@@ -266,8 +266,40 @@ func slantOf(scratch []SlantCol, screen int, lx, lz, rx, rz, panelH, f float64,
 	}
 	// Edge on. The angle is read off the two depths rather than passed in, so it
 	// is the angle of the panel that is actually being projected.
-	if turned := math.Abs(math.Atan2(rz-lz, rx-lx)); turned > rad(MaxSlantDeg) &&
-		turned < math.Pi-rad(MaxSlantDeg) {
+	//
+	// ⛔⛔ AND IT IS MEASURED FROM THE EYE, NOT AGAINST THE WORLD'S Z AXIS. It
+	// used to be atan2(rz-lz, rx-lx) -- the panel's ABSOLUTE orientation -- which
+	// asks "is this panel side-on to straight ahead?" when the question is "is
+	// this panel side-on to the line I am looking at it along?". The two agree
+	// for a desk of separate screens, because a screen turned ninety degrees
+	// from straight ahead is also side-on to the eye; they come apart entirely
+	// on a band that WRAPS, where a facet at the side of the curve is
+	// perpendicular to z and square on to the viewer at the same time.
+	//
+	// ⭐ THE OLD TEST PUNCHED A HOLE IN THE MIDDLE OF A CURVED SCREEN. Measured,
+	// an Odyssey of 3840 curved at the viewing distance, splay 5°, distance 4x:
+	// facets 41 to 50 were refused for turning 80.6° to 98.4° while facet 40 at
+	// 78.6° and facet 51 at 100.4° were both drawn -- a contiguous refusal BAND
+	// rather than a far edge. It left 112 pixels of background at x=1778 with
+	// the screen's far end pasted beyond it, and 751 source columns drawn
+	// nowhere at all. Facet 51 projecting seven columns is the proof the test
+	// was wrong and not merely strict: a panel that is genuinely edge-on
+	// projects to one.
+	//
+	// ⚠ INVISIBLE UNTIL THE FOLD PROTOCOL SWEPT A CURVED DESK, which it had
+	// never done -- every shape in theDesksToSweep was flat, so the entire
+	// facet renderer sat outside the one instrument built to catch this.
+	//
+	// The angle between the panel and the line of sight to its middle, by the
+	// cross product: |d x m| = |d||m|sin(angle), so a small sine is a panel lying
+	// along the line of sight, which is what edge-on MEANS. Ninety degrees minus
+	// the ceiling, for the same reason the ceiling is eighty and not ninety: the
+	// last ten degrees are worth nothing and cost a division by a depth
+	// approaching zero.
+	dx, dz := rx-lx, rz-lz
+	mx, mz := (lx+rx)/2, (lz+rz)/2
+	if cross := math.Abs(dx*mz - dz*mx); cross <
+		math.Sin(rad(90-MaxSlantDeg))*math.Hypot(dx, dz)*math.Hypot(mx, mz) {
 		return Slant{}, false
 	}
 

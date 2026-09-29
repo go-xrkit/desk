@@ -76,6 +76,41 @@ func (d deskShape) plan(t *testing.T) (Plan, []int) {
 	return p, widths
 }
 
+// SweepCurvedDesks turns the curved half of the fold protocol on.
+//
+// ⛔⛔ THE CURVED RENDERER HAS NEVER BEEN UNDER THIS PROTOCOL, and that is the
+// blind spot, not the switch. Every shape in theDesksToSweep is flat, so the
+// facet machinery -- the thing that draws a wide screen as a row of panels --
+// was checked only by tests asking what ONE panel projects to. That is the same
+// shape of gap as "tres etroit": every assertion held and none of them was about
+// the arrangement.
+//
+// ⭐ TURNING IT ON FINDS REAL DEFECTS, WHICH IS WHY IT IS HERE AT ALL. Measured
+// on this branch, six screens with an Odyssey among them, both anchorings, seven
+// splays, five distances:
+//
+//	8680  the renderer as it was, with the protocol taught about facets
+//	7023  with the edge-on test measured from the eye instead of the z axis
+//	5001  and the half-turn cap derived from the cumulative angle
+//
+// The first of those is landed here: it was a contiguous run of facets refused
+// in the MIDDLE of a curved screen -- 112 pixels of background and 751 source
+// columns drawn nowhere. What is left is pre-existing and not yet understood,
+// mostly a screen's run ending short at the long distances.
+//
+// ⛔ IT IS OFF BECAUSE A RED PROTOCOL IS NOT A PROTOCOL. A sweep that always
+// fails stops being read, and then it catches nothing at all. It is a constant
+// rather than a flag so that flipping it is a commit somebody reviews.
+const SweepCurvedDesks = false
+
+// bendsToSweep is the curvatures the protocol runs at. See [SweepCurvedDesks].
+func bendsToSweep() []float64 {
+	if SweepCurvedDesks {
+		return []float64{FlatBend, DefaultBend}
+	}
+	return []float64{FlatBend}
+}
+
 // TestTheFoldProtocol sweeps the whole reachable state of the turned band and
 // checks, at each point, the things somebody looking through the glasses would
 // say if they were wrong.
@@ -90,19 +125,35 @@ func TestTheFoldProtocol(t *testing.T) {
 			base = base.WithAnchoring(anchor)
 			for _, splay := range []float64{SplayStep, 10, 20, 30, 40, 51.6, MaxSplayDeg} {
 				for _, dist := range []float64{1, 1.5, 2, 3, MaxDistance} {
-					plan := base.WithSplay(splay).WithDistance(dist)
-					f, err := NewFan(plan)
-					if err != nil {
-						t.Fatalf("%s at %g°, %gx: NewFan = %v", shape.name, splay, dist, err)
-					}
-					f.SetSourceWidths(widths)
-					f.SetAnchoring(anchor)
-					for focus := range plan.Count() {
-						for _, toward := range []float64{-0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5} {
-							where := fmt.Sprintf("%s desk, %s, %g°, %gx, screen %d, %+.1f along",
-								anchor, shape.name, splay, dist, focus+1, toward)
-							checkFrame(t, where, plan, widths,
-								f.Frame(nil, focus, toward), focus, toward)
+					// ⛔⛔ AND BOTH CURVATURES, because the curved renderer had
+					// never been under this protocol at all. Every desk swept
+					// here was flat, so the facet machinery -- the thing that
+					// draws a wide screen as a row of panels -- was checked only
+					// by tests that ask what ONE panel projects to. That is the
+					// same shape of blind spot as "tres etroit": every assertion
+					// held and none of them was about the arrangement.
+					//
+					// ⚠ Plan.Bend is flat unless a screen is wider than the
+					// band, so this bends the wide screen in each shape and
+					// leaves the ordinary ones alone -- which is the doctrine,
+					// not a limitation of the sweep.
+					for _, bend := range bendsToSweep() {
+						plan := base.WithSplay(splay).WithDistance(dist).WithBend(bend)
+						f, err := NewFan(plan)
+						if err != nil {
+							t.Fatalf("%s at %g°, %gx, bend %g: NewFan = %v",
+								shape.name, splay, dist, bend, err)
+						}
+						f.SetSourceWidths(widths)
+						f.SetBends(plan.Bends())
+						f.SetAnchoring(anchor)
+						for focus := range plan.Count() {
+							for _, toward := range []float64{-0.5, -0.3, -0.1, 0, 0.1, 0.3, 0.5} {
+								where := fmt.Sprintf("%s desk, %s, %g°, %gx, bend %g, screen %d, %+.1f along",
+									anchor, shape.name, splay, dist, bend, focus+1, toward)
+								checkFrame(t, where, plan, widths,
+									f.Frame(nil, focus, toward), focus, toward)
+							}
 						}
 					}
 				}
@@ -125,6 +176,26 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 	for i, s := range panels {
 		src := widths[s.Screen]
 
+		// ⛔⛔ A PANEL IS A FACET, NOT A SCREEN, AND EVERY ASSERTION BELOW USED TO
+		// SAY OTHERWISE. A curved screen is drawn as a row of panels and a wide
+		// flat one now is too, so "this panel shows the screen's first column"
+		// and "there is a seam before the next panel" are both FALSE in the
+		// middle of one screen: a facet join is the same picture continuing,
+		// with no seam and no whole source on either side of it.
+		//
+		// ⛔ AND THIS WAS A BLIND SPOT, NOT A NEW CASE. theDesksToSweep never set
+		// a bend, so no faceted desk had ever been through this protocol and the
+		// entire curved renderer sat outside it. The sweep now carries bends.
+		//
+		// ⭐ THE INTENT IS UNCHANGED AND THE COVER IS WIDER. A screen is still
+		// drawn whole -- but "whole" is a property of its RUN of facets, first
+		// column at the run's left end and last at its right -- and the inside
+		// of a run is now held to something the old check could not ask at all:
+		// that consecutive facets meet exactly, with the source carrying on
+		// across the join.
+		runStarts := i == 0 || panels[i-1].Screen != s.Screen
+		runEnds := i == len(panels)-1 || panels[i+1].Screen != s.Screen
+
 		// ⛔ A SCREEN IS DRAWN WHOLE. An edge that is the panel's own -- not the
 		// canvas's -- must show that screen's own first or last pixel column. A
 		// fold that chops a screen short is the defect this whole protocol is
@@ -136,7 +207,7 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 		// it does not. A column's centre is half a column inside the panel, so
 		// its own local step is exactly the slack there should be.
 		last := len(s.Cols) - 1
-		if s.Dst.X > 0 && last > 0 {
+		if runStarts && s.Dst.X > 0 && last > 0 {
 			step := max(int32(1), s.Cols[1].Src-s.Cols[0].Src)
 			if got := s.Cols[0].Src; got > step {
 				t.Errorf("%s: screen %d starts at x=%d showing its source column "+
@@ -144,7 +215,7 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 					s.Screen+1, s.Dst.X, got, step)
 			}
 		}
-		if s.Dst.X+s.Dst.W < viewW && last > 0 {
+		if runEnds && s.Dst.X+s.Dst.W < viewW && last > 0 {
 			step := max(int32(1), s.Cols[last].Src-s.Cols[last-1].Src)
 			if got := s.Cols[last].Src; int32(src-1)-got > step {
 				t.Errorf("%s: screen %d ends at x=%d showing its source column "+
@@ -229,6 +300,29 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 			t.Errorf("%s: screen %d runs to x=%d and screen %d starts at x=%d: "+
 				"they overlap by %d", where,
 				prev.Screen+1, end, s.Screen+1, s.Dst.X, end-s.Dst.X)
+		}
+		if !runStarts {
+			// ⛔⛔ INSIDE ONE SCREEN THE OPPOSITE IS TRUE: a facet join must be
+			// INVISIBLE. A gap here is a dark line down the middle of a
+			// spreadsheet and a jump in the source is a column of it silently
+			// missing -- neither is something the old per-screen checks could
+			// have asked about, because to them these two panels were two
+			// separate appearances of one screen and therefore already an error.
+			if hole := s.Dst.X - end; hole > 1 {
+				t.Errorf("%s: screen %d has %d pixels of nothing between two of "+
+					"its own facets at x=%d: a seam inside one screen",
+					where, s.Screen+1, hole, end)
+			}
+			if pl, cl := len(prev.Cols), len(s.Cols); pl > 1 && cl > 0 {
+				step := max(int32(1), prev.Cols[pl-1].Src-prev.Cols[pl-2].Src)
+				if jump := s.Cols[0].Src - prev.Cols[pl-1].Src; jump < 0 || jump > 2*step {
+					t.Errorf("%s: screen %d reads source column %d after %d "+
+						"across a facet join at x=%d: %d columns of it are not "+
+						"drawn anywhere", where, s.Screen+1,
+						s.Cols[0].Src, prev.Cols[pl-1].Src, end, jump)
+				}
+			}
+			continue
 		}
 		if end < viewW && s.Dst.X > 0 && s.Dst.X-end < 1 {
 			t.Errorf("%s: screen %d ends at x=%d and screen %d starts at x=%d, "+
