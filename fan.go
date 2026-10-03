@@ -336,13 +336,33 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	//
 	// ⚠ reachIn's own cap is kept. It is wrong to rely on but right to bound by:
 	// it keeps the loop below finite without having to trust this one.
-	for reach > 1 && (math.Abs(angleAt(float64(reach))) > 180 ||
-		math.Abs(angleAt(float64(-reach))) > 180) {
-		reach--
-	}
-
+	// ⛔⛔ AND IT IS A WALK, NOT A COUNT, because the panels of one ring differ in
+	// angular size by a factor of twenty-five. A trimmed symmetric reach only
+	// moved the defect: trimming to what is safe in the WORST direction starves
+	// the best one. Measured, six screens at a splay of 51.6° with one of them
+	// 3840 wide and curved -- 52 facets of two degrees beside folds of 51.6°:
+	//
+	//	focus                reach        the wide screen is drawn with
+	//	the wide screen      24 (48°)     49 facets of 52
+	//	the screen beside it  3 (155°)    3 of 52
+	//	the one after that    3 (155°)    0 of 52
+	//
+	// So turning to the screen next to a wide spreadsheet left the spreadsheet a
+	// sliver -- "tres etroit" again, arrived at from the other side. One number
+	// cannot both cover the view from a finely faceted screen and stay inside
+	// half a turn from a coarsely splayed one.
+	//
+	// ⭐ A WALK IS RIGHT FOR BOTH, because each direction stops on its own
+	// terms: half a turn measured along THIS chain, or the first panel that is
+	// not in shot. Going outward a panel only gets more oblique and smaller, so
+	// a refusal is the edge of what can be drawn and not a gap to step over --
+	// which is why stopping is safe here where the old loop had to `continue`.
+	//
+	// ⚠ STILL BOUNDED BY reachIn, and that bound is what sizes f.slots: a walk
+	// that could run further than the buffers exist would be a panic in the
+	// render loop.
 	slot := 0
-	for j := base - reach; j <= base+reach; j++ {
+	add := func(j int) bool {
 		lx, lz, rx, rz := slantChain(j, angleAt, hwOf, gapAt, f.distance, turn)
 		// Which screen this panel shows, and which SLICE of it: the whole
 		// source for a flat screen, one facet of it for a curved one.
@@ -350,13 +370,35 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 		s, ok := slantOf(f.slots[slot], at, lx, lz, rx, rz,
 			f.panelH, f.f, f.viewW, f.viewH, x0, x1, f.srcH)
 		if !ok {
-			continue
+			return false
 		}
 		// Keep the buffer this slant was built in: the next panel gets the next
 		// one, so nothing is overwritten while the frame is still being drawn.
 		f.slots[slot] = s.Cols[:0]
 		slot++
 		dst = append(dst, s)
+		return true
+	}
+
+	// ⛔ THE FRAME IS IN CHAIN ORDER, left to right, which the fold protocol and
+	// the compositor both read. So the leftward walk is collected first and then
+	// REVERSED in place: walking outward is the only way to know where to stop,
+	// and arriving in the wrong order would make every neighbouring pair look
+	// like an overlap.
+	left := len(dst)
+	for k := 1; k <= reach; k++ {
+		if math.Abs(angleAt(float64(base-k))-angleAt(float64(base))) > 180 || !add(base-k) {
+			break
+		}
+	}
+	for i, j := left, len(dst)-1; i < j; i, j = i+1, j-1 {
+		dst[i], dst[j] = dst[j], dst[i]
+	}
+	add(base)
+	for k := 1; k <= reach; k++ {
+		if math.Abs(angleAt(float64(base+k))-angleAt(float64(base))) > 180 || !add(base+k) {
+			break
+		}
 	}
 	return dst
 }

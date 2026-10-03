@@ -756,3 +756,89 @@ func TestTheBandNeverComesRoundOnItself(t *testing.T) {
 		}
 	}
 }
+
+// ⛔⛔ THE REACH IS A WALK, NOT A COUNT, because the panels of one ring differ
+// in angular size by a factor of twenty-five.
+//
+// A desk with one curved screen among ordinary ones has facets of MaxFacetDeg --
+// two degrees -- sitting beside folds of the whole splay. A reach expressed as a
+// NUMBER of panels cannot serve both: large enough to cover the view from inside
+// the curved screen, it walks most of a turn from an ordinary one and draws the
+// far side of the band over the near side; trimmed to half a turn from the
+// ordinary screen, it reaches three facets into a screen made of fifty-two.
+//
+// ⭐ MEASURED, six screens at 51.6° with one of them 3840 wide and curved:
+//
+//	focus                 the wide screen is drawn with
+//	the wide screen       49 facets of 52
+//	the screen beside it   3 of 52   -> 24 of 52
+//	the one after that     0 of 52   (correct: it is 103° off to the side)
+//
+// Three facets of fifty-two is "tres etroit" arrived at from the other side:
+// turn to the screen next to a wide spreadsheet and the spreadsheet is a sliver.
+//
+// ⚠ THE BOUND HERE IS DERIVED, NOT CHOSEN. FanReach is the old panel count, and
+// the defect was precisely that a panel count bounded the walk -- so "more
+// facets than FanReach" is the property that a count no longer governs it. It
+// held at 3 before and holds at 24 now.
+func TestAWideScreenIsNotASliverFromNextDoor(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	for _, splay := range []float64{40, 51.6, MaxSplayDeg} {
+		for _, dist := range []float64{2, 3, MaxDistance} {
+			p, err := NewPlan(beast, Options{Screens: 6})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p = p.WithScreenWidth(0, 3840).WithSplay(splay).
+				WithDistance(dist).WithBend(DefaultBend)
+			widths := make([]int, p.Count())
+			for i := range widths {
+				widths[i] = p.ScreenWidth(i)
+			}
+			f, err := NewFan(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.SetSourceWidths(widths)
+			f.SetBends(p.Bends())
+
+			facets := 0
+			for _, fa := range f.ring.f {
+				if fa.screen == 0 {
+					facets++
+				}
+			}
+			if facets <= FanReach {
+				t.Fatalf("%g°, %gx: the wide screen is only %d facets, so this "+
+					"cannot tell a walk from a count", splay, dist, facets)
+			}
+
+			// ⛔ FROM ITS OWN POSITION FIRST, as the control: if the walk were
+			// broken in general this would fail too, and the failure below would
+			// not be about the neighbour at all.
+			drawn := map[int]int{}
+			for _, s := range f.Frame(nil, 0, 0) {
+				drawn[s.Screen]++
+			}
+			if drawn[0] <= FanReach {
+				t.Errorf("%g°, %gx: looking AT the wide screen draws %d of its "+
+					"%d facets", splay, dist, drawn[0], facets)
+			}
+
+			// And from the screen beside it, which is where a panel count starved
+			// it. Screen 2 sits one fold away, so the wide screen is squarely in
+			// shot: it is 3840 across and spans more than the fold does.
+			drawn = map[int]int{}
+			for _, s := range f.Frame(nil, 1, 0) {
+				drawn[s.Screen]++
+			}
+			if drawn[0] <= FanReach {
+				t.Errorf("%g°, %gx: from the screen beside it, the wide screen is "+
+					"drawn with %d of its %d facets -- a panel count is still "+
+					"governing the walk", splay, dist, drawn[0], facets)
+			}
+		}
+	}
+}
