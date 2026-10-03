@@ -804,3 +804,48 @@ func TestOptionsWithNoLadderStillClimbTheDefaultOne(t *testing.T) {
 		t.Errorf("granted %v, which is the combination that was refused", got)
 	}
 }
+
+// ⛔⛔ THE WAY OUT MUST HAVE A KEY, AND THE KEY MUST BE THE GRANTED ONE.
+//
+// [ActionPointHome] is what a person presses when the pointer has gone onto a
+// screen only the glasses show and they cannot see it any more. run_display
+// tells them about it in the PICTURE the first time the pointer leaves -- it
+// used to be announced only in a log, which is the one place somebody wearing
+// the glasses is not looking, and a session where the pointer was lost holds no
+// trace of the key ever being pressed.
+//
+// That sentence names a key, so two things have to hold or it is worse than
+// nothing: the action must be in the default ladder at all, and the glyphs must
+// come from what the window server GRANTED. The ladder moves a combination
+// somebody else holds -- two moved in the session this was written in -- and a
+// notice naming the asked-for key would send a lost person to a key that does
+// nothing.
+func TestTheWayOutHasAGrantedKey(t *testing.T) {
+	const mods = hotkey.Control | hotkey.Option | hotkey.Command
+	moved := hotkey.Combo{Key: hotkey.KeyN0, Mods: mods | hotkey.Shift}
+	withRegister(t, func(want hotkey.Combo, _ *hotkey.Options) (claimed, error) {
+		// Every key is taken, so the ladder moves every one of them: the
+		// strongest form of the question, since a notice that reads the ASKED-FOR
+		// combination is then wrong about all of them at once.
+		return &fakeClaim{got: moved, want: want, ch: make(chan hotkey.Event)}, nil
+	})
+
+	h := ClaimGlobal(DefaultShortcuts(), nil)
+	defer h.Close()
+
+	got, ok := h.Granted()[ActionPointHome]
+	if !ok {
+		t.Fatal("no key is bound to bringing the pointer back to this Mac: the " +
+			"notice that offers a way out would name nothing, and the person " +
+			"reading it is already lost")
+	}
+	if got != moved {
+		t.Errorf("the way out was granted %v, want the combination the window "+
+			"server actually gave, %v -- a notice reading anything else sends "+
+			"somebody to a key that does nothing", got, moved)
+	}
+	if got.Glyphs() == "" {
+		t.Error("the way out's key has no glyphs to show, so the notice would " +
+			"offer an empty key")
+	}
+}
