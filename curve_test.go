@@ -5,6 +5,7 @@
 package desk
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -662,5 +663,96 @@ func TestAScreenReadsLeftToRight(t *testing.T) {
 			}
 			t.Error("no panel covers the middle of the view")
 		})
+	}
+}
+
+// ⛔⛔ HALF A TURN IS A PROPERTY OF THE FOCUS, NOT OF THE RING, and a single
+// number for the whole band was wrong for every screen but one.
+//
+// reachIn caps the reach at len(f)*180/total: how many facets make half a turn
+// IF they all turned by the same amount. On a desk with one curved screen among
+// ordinary ones they are nothing like uniform -- the curved screen's facets turn
+// by MaxFacetDeg, two degrees, while the fold between two ordinary screens is
+// the whole splay.
+//
+// ⭐ MEASURED, six screens at a splay of sixty with one of them 3840 wide,
+// curved at the viewing distance: 57 facets over 461.2°, so the uniform cap
+// allows 22. From the wide screen those 22 facets walk 44°; from the screen
+// beside it, 334° -- very nearly a whole turn -- and from the one after, 218°.
+// The far side of the band was therefore drawn OVER the near side, which the
+// fold protocol reports as "screen 7 runs to x=1920 and screen 3 starts at x=0:
+// they overlap by 1920" -- one screen covering the whole view over another.
+//
+// ⚠ AND IT WAS THE MAJORITY OF WHAT THE CURVED SWEEP FOUND. Counted by family
+// over the whole protocol, both anchorings, seven splays, five distances:
+//
+//	family                  before  after
+//	overlap by                1653      0
+//	no seam                    552      0
+//	the wrong screen centred    40      0
+//	a screen cut short        3710   2790
+//
+// Nothing was traded for anything: every family fell.
+func TestTheBandNeverComesRoundOnItself(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	// The corner the overlaps lived in -- the widest splays and the furthest
+	// distances, where the band closes geometrically -- and a gentle desk as the
+	// control, since a cap that fires everywhere would be hiding the band rather
+	// than bounding it.
+	for _, splay := range []float64{20, 51.6, MaxSplayDeg} {
+		for _, dist := range []float64{1, 2, MaxDistance} {
+			p, err := NewPlan(beast, Options{Screens: 6})
+			if err != nil {
+				t.Fatal(err)
+			}
+			p = p.WithScreenWidth(0, 3840).WithSplay(splay).
+				WithDistance(dist).WithBend(DefaultBend)
+			widths := make([]int, p.Count())
+			for i := range widths {
+				widths[i] = p.ScreenWidth(i)
+			}
+			f, err := NewFan(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.SetSourceWidths(widths)
+			f.SetBends(p.Bends())
+
+			for focus := range p.Count() {
+				for _, toward := range []float64{-0.5, 0, 0.5} {
+					where := fmt.Sprintf("%g°, %gx, screen %d, %+.1f along",
+						splay, dist, focus+1, toward)
+					ss := f.Frame(nil, focus, toward)
+
+					// ⛔ NO PANEL MAY OVERLAP THE ONE BEFORE IT. This is the
+					// signature of the wrap: the panels are in chain order, so a
+					// panel starting left of where the last one ended is the far
+					// side of the band arriving on top of the near side.
+					for i := 1; i < len(ss); i++ {
+						end := ss[i-1].Dst.X + ss[i-1].Dst.W
+						if ss[i].Dst.X < end {
+							t.Errorf("%s: screen %d runs to x=%d and screen %d "+
+								"starts at x=%d: they overlap by %d",
+								where, ss[i-1].Screen+1, end, ss[i].Screen+1,
+								ss[i].Dst.X, end-ss[i].Dst.X)
+						}
+					}
+
+					// ⛔ AND THE CHAIN ITSELF MUST ADMIT A BOUND. A frame can come
+					// out looking right because slantOf happened to refuse the
+					// wrapped panels, which is luck and not a cap -- so the step to
+					// the very first panel is asserted on the chain, where a desk
+					// whose every step is already past half a turn would leave no
+					// reach for Frame to trim to.
+					angleAt, _ := f.chainOf(focus)
+					if a := math.Abs(angleAt(1)); a > 180 {
+						t.Errorf("%s: one panel along the chain is already %.0f° "+
+							"round, so no reach can be inside half a turn", where, a)
+					}
+				}
+			}
+		}
 	}
 }

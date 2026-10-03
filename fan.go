@@ -310,6 +310,37 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// half of the view they turned towards empty.
 	hwOf := f.hwOf(focus)
 	angleAt, gapAt := f.chainOf(focus)
+
+	// ⛔⛔ AND HALF A TURN IS MEASURED FROM THE FOCUS, BECAUSE THE RING'S FACETS
+	// DO NOT ALL TURN BY THE SAME AMOUNT. reachIn caps the reach at
+	// len(f)*180/total -- how many facets make half a turn IF they were uniform
+	// -- and on a desk with one curved screen among ordinary ones they are
+	// nothing like uniform: the curved screen's facets turn by MaxFacetDeg, two
+	// degrees, while the fold between two ordinary screens is the whole splay.
+	// One number cannot be right for both, and a number right for one focus is
+	// wrong for its neighbour.
+	//
+	// ⭐ MEASURED, six screens at a splay of sixty with one of them 3840 wide,
+	// curved at the viewing distance: 57 facets over 461.2°, so the uniform cap
+	// allows 22 facets. From the wide screen those 22 facets walk 44°. From the
+	// screen beside it they walk 334° -- very nearly a whole turn -- and from the
+	// one after, 218°. So the far side of the band was drawn over the near side,
+	// which the protocol reports as "screen 7 runs to x=1920 and screen 3 starts
+	// at x=0: they overlap by 1920", one screen covering the whole view over
+	// another. That single shape was the majority of what the curved sweep found.
+	//
+	// angleAt is already relative to the focus, so this asks the chain that is
+	// about to be walked rather than an average of the one it came from. Both
+	// directions, because a chain is not symmetric: the screens either side of
+	// the focus are different shapes.
+	//
+	// ⚠ reachIn's own cap is kept. It is wrong to rely on but right to bound by:
+	// it keeps the loop below finite without having to trust this one.
+	for reach > 1 && (math.Abs(angleAt(float64(reach))) > 180 ||
+		math.Abs(angleAt(float64(-reach))) > 180) {
+		reach--
+	}
+
 	slot := 0
 	for j := base - reach; j <= base+reach; j++ {
 		lx, lz, rx, rz := slantChain(j, angleAt, hwOf, gapAt, f.distance, turn)
