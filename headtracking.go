@@ -341,11 +341,15 @@ func (d *Desk) headGain() float64 {
 	// reached here has a positive one -- and a branch no test could reach
 	// honestly is a hole in the coverage gate rather than safety.
 	w := d.plan.ScreenWidth(d.nav.Focus())
-	deg, beyond := HeadYawFor(float64(w)/float64(d.plan.ScreenW), d.plan.HFOVDeg)
-	if !beyond {
+	// ⛔ THE REACH COMES FROM THE PLAN, not from the constant. It is the virtual
+	// curve's radius said in degrees of head turn, and a person sets it because
+	// nobody can measure a feeling for somebody else. See [Plan.ReachDeg].
+	reach := d.plan.ReachDeg()
+	deg := HeadYawFor(float64(w)/float64(d.plan.ScreenW), d.plan.HFOVDeg)
+	if deg <= reach {
 		return 1
 	}
-	return deg / ComfortableYawDeg
+	return deg / reach
 }
 
 // toggleFollowHead turns head tracking on, opening the camera the first time,

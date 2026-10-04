@@ -1024,10 +1024,10 @@ func TestTheHeadIsAmplifiedByWhatTheScreenDemands(t *testing.T) {
 		// than the gain is what stops the two drifting apart -- a gain that is
 		// right and a yaw that is not would be a table nobody can read.
 		views := float64(d.Plan().ScreenWidth(0)) / float64(p.ScreenW)
-		if raw, beyond := HeadYawFor(views, p.HFOVDeg); beyond {
-			if with := raw / got; math.Abs(with-ComfortableYawDeg) > 1 {
+		if raw := HeadYawFor(views, p.HFOVDeg); raw > p.ReachDeg() {
+			if with := raw / got; math.Abs(with-p.ReachDeg()) > 1 {
 				t.Errorf("a screen %d wide needs %.0f° at 1:1 and %.1f° with its "+
-					"gain, want %.0f°", c.px, raw, with, ComfortableYawDeg)
+					"gain, want %.0f°", c.px, raw, with, p.ReachDeg())
 			}
 		}
 		d.Close()

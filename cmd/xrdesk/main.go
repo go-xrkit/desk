@@ -114,6 +114,10 @@ func run() int {
 	snap := flag.Bool("snapshot", false, "write the first frame shown, so it can be looked at afterwards")
 	stereo3D := flag.Bool("3d", false,
 		"start with the 3D conversion on; it can be turned on and off from the menu at any time")
+	reach := flag.Float64("reach", 0,
+		"the head turn, in degrees, that brings a wide screen's far end into the "+
+			"middle of the view: the virtual curve's radius, where smaller is more "+
+			fmt.Sprintf("wrapped (0 = %g; at most %g)", desk.ComfortableYawDeg, desk.MinReachDeg))
 	depthModel := flag.String("depth-model", "",
 		"a Core ML depth model (.mlpackage or .mlmodelc) for -3d; without one, depth is guessed from the picture and is visibly worse")
 	dim := flag.Bool("dim", true,
@@ -436,7 +440,7 @@ func run() int {
 		made = desk.WidePlan(made, wideW)
 		// The band carries the curve; the plan that is MADE does not need it,
 		// since nothing about creating a display depends on how it is drawn.
-		plan = plan.WithBend(bendR)
+		plan = plan.WithBend(bendR).WithReach(*reach)
 		screens, err := desk.Provide(ctx, made, logf)
 		if err != nil {
 			// Back to waiting rather than out of the program.

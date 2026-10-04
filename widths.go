@@ -134,25 +134,27 @@ const ComfortableYawDeg = 20.0
 // reported and somebody fixed. Making the band move faster than the head would
 // reintroduce it deliberately. So the ceiling is told to the person, not
 // engineered around.
-func HeadYawFor(views, fovDeg float64) (deg float64, beyondComfort bool) {
-	if views <= 0 || fovDeg <= 0 {
-		return 0, false
-	}
-	deg = (views*fovDeg - fovDeg) / 2
-	if deg < 0 {
-		deg = 0
-	}
-	return deg, deg > ComfortableYawDeg
-}
-
-// WidthWithinReach is the widest screen whose far end a comfortable head turn
-// brings into the middle of the view, in pixels, on a band of this shape.
+// ⛔⛔ AND IT NO LONGER SAYS WHETHER THAT IS TOO FAR, because the answer stopped
+// being a property of the screen. [Desk.headGain] amplifies the head by what
+// this returns over the turn somebody is willing to make, so EVERY width arrives
+// at that turn and "beyond comfort" became a question about the gain rather than
+// the geometry.
 //
-// It is HeadYawFor solved for the width, so the two cannot drift apart: a screen
-// this wide needs exactly [ComfortableYawDeg], and a wider one needs more.
-func WidthWithinReach(panelW int, fovDeg float64) int {
-	if panelW <= 0 || fovDeg <= 0 {
+// It used to return a second value, and a notice in run_display reported it to
+// the wearer as a ceiling -- "its ends are 60° of head turn away, about 3409
+// wide is what a comfortable turn reaches". That sentence was true for one
+// commit and wrong after the next, and it was still being shown, in the glasses,
+// after the gain had made it false. A number a person reads has to be computed
+// where the thing it describes is decided; this one was not.
+//
+// WidthWithinReach went with it. "The widest screen within reach" is not a
+// quantity any more: with a gain, every width is.
+func HeadYawFor(views, fovDeg float64) float64 {
+	if views <= 0 || fovDeg <= 0 {
 		return 0
 	}
-	return int(float64(panelW) * (2*ComfortableYawDeg + fovDeg) / fovDeg)
+	if deg := (views*fovDeg - fovDeg) / 2; deg > 0 {
+		return deg
+	}
+	return 0
 }
