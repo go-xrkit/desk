@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/go-xrkit/xrkit/glasses"
+
 	"github.com/go-macos/hotkey"
 )
 
@@ -642,5 +644,79 @@ func TestCurveTellsFlatFromUnset(t *testing.T) {
 				t.Errorf("Curve() = %g, want %g", got, c.want)
 			}
 		})
+	}
+}
+
+// ⛔⛔ "NOBODY SAID" AND "FLAT WAS ASKED FOR" ARE DIFFERENT ANSWERS, and
+// Config.Bend cannot tell them apart. FlatBend's own doc says why that matters:
+// it is a NAME rather than a magic zero because "a person reading `curve = 0` in
+// a settings file has no way to tell flat from unset".
+//
+// ⭐ AND IT DECIDES A DEFAULT NOW. Reported from inside the glasses: "l'ecran
+// plat de 6400 sans courbure n'est franchement pas utilisable aux bors, c'est
+// trop loin". A flat plane keeps its edges further from the eye than its middle:
+// at 3.33 views the edge is 1.90x the distance, seen at 58°, drawn at 28% of its
+// scale. So a wide screen nobody has spoken for is curved.
+func TestBendChosenTellsNobodySaidFromFlat(t *testing.T) {
+	t.Parallel()
+
+	flat, curved := FlatBend, 2.0
+	for _, c := range []struct {
+		name   string
+		cfg    Config
+		want   float64
+		chosen bool
+	}{
+		{"no ribbon block at all", Config{}, 0, false},
+		{"a ribbon block that says nothing about it", Config{Ribbon: &ConfigRibbon{}}, 0, false},
+		// ⛔ ASKED FOR FLAT IS A CHOICE, and has to survive as one or the default
+		// below would overrule somebody who typed `bend = 0` on purpose.
+		{"flat, asked for", Config{Ribbon: &ConfigRibbon{Bend: &flat}}, FlatBend, true},
+		{"a radius", Config{Ribbon: &ConfigRibbon{Bend: &curved}}, 2.0, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, chosen := c.cfg.BendChosen()
+			if got != c.want || chosen != c.chosen {
+				t.Errorf("BendChosen = %g, %v; want %g, %v",
+					got, chosen, c.want, c.chosen)
+			}
+		})
+	}
+}
+
+// ⛔⛔ AND THE DOCTRINE IS UNTOUCHED: a screen the size of the view stays FLAT
+// however the plan is bent. This is the claim the new default rests on -- the
+// bend reaches only a screen wider than the band -- and without it, curving by
+// default would bow the thing somebody is reading, which was measured, worn and
+// rejected on 2026-08-26.
+//
+// ⚠ IT IS ALSO WHY THE DEFAULT CAN BE SET BEFORE ANY CAPTURE ARRIVES. The plan
+// carries a radius; whether it APPLIES is decided later, per screen, from that
+// screen's own width -- which is the trap the head-tracking notice fell into and
+// this one does not.
+func TestCurvingThePlanLeavesAnOrdinaryScreenFlat(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p = p.WithBend(DefaultBend).WithScreenWidth(1, 6400)
+
+	for i := range p.Count() {
+		got, wide := p.Bend(i), p.ScreenWidth(i) > p.ScreenW
+		switch {
+		case wide && got != DefaultBend:
+			t.Errorf("screen %d is %d wide on a %d band and its bend is %g, want "+
+				"%g: the screen this exists for is not curved",
+				i+1, p.ScreenWidth(i), p.ScreenW, got, DefaultBend)
+		case !wide && got != FlatBend:
+			t.Errorf("screen %d is the shape of the band and its bend is %g, want "+
+				"%g: curving the screen somebody is reading was worn and rejected",
+				i+1, got, FlatBend)
+		}
 	}
 }

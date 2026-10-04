@@ -1262,7 +1262,26 @@ func bendOr(flag float64, settings desk.Config) float64 {
 	if flag >= 0 {
 		return flag
 	}
-	return settings.Bend()
+	if r, chosen := settings.BendChosen(); chosen {
+		return r
+	}
+	// ⛔⛔ AND NOBODY SAYING MEANS CURVED, because a flat wide screen is not
+	// usable at its edges. Reported from inside the glasses: "l'ecran plat de
+	// 6400 sans courbure n'est franchement pas utilisable aux bors, c'est trop
+	// loin". A flat plane keeps its edges further from the eye than its middle
+	// and a rectilinear projection draws them smaller for it:
+	//
+	//	screen            edge distance   seen at   scale at the edge
+	//	1920, 1 view              1.11x       26°                 81%
+	//	6400, 3.33 views          1.90x       58°                 28%
+	//
+	// ⚠ IT REACHES ONLY A WIDE SCREEN, so the desk's flat doctrine is untouched.
+	// desk.Plan.Bend is flat unless a screen is wider than the band, so this
+	// curves the spreadsheet and leaves every ordinary screen exactly as it was
+	// -- which is also why it is safe to set before a capture has arrived: the
+	// decision of whether it APPLIES is taken later, per screen, from its own
+	// width. `-bend 0` still asks for a flat wide one.
+	return desk.DefaultBend
 }
 
 // dimTheMacsPanel decides whether to turn this Mac's own panel off while the

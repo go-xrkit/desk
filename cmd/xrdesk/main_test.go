@@ -219,3 +219,61 @@ func TestTheMacsPanelIsOnlyDimmedWhileItsCopyIsShowing(t *testing.T) {
 		})
 	}
 }
+
+// ⛔⛔ A WIDE SCREEN NOBODY HAS SPOKEN FOR IS CURVED, which is a default this
+// command changed on the strength of one sentence from inside the glasses:
+// "l'ecran plat de 6400 sans courbure n'est franchement pas utilisable aux
+// bors, c'est trop loin".
+//
+// ⭐ THE GEOMETRY AGREES EXACTLY. A flat plane keeps its edges further from the
+// eye than its middle, and a rectilinear projection draws them smaller for it:
+//
+//	screen            edge distance   seen at   scale at the edge
+//	1920, 1 view              1.11x       26°                 81%
+//	3840, 2 views             1.39x       44°                 52%
+//	6400, 3.33 views          1.90x       58°                 28%
+//	8640, 4.5 views           2.39x       65°                 17%
+//
+// Which is why "the desk's screens are flat" was right for its own case and
+// wrong for this one: at one view the penalty is 81% and nobody notices, and
+// that judgement -- measured, worn and kept on 2026-08-26 -- stands. At 3.33
+// views the edge is nearly twice as far and drawn at 28%.
+//
+// ⚠ AND A CHOICE STAYS A CHOICE. Somebody who typed `-bend 0`, or `bend = 0` in
+// the settings, asked for a flat wide screen and gets one; see
+// desk.Config.BendChosen for why the two could not be told apart before.
+func TestAWideScreenNobodySpokeForIsCurved(t *testing.T) {
+	t.Parallel()
+
+	flat, gentle := desk.FlatBend, 4.0
+	for _, c := range []struct {
+		name string
+		flag float64
+		cfg  desk.Config
+		want float64
+	}{
+		// -1 is the flag's "not given"; see the note on bendOr's callers.
+		{"nobody said anything at all", -1, desk.Config{}, desk.DefaultBend},
+		{"a ribbon block that says nothing about it", -1,
+			desk.Config{Ribbon: &desk.ConfigRibbon{}}, desk.DefaultBend},
+		// ⛔ THE TWO WAYS OF ASKING FOR FLAT, which must both survive the default.
+		{"the flag asked for flat", 0, desk.Config{}, desk.FlatBend},
+		{"the settings asked for flat", -1,
+			desk.Config{Ribbon: &desk.ConfigRibbon{Bend: &flat}}, desk.FlatBend},
+		// And a radius either way is that radius.
+		{"the flag named a radius", 2, desk.Config{}, 2},
+		{"the settings named a radius", -1,
+			desk.Config{Ribbon: &desk.ConfigRibbon{Bend: &gentle}}, 4},
+		// ⚠ THE FLAG WINS, like every other number here: it is for one run.
+		{"the flag overrules the settings", 0,
+			desk.Config{Ribbon: &desk.ConfigRibbon{Bend: &gentle}}, desk.FlatBend},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := bendOr(c.flag, c.cfg); got != c.want {
+				t.Errorf("bendOr(%g, %+v) = %g, want %g", c.flag, c.cfg.Ribbon, got, c.want)
+			}
+		})
+	}
+}
