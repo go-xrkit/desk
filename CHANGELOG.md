@@ -5,6 +5,26 @@ it got a pseudo-version of whatever `main` happened to be. Entries below are
 written from the code, not from the commit log: 240 pull requests do not make a
 history somebody can read.
 
+## v0.1.2 — 2026-10-04
+
+### Fixed — a flag told you to press keys that were not bound
+
+`-no-global` said it declined «`⌥⌘←/→` and `⌥⌘Space`». The band took the third
+modifier months ago, when one prefix for everything beat two keys saved, and
+`Space` is bound to **no action at all**. The same stale pair had been copied
+into four places — this help, the README table, the documentation site and a
+comment — and a flag's help is the worst of them: it is the one piece of
+documentation somebody reads with their hands on the keys. It names no key now;
+there are forty and they move, the count and where to look do not.
+
+`-wide` said «one screen … instead of the ribbon», which was true until wide
+mode stopped clamping the count. It widens every screen and keeps the count.
+
+A test now parses this package with `go/ast` and refuses any **string literal**
+naming a combination the code does not grant. Literals rather than the file as
+text, because the comments discuss keys that moved and a grep cannot tell
+history from a claim about today.
+
 ## v0.1.1 — 2026-10-04
 
 ### Fixed — a picture of your screens was world-readable

@@ -90,11 +90,17 @@ func run() int {
 		"how far a WIDE screen is bent round you, as a multiple of the viewing distance: "+
 			"1 puts every pixel the same distance from the eye, like a physical "+
 			"curved monitor; 0 is flat; -1 = the setting. Panel-sized screens stay flat")
+	// ⛔ "ONE SCREEN ... INSTEAD OF THE RIBBON" WAS TRUE AND STOPPED BEING. Wide
+	// mode clamped the count to one, on a report that was about the Mac's mirror
+	// beside the wide screen rather than about a second wide screen; it widens
+	// EVERY screen now and keeps the count, asked for by name: "moi je verrais
+	// bien 3 ecrans large qu'on peut faire defiler".
 	wide := flag.Int("wide", 0,
-		"one screen this many pixels across instead of the ribbon, for a window "+
+		"make every screen on the ribbon this many pixels across, for a window "+
 			"that does not fit one panel -- a wide spreadsheet. 0 = the setting. "+
-			"Shown one source pixel per panel pixel and panned by turning the head; "+
-			"5120 and 6400 open on every machine measured, 3840 and 7680 are refused")
+			"Shown one source pixel per panel pixel and reached by turning the "+
+			"head, on a band that stays flat; 5120 and 6400 open on every machine "+
+			"measured, 3840 and 7680 are refused")
 	distance := flag.Float64("distance", 0, fmt.Sprintf("how far the band sits, 1 to %g screens across the view (0 = the setting, or one)", desk.MaxDistance))
 	splay := flag.Float64("splay", 0,
 		fmt.Sprintf("the angle between one screen and the next, 0 to %g degrees "+
@@ -104,8 +110,19 @@ func run() int {
 	photoCamera := flag.String("photo-camera", "",
 		"which camera a photograph comes from, by its unique id (empty = the first listed)")
 	quiet := flag.Bool("quiet", false, "say less")
+	// \u26d4\u26d4 IT NAMED TWO SHORTCUTS THAT HAD NOT EXISTED FOR MONTHS: "\u2325\u2318\u2190/\u2192 and
+	// \u2325\u2318Space". The band took the third modifier when one prefix for everything
+	// beat two keys saved, and Space is bound to no action at all -- it survives
+	// only in traykey.go's translation table. The same stale pair had been
+	// copied into four places, and a flag's help is the worst of them: it is the
+	// one piece of documentation somebody reads with their hands on the keys.
+	//
+	// It names no key now. There are forty of them and they change; the count
+	// and where to look do not. TestNoUserFacingStringNamesAnUnboundShortcut
+	// keeps every other string in this package honest.
 	noGlobal := flag.Bool("no-global", false,
-		"do not claim the system-wide shortcuts (\u2325\u2318\u2190/\u2192 and \u2325\u2318Space)")
+		fmt.Sprintf("do not claim the %d system-wide shortcuts; the run prints "+
+			"the ones it got", len(desk.DefaultShortcuts())))
 	interactive := flag.Bool("interactive", false,
 		"let the desk window take the keyboard and the mouse (it does not by "+
 			"default: they belong to the applications on the screens)")
