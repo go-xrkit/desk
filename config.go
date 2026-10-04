@@ -614,6 +614,17 @@ func (c Config) Wide() int {
 // MaxScreens: the nearest shape the band can hold beats both the silent
 // discard and an outright error, and [Plan.WidthLimits] lets whoever read the
 // number say so to the person who typed it.
+// ⭐ AND IT WIDENS EVERY SCREEN ON THE BAND, not just the first. It used to do
+// one, because wide mode was one screen -- a decision taken on "en mode ecran
+// large on ne veux que un ecran, la j'en vois plusieurs", where the screen in
+// excess was the Mac's MIRROR beside the wide one rather than a second wide one.
+// Asked for since, once the keyboard and the head had each found their job:
+// "moi je verrais bien 3 ecrans large qu'on peut faire defiler".
+//
+// ⚠ Which is not a reversal of that report. A mirror beside a wide screen is a
+// band again, and a band is what wide mode exists to stop being; three wide
+// screens are a desk of wide screens. The mirror stays off either way -- see
+// where it is read.
 func WidePlan(p Plan, wide int) Plan {
 	if wide <= 0 {
 		return p
@@ -625,7 +636,10 @@ func WidePlan(p Plan, wide int) Plan {
 	if wide > hi {
 		wide = hi
 	}
-	return p.WithScreenWidth(0, wide)
+	for i := range p.Count() {
+		p = p.WithScreenWidth(i, wide)
+	}
+	return p
 }
 
 // Curve is the radius a wide screen is curved at, or [FlatBend].

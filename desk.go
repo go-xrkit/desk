@@ -1760,16 +1760,32 @@ func build(plan Plan) (*ribbon.Ribbon, *Strip, *Grid, *Fan, error) {
 	}
 	// The band, flat, at whatever distance the plan is seen from.
 	//
-	// Distance is the pixel SCALE of the band and nothing else: the whole band
-	// divided by it, so every screen and every gap shrinks together and the ring
-	// stays the same ring. At 1 a screen is exactly the view, which is where this
-	// started; at 2 it is half of it and its two neighbours are in shot.
+	// Distance is the pixel SCALE of the band: the whole band divided by it, so
+	// every screen and every gap shrinks together and the ring stays the same
+	// ring. At 1 a screen is exactly the view, which is where this started; at 2
+	// it is half of it and its two neighbours are in shot.
+	//
+	// ⛔⛔ AND IT IS THE SCALE IN BOTH AXES, which this comment used to deny --
+	// "the pixel SCALE of the band and nothing else" -- while dividing only the
+	// band's LENGTH. The height came from srcH mapped onto the view and nothing
+	// divided it, so pushing three screens of 6400 back to distance 2 made them
+	// half as wide and full height. That is not a distance, it is a squash.
+	// Reported from inside the glasses: "les touches d'eloigement modifie la
+	// largeur de l'ecran mais pas sa hauteur, un eloigment doit modifier les
+	// deux".
+	//
+	// ⚠ THE CURVED RENDERER WAS ALWAYS RIGHT HERE, which is why this took wearing
+	// to find: it projects a panel in space, where a distance is a distance.
+	// Measured, the widest panel drawn at each distance -- 1600x1080, 1066x720,
+	// 800x540, 534x360 -- both axes divided exactly, against 1920x1080 at every
+	// distance on the flat band.
 	band := int(float64(plan.BandPx()) / plan.Distance())
 	strip, err := NewStrip(placed, band,
 		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("desk: laying out the band: %w", err)
 	}
+	strip.SetDrawnHeight(int(float64(plan.ScreenH) / plan.Distance()))
 	// And a screen that is not the shape of the glasses reads its own pixels
 	// through its own width. The ARC it takes already came from that shape,
 	// through Plan.Screens above.

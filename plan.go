@@ -893,12 +893,19 @@ const MinReachDeg = 5.0
 // that could not fold another screen into its gallery suddenly could, and eight
 // columns fitted a view that had been too narrow for them. Two tests said so.
 //
-// ⭐ THIRTY-TWO, DOWN FROM FORTY-EIGHT ON THE REPORT OF SOMEBODY WEARING IT:
-// "peut on reduire l'espace de 50% entre les ecrans virtuels, la ca semble un
-// peu grand", and then "va pour 32 alors" when 24 was measured to make the seam
-// very thin at the far end of the distance range. Forty-eight was never
-// measured, only chosen, and the person who sees it every day is the better
-// instrument -- including about the compromise.
+// ⭐ THE VALUE IS A WEARER'S READING, AND THE READINGS ARE KEPT, so that whoever
+// changes it next knows what has already been looked at:
+//
+//	48   never measured, only chosen -- what this started at
+//	32   "l'espace entre les ecrans est parfaitement lisible"
+//	24   measured to leave the seam very thin at the far distances
+//	16   "a mon avis on peut reduire les 32px, essai avec 16"
+//	 8   "peut on tester 8px a la place de 16?"   <- here
+//
+// Written as a series rather than as "eight, because": the constant moved four
+// times in one sitting, and a comment naming only the current value was false
+// within minutes of the change -- twice. A number still being bisected should
+// say that it is.
 //
 // ⚠ AND IT STAYS WIDE ENOUGH TO BE THE THING IT IS FOR, which is why reducing is
 // the whole move and zero is not. The seam exists so a fold can be FOUND -- asked
@@ -907,10 +914,12 @@ const MinReachDeg = 5.0
 // seam and overlapped by a pixel. The fold protocol's bound on a hole is twice
 // this number, so that bound shrinks with it rather than going slack.
 //
-// ⚠ AND NARROWING IT COSTS SOMETHING, measured on the curved sweep rather than
-// reasoned about: 1256 complaints at 48, 1294 at 32, 1304 at 24. A thinner seam
-// crosses the protocol's "no seam between them" threshold at the long distances,
-// which is exactly what the seam exists to prevent. Two thirds of that cost
-// remains at 32, so the width of the seam is NOT the dominant term in those
-// complaints and chasing it further would be chasing the wrong number.
-const DefaultSeamPx = 32
+// ⚠ AND THE SWEEP COUNT IS NOT A GUIDE HERE, which took measuring to find out.
+// The curved protocol reports 1256 complaints at 48, 1294 at 32, 1304 at 24,
+// 1298 at 16 and 1300 at 8 -- NOT monotone, and every value after the first
+// within fifty of the others. A thinner seam does cross the protocol's "no seam
+// between them" threshold at the long distances, which is what the seam exists
+// to prevent, but the width of the seam is plainly not the dominant term in
+// those complaints. Picking this number by that count would have been picking it
+// by noise.
+const DefaultSeamPx = 8
