@@ -350,7 +350,7 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 		// considered and lost. The whole sweep's widest is 54 pixels -- a
 		// 48-pixel seam with the projection on it -- so twice the seam is a
 		// bound with room in it and no room for a screen.
-		if hole := s.Dst.X - end; hole > 2*DefaultGapPx {
+		if hole := s.Dst.X - end; hole > 2*DefaultSeamPx {
 			t.Errorf("%s: %d pixels of nothing between screen %d and screen %d "+
 				"(x=%d..%d): a screen went missing", where,
 				hole, prev.Screen+1, s.Screen+1, end, s.Dst.X)

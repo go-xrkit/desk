@@ -349,7 +349,7 @@ func BenchmarkComposeBeastRibbon(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	strip, err := NewStrip(placedOf(r), plan.Count()*(plan.ScreenW+DefaultGapPx),
+	strip, err := NewStrip(placedOf(r), plan.Count()*(plan.ScreenW+DefaultSeamPx),
 		plan.ScreenW, plan.ScreenH, plan.ScreenW, plan.ScreenH)
 	if err != nil {
 		b.Fatal(err)

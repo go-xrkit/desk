@@ -508,7 +508,7 @@ func (p Plan) withBandLayout() Plan {
 	// Written this way, screen i's width comes back as exactly ScreenWidth(i)
 	// and every gap as exactly DefaultGapPx, whatever the mix. See
 	// TestTheBandIsAsLongAsItsScreens.
-	gapDeg := turnDeg * float64(DefaultGapPx) / float64(p.BandPx())
+	gapDeg := turnDeg * float64(DefaultSeamPx) / float64(p.BandPx())
 	p.Layout = ribbon.Layout{
 		// DensityDeg is the arc for one width of a SQUARE screen, and a wider
 		// screen gets proportionally more.
@@ -533,7 +533,7 @@ func (p Plan) withBandLayout() Plan {
 func (p Plan) BandPx() int {
 	band := 0
 	for i := range p.count {
-		band += p.ScreenWidth(i) + DefaultGapPx
+		band += p.ScreenWidth(i) + DefaultSeamPx
 	}
 	return band
 }
@@ -882,3 +882,28 @@ func (p Plan) WithReach(deg float64) Plan {
 // past that a head that twitches throws the picture across the band, and the
 // person is not panning any more, they are being flung.
 const MinReachDeg = 5.0
+
+// DefaultSeamPx is the dark band the RIBBON leaves between two screens, in
+// pixels of band.
+//
+// ⛔⛔ IT IS NOT [DefaultGapPx], WHICH IS THE GALLERY'S, and that one constant
+// was doing both jobs under the gallery's name -- "the band the gallery leaves
+// between two cells". The band's seam and a grid's cell spacing are different
+// decisions about different things, and halving one halved the other: a desk
+// that could not fold another screen into its gallery suddenly could, and eight
+// columns fitted a view that had been too narrow for them. Two tests said so.
+//
+// ⭐ TWENTY-FOUR, HALVED ON THE REPORT OF SOMEBODY WEARING IT: "peut on reduire
+// l'espace de 50% entre les ecrans virtuels, la ca semble un peu grand".
+// Forty-eight was never measured, only chosen, and the person who sees it every
+// day is the better instrument.
+//
+// ⚠ AND IT STAYS WIDE ENOUGH TO BE THE THING IT IS FOR, which is why halving is
+// the whole move and zero is not. The seam exists so a fold can be FOUND -- asked
+// for in exactly those terms, "il faut donc pouvoir detecter la fin d'un ecran
+// sur le coté et le debut d'un autre", after two screens met at a seam with no
+// seam and overlapped by a pixel. At 24 it is still worth about four tenths of a
+// degree at distance one, which is a term and not a rounding, and the fold
+// protocol's bound on a hole is twice this number so it halves with it rather
+// than going slack.
+const DefaultSeamPx = 24
