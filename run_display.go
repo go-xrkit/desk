@@ -577,6 +577,40 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				d.say("the pointer is on the desk now — " + key + " brings it back to this Mac")
 			}
 		}
+
+		// ⛔⛔ AND A SCREEN WIDER THAN THE VIEW IS UNREACHABLE WITHOUT THE HEAD.
+		// Turning the head is not a comfort on a wide screen, it is the ONLY way
+		// to the rest of it: the view shows plan.ScreenW of it and the band does
+		// not scale the source down, so a 6400-pixel screen in a 1920 view keeps
+		// 70% of itself out of reach until head tracking is on.
+		//
+		// It starts OFF -- d.head.on is a zero value -- and the only route to it
+		// was the tray row, which is on the Mac's own menu bar. Which this desk
+		// DIMS by default, because screen 1 is showing a copy of that desktop
+		// already. So the one setting a wide screen cannot do without lived
+		// behind a dark panel.
+		//
+		// ⭐ REPORTED, AND I HAD THE DIAGNOSIS WRONG FIRST. "le suivi de tete
+		// n'etait pas activé et je n'avais pas acces à l'icon de xrdesk pour
+		// l'activer. j'ai debranché les lunettes pour reprendre le focus". I went
+		// looking for a missing shortcut and there is none missing: the log of
+		// that very session says "follow your head: ⌃⌥⌘F". The key was there and
+		// announced -- in a log, which is the one place somebody wearing the
+		// glasses is not looking. The same defect as the way out for the pointer,
+		// twenty lines up, found the same way: by reading the log of the session
+		// that failed rather than the code.
+		//
+		// ⚠ ONLY WHEN THERE IS SOMETHING TO REACH. On a desk of ordinary screens
+		// every screen fits the view and the head is a convenience, so saying
+		// this would be a notice nobody needs -- and a notice nobody needs is how
+		// the next one stops being read.
+		if c, ok := hk.Granted()[ActionFollowHead]; ok && !d.FollowingHead() {
+			if w, wider := widestBeyondTheView(d.Plan()); wider {
+				d.say(fmt.Sprintf("a screen is %d wide and the view shows %d — %s "+
+					"follows your head, which is how you reach the rest of it",
+					w, d.Plan().ScreenW, c.Glyphs()))
+			}
+		}
 	}
 
 	// And the TRACKPAD. Three fingers sideways turn the ribbon, which is the

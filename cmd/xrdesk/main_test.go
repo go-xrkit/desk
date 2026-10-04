@@ -181,3 +181,41 @@ func TestAWideDeskCountsTheMirrorIn(t *testing.T) {
 		})
 	}
 }
+
+// ⛔⛔ FOUR CONDITIONS, AND THE FOURTH IS THE ONE THAT WAS MISSING. Dimming this
+// Mac's panel is only worth anything while the band shows a copy of it; wide
+// mode drops the mirror, so there is no copy, and turning the panel off then
+// takes the menu bar away from a person who has nowhere else to find it.
+//
+// ⚠ AND IT IS A PREDICATE RATHER THAN A LINE IN A CLOSURE because that is where
+// the last one of these hid: a condition nothing can be handed is a condition
+// nothing measures. See desk.looksClipped.
+func TestTheMacsPanelIsOnlyDimmedWhileItsCopyIsShowing(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name                             string
+		setting, flag, immersive, mirror bool
+		want                             bool
+	}{
+		{"everything asks for it", true, true, true, true, true},
+		// ⭐ THE DEFECT. Wide mode: the mirror is off, so the desktop is NOT in
+		// front of the person twice and the panel carries the only menu bar.
+		{"no mirror, which is wide mode", true, true, true, false, false},
+		{"the person turned it off in the settings", false, true, true, true, false},
+		{"the flag forced it off for one run", true, false, true, true, false},
+		// Windowed, the desk is a window ON one of these screens, so darkening
+		// them would black out the thing being used.
+		{"windowed rather than immersive", true, true, false, true, false},
+		{"nothing asks for it", false, false, false, false, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := dimTheMacsPanel(c.setting, c.flag, c.immersive, c.mirror); got != c.want {
+				t.Errorf("dimTheMacsPanel(setting=%v, flag=%v, immersive=%v, mirror=%v) "+
+					"= %v, want %v", c.setting, c.flag, c.immersive, c.mirror, got, c.want)
+			}
+		})
+	}
+}
