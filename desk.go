@@ -1460,8 +1460,17 @@ func (d *Desk) Render() *Canvas {
 			// ribbon's own arrangement. Two renderers with two ideas of where the
 			// band is would be the mistake that put it half a screen out of step
 			// with the navigator, made twice.
+			// ⛔⛔ AND THE TWO SPEAK DIFFERENT UNITS, which is a seam that was
+			// invisible until facets existed. Toward answers in SCREENS and
+			// Frame consumes PANELS -- it interpolates between two panels' own
+			// centres -- and those were one and the same number while every
+			// screen was a single panel. A curved screen of 3840 is 52 panels
+			// and a flat one of 6400 is 4, so a unit of Toward was being spent
+			// as a single facet and the band barely moved. See [Fan.PanelsOf]
+			// for what that measured.
+			toward := d.strip.Toward(d.nav.Yaw(), d.nav.Focus())
 			d.slants = d.fan.Frame(d.slants[:0], d.nav.Focus(),
-				d.strip.Toward(d.nav.Yaw(), d.nav.Focus()))
+				toward*float64(d.fan.PanelsOf(d.nav.Focus())))
 			d.canvas.ComposeSlants(d.slants, d.sources, d.Background)
 			d.mark(inGallery)
 			return d.canvas
