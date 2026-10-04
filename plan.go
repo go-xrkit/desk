@@ -136,6 +136,9 @@ type Plan struct {
 	// distance is how far the band sits from the viewer, as a multiple of the
 	// distance at which one screen fills the view. See [Plan.Distance].
 	distance float64
+	// reachDeg is the head turn that brings a wide screen.s far end into the
+	// middle of the view. Zero asks for [ComfortableYawDeg]. See [Plan.ReachDeg].
+	reachDeg float64
 
 	// splayDeg is the angle between one screen and the next. See [Plan.SplayDeg].
 	splayDeg float64
@@ -505,7 +508,7 @@ func (p Plan) withBandLayout() Plan {
 	// Written this way, screen i's width comes back as exactly ScreenWidth(i)
 	// and every gap as exactly DefaultGapPx, whatever the mix. See
 	// TestTheBandIsAsLongAsItsScreens.
-	gapDeg := turnDeg * float64(DefaultGapPx) / float64(p.BandPx())
+	gapDeg := turnDeg * float64(DefaultSeamPx) / float64(p.BandPx())
 	p.Layout = ribbon.Layout{
 		// DensityDeg is the arc for one width of a SQUARE screen, and a wider
 		// screen gets proportionally more.
@@ -530,7 +533,7 @@ func (p Plan) withBandLayout() Plan {
 func (p Plan) BandPx() int {
 	band := 0
 	for i := range p.count {
-		band += p.ScreenWidth(i) + DefaultGapPx
+		band += p.ScreenWidth(i) + DefaultSeamPx
 	}
 	return band
 }
@@ -825,3 +828,89 @@ func (p Plan) Bends() []float64 {
 // look flat to a caller asking "is the bend already what I want", and pressing
 // the row would rebuild the band for nothing -- or worse, never take effect.
 func (p Plan) BendAsked() float64 { return p.bend }
+
+// ReachDeg is how far the head must turn to bring a wide screen's far end into
+// the middle of the view, which is what [Desk.headGain] amplifies towards.
+//
+// ⛔⛔ IT IS THE VIRTUAL CURVE'S RADIUS, said in the units a person can feel.
+// Asked for in these terms, of the flat band: "on peut cintrer un tout petit
+// peu plus?" -- and then, when I reached for the pixel-bending kind: "je parle
+// toujours de cintrage virtuel, pas de deformation".
+//
+// There is no curvature to increase on a flat band; every part of it is square
+// on when it is looked at, which is what keeps it sharp at one source pixel per
+// panel pixel. What "more curve" means there is a TIGHTER CYLINDER: the same
+// head turn sweeping more of the screen. Which is the gain, and this is the
+// number that sets it -- smaller is more wrapped.
+//
+//	reach   gain on a 6400 screen   what it feels like
+//	30°                     2.01x   gentle, a wide desk
+//	20°                     3.01x   the default
+//	15°                     4.01x   tighter
+//	10°                     6.01x   a cylinder close around you
+//
+// ⚠ AND IT IS A FEELING, WHICH IS WHY IT IS A SETTING. Three widths were worn
+// and refused before the gain existed, and the number that replaced them came
+// from those refusals rather than from the optics -- every other quantity in
+// this file is derived and this one is reported. Nobody can measure it for
+// somebody else.
+func (p Plan) ReachDeg() float64 {
+	if p.reachDeg <= 0 {
+		return ComfortableYawDeg
+	}
+	return p.reachDeg
+}
+
+// WithReach is this plan with that head turn reaching a wide screen's far end.
+// Zero or less puts it back to [ComfortableYawDeg].
+//
+// ⚠ Clamped, not refused: a caller composing a plan in code asked for a reach,
+// and the nearest one the geometry can mean is as near as this gets. Below a
+// degree the gain runs away -- a tenth of a degree on a 6400 screen is 600x, and
+// a head that twitches would throw the picture across the band.
+func (p Plan) WithReach(deg float64) Plan {
+	if deg > 0 && deg < MinReachDeg {
+		deg = MinReachDeg
+	}
+	p.reachDeg = deg
+	return p
+}
+
+// MinReachDeg is the tightest virtual cylinder a plan will hold.
+//
+// Five degrees, which on the widest screen the band allows is a gain of twelve:
+// past that a head that twitches throws the picture across the band, and the
+// person is not panning any more, they are being flung.
+const MinReachDeg = 5.0
+
+// DefaultSeamPx is the dark band the RIBBON leaves between two screens, in
+// pixels of band.
+//
+// ⛔⛔ IT IS NOT [DefaultGapPx], WHICH IS THE GALLERY'S, and that one constant
+// was doing both jobs under the gallery's name -- "the band the gallery leaves
+// between two cells". The band's seam and a grid's cell spacing are different
+// decisions about different things, and halving one halved the other: a desk
+// that could not fold another screen into its gallery suddenly could, and eight
+// columns fitted a view that had been too narrow for them. Two tests said so.
+//
+// ⭐ THIRTY-TWO, DOWN FROM FORTY-EIGHT ON THE REPORT OF SOMEBODY WEARING IT:
+// "peut on reduire l'espace de 50% entre les ecrans virtuels, la ca semble un
+// peu grand", and then "va pour 32 alors" when 24 was measured to make the seam
+// very thin at the far end of the distance range. Forty-eight was never
+// measured, only chosen, and the person who sees it every day is the better
+// instrument -- including about the compromise.
+//
+// ⚠ AND IT STAYS WIDE ENOUGH TO BE THE THING IT IS FOR, which is why reducing is
+// the whole move and zero is not. The seam exists so a fold can be FOUND -- asked
+// for in exactly those terms, "il faut donc pouvoir detecter la fin d'un ecran
+// sur le coté et le debut d'un autre", after two screens met at a seam with no
+// seam and overlapped by a pixel. The fold protocol's bound on a hole is twice
+// this number, so that bound shrinks with it rather than going slack.
+//
+// ⚠ AND NARROWING IT COSTS SOMETHING, measured on the curved sweep rather than
+// reasoned about: 1256 complaints at 48, 1294 at 32, 1304 at 24. A thinner seam
+// crosses the protocol's "no seam between them" threshold at the long distances,
+// which is exactly what the seam exists to prevent. Two thirds of that cost
+// remains at 32, so the width of the seam is NOT the dominant term in those
+// complaints and chasing it further would be chasing the wrong number.
+const DefaultSeamPx = 32

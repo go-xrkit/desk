@@ -108,12 +108,12 @@ const DefaultFOVDeg = 45
 
 // slantGap is the world-space gap the chain leaves between two panels.
 //
-// It is the flat band's own [DefaultGapPx], in the units [slantChain] works in,
+// It is the flat band's own [DefaultSeamPx], in the units [slantChain] works in,
 // where a screen srcW pixels wide spans 2*hw. One function rather than the same
 // three-term expression in the renderer, in the derivation and in the tests:
 // they have to agree, and a formula copied three times agrees until it doesn't.
 func slantGap(hw float64, srcW int) float64 {
-	return 2 * hw * float64(DefaultGapPx) / float64(srcW)
+	return 2 * hw * float64(DefaultSeamPx) / float64(srcW)
 }
 
 // slantChain is where panel j of the chain is, in camera space.

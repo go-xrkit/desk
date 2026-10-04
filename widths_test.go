@@ -113,82 +113,116 @@ func TestWiderThanTheViewIsWhatMakesTheHeadNecessary(t *testing.T) {
 // says at length: Desk.headToBand exists to make the picture hold still while
 // the head moves, and that was a defect somebody reported and somebody fixed.
 // So this measures the ceiling in order to TELL it.
-func TestHeadYawForSaysWhenAScreenIsWiderThanAHeadCanSweep(t *testing.T) {
+func TestHeadYawForIsTheTurnAWideScreenDemands(t *testing.T) {
 	t.Parallel()
 
 	// The Beast's own field of view, so these are the numbers a person reads.
 	const fov = 51.57
 	for _, c := range []struct {
-		px     int
-		deg    float64
-		beyond bool
+		px  int
+		deg float64
 	}{
 		// A screen the size of the view needs no turn at all: it is already in
 		// front of you, which is the whole doctrine of the ordinary desk.
-		{1920, 0, false},
+		{1920, 0},
 		// ⚠ AND A NARROW ONE NEEDS LESS THAN NONE, which has to come back as no
 		// turn rather than a negative angle: the band allows a screen a quarter
 		// of its height wide, and the arithmetic goes through zero there.
-		{1280, 0, false},
-		{480, 0, false},
-		// ⚠ 2560 IS THE EDGE NOW and is deliberately in the table: at 9° it is
-		// just inside ComfortableYawDeg, so an off-by-one in either direction
-		// shows up here rather than as somebody.s stiff neck. The edge MOVED when
-		// the constant did -- it was 5120 at 43° while comfortable was forty --
-		// which is the whole reason the number is named rather than buried.
-		{2560, 9, false},
-		// ⭐ AND 3840 IS PAST IT, which is the report that moved the constant:
-		// 26° was worn and refused. At 1:1 this screen is out of reach; with
-		// Desk.headGain it arrives at twenty.
-		{3840, 26, true},
-		{5120, 43, true},
-		{6400, 60, true},
-		{8640, 90, true},
+		{1280, 0},
+		{480, 0},
+		{2560, 9},
+		{3840, 26},
+		{5120, 43},
+		{6400, 60},
+		{8640, 90},
 	} {
 		t.Run("", func(t *testing.T) {
 			t.Parallel()
 
 			views := float64(c.px) / 1920
-			deg, beyond := HeadYawFor(views, fov)
-			if math.Abs(deg-c.deg) > 1 {
+			if deg := HeadYawFor(views, fov); math.Abs(deg-c.deg) > 1 {
 				t.Errorf("a screen %d wide (%.2f views) needs %.0f° of head turn, "+
 					"want about %.0f", c.px, views, deg, c.deg)
-			}
-			if beyond != c.beyond {
-				t.Errorf("a screen %d wide at %.0f° reads beyondComfort=%v, want "+
-					"%v (comfortable is %.0f°)",
-					c.px, deg, beyond, c.beyond, ComfortableYawDeg)
 			}
 		})
 	}
 
-	// ⛔ AND THE TWO MUST NOT DRIFT APART. WidthWithinReach is HeadYawFor solved
-	// for the width, so a screen exactly that wide has to need exactly a
-	// comfortable turn -- and one pixel more has to be beyond it. Two numbers
-	// that answer the same question from opposite ends are how a notice comes to
-	// name a width that is not the one it checks.
-	w := WidthWithinReach(1920, fov)
-	if deg, beyond := HeadYawFor(float64(w)/1920, fov); beyond ||
-		math.Abs(deg-ComfortableYawDeg) > 1 {
-		t.Errorf("WidthWithinReach says %d, and that width needs %.1f° "+
-			"(beyond=%v); want about %.0f and within reach",
-			w, deg, beyond, ComfortableYawDeg)
-	}
-	if _, beyond := HeadYawFor(float64(w+200)/1920, fov); !beyond {
-		t.Errorf("%d is said to be within reach and %d is not past it",
-			w, w+200)
-	}
-
 	// Degenerate shapes answer nothing rather than a negative angle.
 	for _, c := range [][2]float64{{0, fov}, {3, 0}, {-1, fov}} {
-		if deg, beyond := HeadYawFor(c[0], c[1]); deg != 0 || beyond {
-			t.Errorf("HeadYawFor(%g, %g) = %g, %v; want 0, false", c[0], c[1], deg, beyond)
+		if deg := HeadYawFor(c[0], c[1]); deg != 0 {
+			t.Errorf("HeadYawFor(%g, %g) = %g, want 0", c[0], c[1], deg)
 		}
 	}
-	if got := WidthWithinReach(0, fov); got != 0 {
-		t.Errorf("WidthWithinReach(0, %g) = %d, want 0", fov, got)
+}
+
+// ⛔⛔ THE REACH IS THE VIRTUAL CURVE'S RADIUS, said in degrees of head turn, and
+// it is a SETTING because nobody can measure a feeling for somebody else.
+//
+// Asked for of the flat band -- "on peut cintrer un tout petit peu plus?" -- and
+// then, when I reached for the pixel-bending kind: "je parle toujours de
+// cintrage virtuel, pas de deformation". There is no curvature to increase on a
+// flat band: every part of it is square on when it is looked at, which is what
+// keeps it at one source pixel per panel pixel. What "more curve" means there is
+// a TIGHTER CYLINDER -- the same head turn sweeping more screen -- which is the
+// gain, and the reach is the number that sets it.
+func TestTheReachIsTheVirtualCurvesRadius(t *testing.T) {
+	t.Parallel()
+
+	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
+		Options{Screens: 1})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := WidthWithinReach(1920, 0); got != 0 {
-		t.Errorf("WidthWithinReach(1920, 0) = %d, want 0", got)
+
+	// Nobody said: the default, which came from three widths worn and refused.
+	if got := p.ReachDeg(); got != ComfortableYawDeg {
+		t.Errorf("a plan nobody set a reach on answers %g, want %g",
+			got, ComfortableYawDeg)
+	}
+	// And zero or less puts it back, so a caller clearing it gets the default
+	// rather than a division by nothing.
+	for _, deg := range []float64{0, -1, -1000} {
+		if got := p.WithReach(30).WithReach(deg).ReachDeg(); got != ComfortableYawDeg {
+			t.Errorf("WithReach(%g) answers %g, want the default %g",
+				deg, got, ComfortableYawDeg)
+		}
+	}
+	// ⚠ AND IT IS CLAMPED, NOT REFUSED. Below a degree the gain runs away: a
+	// tenth of a degree on a wide screen is a gain of hundreds, and a head that
+	// twitches would throw the picture across the band.
+	for _, deg := range []float64{MinReachDeg - 0.1, 0.1, 1} {
+		if got := p.WithReach(deg).ReachDeg(); got != MinReachDeg {
+			t.Errorf("WithReach(%g) answers %g, want the floor %g",
+				deg, got, MinReachDeg)
+		}
+	}
+	if got := p.WithReach(30).ReachDeg(); got != 30 {
+		t.Errorf("WithReach(30) answers %g", got)
+	}
+
+	// ⭐ AND A SMALLER REACH IS A TIGHTER CYLINDER, which is the whole point: the
+	// same screen, the same pixels, a shorter turn of the head to cross it. The
+	// gain is asserted through a desk rather than arithmetic, because the gain is
+	// what the renderer actually asks for.
+	wide := WidePlan(p, 6400)
+	for _, c := range []struct {
+		reach, gain float64
+	}{
+		{30, 2.01}, {20, 3.01}, {15, 4.01}, {10, 6.01},
+	} {
+		q := wide.WithReach(c.reach)
+		d, err := New(q, []Feed{&shapedFeed{w: q.ScreenWidth(0), h: q.ScreenH}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.Render() // a plan does not know a screen is wide until a source arrives
+		d.mu.Lock()
+		got := d.headGain()
+		d.mu.Unlock()
+		if math.Abs(got-c.gain) > 0.02 {
+			t.Errorf("a reach of %g° gives a gain of %.2f, want about %.2f",
+				c.reach, got, c.gain)
+		}
+		d.Close()
 	}
 }

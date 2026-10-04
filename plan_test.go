@@ -43,7 +43,7 @@ func TestOneScreenIsOneView(t *testing.T) {
 		// angles are a scroll coordinate: what makes a screen fill the glasses
 		// is that it is drawn at one source pixel per panel pixel, and the arc
 		// only has to be the same for every screen so the band is even.
-		strip, err := NewStrip(placedOf(r), p.Count()*(p.ScreenW+DefaultGapPx),
+		strip, err := NewStrip(placedOf(r), p.Count()*(p.ScreenW+DefaultSeamPx),
 			p.ScreenW, p.ScreenH, p.ScreenW, p.ScreenH)
 		if err != nil {
 			t.Fatalf("%s: NewStrip = %v", d, err)
@@ -508,7 +508,7 @@ func TestTheUniformBandIsUnmoved(t *testing.T) {
 		p := Plan{ScreenW: 1920, ScreenH: 1080}.WithScreens(n)
 		const turnDeg = 360 - 1e-6
 		pitch := turnDeg / float64(n)
-		gap := pitch * DefaultGapPx / float64(1920+DefaultGapPx)
+		gap := pitch * DefaultSeamPx / float64(1920+DefaultSeamPx)
 		want := (pitch - gap) / (1920.0 / 1080.0)
 		if got := p.Layout.DensityDeg; math.Abs(got-want) > 1e-9 {
 			t.Errorf("%d screens: DensityDeg %.12f, want %.12f", n, got, want)
@@ -591,7 +591,7 @@ func TestTheDerivedSplayAtDistanceOneIsTheFieldOfView(t *testing.T) {
 		p := Plan{ScreenW: 1920, ScreenH: 1080, HFOVDeg: fov}.WithScreens(6)
 		hw := math.Tan(rad(fov) / 2)
 		r := math.Hypot(hw, 1)
-		g := 2 * hw * float64(DefaultGapPx) / 1920
+		g := 2 * hw * float64(DefaultSeamPx) / 1920
 		want := fov + 2*deg(math.Asin(g/(2*r)))
 		if got := p.FacingSplayDeg(); math.Abs(got-want) > 1e-9 {
 			t.Errorf("fov %g at distance 1: derived %g, want %g (the fov plus %g "+
@@ -599,7 +599,13 @@ func TestTheDerivedSplayAtDistanceOneIsTheFieldOfView(t *testing.T) {
 		}
 		// And the gap really is what separates the two, rather than a term small
 		// enough to hide a mistake in: it is worth about a degree here.
-		if want-fov < 0.5 || want-fov > 2 {
+		// ⚠ THE BOUND HALVED WITH THE SEAM. It is here to catch a gap that is
+		// ACCIDENTALLY negligible -- "a term small enough to hide a mistake in" --
+		// not to forbid a smaller one chosen on purpose. DefaultSeamPx went from
+		// 48 to 24 on the report of somebody wearing it, so four tenths of a
+		// degree is now the deliberate value and still a term rather than a
+		// rounding.
+		if want-fov < 0.25 || want-fov > 2 {
 			t.Errorf("fov %g: the gap is worth %g°, which is not a gap", fov, want-fov)
 		}
 	}

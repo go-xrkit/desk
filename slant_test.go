@@ -42,13 +42,13 @@ func TestASplayOfNothingIsTheFlatBand(t *testing.T) {
 			// which is what "side by side" means.
 			// ⭐ AND THE PITCH IS THE STRIP'S OWN, which is the whole point of
 			// giving the chain a gap. The flat band has always left
-			// DefaultGapPx between screens, so its pitch is
-			// (ScreenW+DefaultGapPx)/distance; the chain had none, and the two
+			// DefaultSeamPx between screens, so its pitch is
+			// (ScreenW+DefaultSeamPx)/distance; the chain had none, and the two
 			// renderers disagreed about where the next screen starts. On a real
 			// desk that read as "screen 6 at x 0..917, screen 1 at x 916..1920"
 			// -- an overlap of one pixel, which is a fold nobody can find.
 			panelW, wantH := int(viewW/d), int(viewH/d)
-			pitch := int((viewW + DefaultGapPx) / d)
+			pitch := int((viewW + DefaultSeamPx) / d)
 			x := (viewW-panelW)/2 + j*pitch
 			wantX, wantW := x, panelW
 			if wantX < 0 {

@@ -17,6 +17,19 @@ import (
 // the ribbon left there — but a grid is a fold this package invents, so the
 // space in it is this package's to choose. Wide enough that two cells read as
 // two screens rather than as one wide one.
+//
+// ⭐ TWENTY-FOUR, HALVED FROM FORTY-EIGHT ON THE REPORT OF SOMEBODY WEARING IT:
+// "peut on reduire l'espace de 50% entre les ecrans virtuels, la ca semble un
+// peu grand". Forty-eight was never measured, only chosen, and the person who
+// sees it every day is the better instrument.
+//
+// ⚠ AND IT STAYS WIDE ENOUGH TO BE THE THING IT IS FOR, which is why halving is
+// the whole move and zero is not. The seam exists so a fold can be FOUND -- asked
+// for in exactly those terms, "il faut donc pouvoir detecter la fin d'un ecran
+// sur le coté et le debut d'un autre", after two screens met at a seam with no
+// seam and overlapped by a pixel. At 24 it is still over a percent of the view's
+// width, and the fold protocol's own bound on a hole is twice this number, so
+// that bound halves with it rather than going slack.
 const DefaultGapPx = 48
 
 // A Grid is every screen at once, in front of the viewer.

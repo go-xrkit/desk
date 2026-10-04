@@ -17,7 +17,7 @@ import (
 // plan does, written out, so a screen comes to exactly one view wide.
 func testSpan(n int) float64 {
 	pitch := 2 * math.Pi / float64(n)
-	return pitch * 1920 / float64(1920+DefaultGapPx)
+	return pitch * 1920 / float64(1920+DefaultSeamPx)
 }
 
 // evenScreens places n screens of hfov radians each, evenly, the way a ribbon
@@ -38,7 +38,7 @@ func testStrip(t *testing.T, n int) *Strip {
 	t.Helper()
 	// Evenly spread, each screen exactly one view wide, which is what a plan of
 	// equal screens gives.
-	s, err := NewStrip(evenScreens(n, testSpan(n)), n*(1920+DefaultGapPx), 1920, 1200, 1920, 1200)
+	s, err := NewStrip(evenScreens(n, testSpan(n)), n*(1920+DefaultSeamPx), 1920, 1200, 1920, 1200)
 	if err != nil {
 		t.Fatalf("NewStrip = %v", err)
 	}
@@ -175,7 +175,7 @@ func TestFullscreenIsOneScreenAndNothingElse(t *testing.T) {
 // TestAScreenThatIsNotTheViewsShapeIsScaled: the rule is one screen one view,
 // but nothing here should break if a plan ever hands over something else.
 func TestAScreenThatIsNotTheViewsShapeIsScaled(t *testing.T) {
-	s, err := NewStrip(evenScreens(2, testSpan(2)), 2*(1920+DefaultGapPx), 3840, 2400, 1920, 1200)
+	s, err := NewStrip(evenScreens(2, testSpan(2)), 2*(1920+DefaultSeamPx), 3840, 2400, 1920, 1200)
 	if err != nil {
 		t.Fatalf("NewStrip = %v", err)
 	}
@@ -219,7 +219,7 @@ func TestNewStripRefusesWhatItCannotLayOut(t *testing.T) {
 func TestAScreenTooNarrowToDrawIsRefused(t *testing.T) {
 	placed := evenScreens(2, testSpan(2))
 	placed[1].HalfSpan = 1e-12
-	if _, err := NewStrip(placed, 2*(1920+DefaultGapPx), 1920, 1200, 1920, 1200); !errors.Is(err, ErrScreens) {
+	if _, err := NewStrip(placed, 2*(1920+DefaultSeamPx), 1920, 1200, 1920, 1200); !errors.Is(err, ErrScreens) {
 		t.Errorf("NewStrip = %v, want an ErrScreens", err)
 	}
 }
