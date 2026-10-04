@@ -82,3 +82,61 @@ func widestBeyondTheView(p Plan) (width int, wider bool) {
 	}
 	return width, wider
 }
+
+// ComfortableYawDeg is how far a seated person turns their head to either side
+// without it becoming a movement they notice making.
+//
+// ⚠ IT IS A HUMAN RANGE, NOT A MEASUREMENT OF THIS SYSTEM, and saying so is the
+// point: every other number in this package is derived from the optics, and this
+// one is not. Forty degrees is the middle of what the ergonomics literature
+// calls comfortable sustained head rotation; sixty is reachable and not
+// sustainable. Somebody who disagrees should change it here, where it is named,
+// rather than discover it as a feeling.
+const ComfortableYawDeg = 40.0
+
+// HeadYawFor is how far the head must turn, to either side, to bring the far end
+// of a screen that many views across into the middle of the view -- and whether
+// that is beyond [ComfortableYawDeg].
+//
+// ⛔⛔ A WIDE SCREEN HAS A CEILING THE OPTICS DO NOT SET. At one source pixel per
+// panel pixel a screen that is `views` wide subtends views*fovDeg, so reaching
+// its end means turning half that, less the half-view already in front of you.
+// Reported from inside the glasses, of a screen 6400 across: "l'ecran de 6400
+// est trop grand pour le voir d'un bout a l'autre en tournant la tete".
+//
+//	screen            views   arc    head needed
+//	1920                1.00    52°            0°
+//	3840                2.00   103°           26°
+//	5120                2.67   138°           43°
+//	6400                3.33   172°           60°
+//	8640                4.50   232°           90°
+//
+// ⭐ AND AMPLIFYING THE HEAD IS NOT THE ANSWER, which is worth writing down
+// because it is the first idea anybody has. Desk.headToBand exists to make the
+// picture hold still while the head moves -- "a tracked head dragged the desk
+// with it instead of leaving it where it was" -- and that was a defect somebody
+// reported and somebody fixed. Making the band move faster than the head would
+// reintroduce it deliberately. So the ceiling is told to the person, not
+// engineered around.
+func HeadYawFor(views, fovDeg float64) (deg float64, beyondComfort bool) {
+	if views <= 0 || fovDeg <= 0 {
+		return 0, false
+	}
+	deg = (views*fovDeg - fovDeg) / 2
+	if deg < 0 {
+		deg = 0
+	}
+	return deg, deg > ComfortableYawDeg
+}
+
+// WidthWithinReach is the widest screen whose far end a comfortable head turn
+// brings into the middle of the view, in pixels, on a band of this shape.
+//
+// It is HeadYawFor solved for the width, so the two cannot drift apart: a screen
+// this wide needs exactly [ComfortableYawDeg], and a wider one needs more.
+func WidthWithinReach(panelW int, fovDeg float64) int {
+	if panelW <= 0 || fovDeg <= 0 {
+		return 0
+	}
+	return int(float64(panelW) * (2*ComfortableYawDeg + fovDeg) / fovDeg)
+}
