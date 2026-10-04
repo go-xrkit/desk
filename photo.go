@@ -77,7 +77,18 @@ func WritePhoto(p Picture, at time.Time) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := writeFile(path, data, 0o644); err != nil {
+	// ⛔⛔ 0600, AND IT WAS 0644 -- WORLD-READABLE. This is a photograph of the
+	// room the person wearing the headset is in, and of whoever else is in it.
+	// The JOURNAL beside it, which only names windows, was already 0600: the
+	// more sensitive artefact had the weaker mode, which is the inversion an
+	// audit exists to find. Measured on disk before the change: `-rw-r--r--`.
+	//
+	// ⚠ THE MODE IS PASSED, NOT LEFT TO THE UMASK. 022 is the default on macOS
+	// and on every Linux this builds for, so a 0644 argument -- or os.Create,
+	// which asks for 0666 -- is world-readable in practice. A program that
+	// handles pictures of people does not get to depend on how a shell was
+	// configured.
+	if err := writeFile(path, data, 0o600); err != nil {
 		return "", fmt.Errorf("desk: writing the photograph: %w", err)
 	}
 	return path, nil

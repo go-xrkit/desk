@@ -5,6 +5,29 @@ it got a pseudo-version of whatever `main` happened to be. Entries below are
 written from the code, not from the commit log: 240 pull requests do not make a
 history somebody can read.
 
+## v0.1.1 — 2026-10-04
+
+### Fixed — a picture of your screens was world-readable
+
+Found by audit, measured on disk, and the inversion is the point: the **journal**
+— which only names windows — was already `0600`, while the artefacts it sits
+beside were not.
+
+| | was | is |
+|---|---|---|
+| a snapshot of every display (`⌃⌥⌘P`) | `0644` in a `0755` directory | `0600` in `0700` |
+| its note, naming the plan and the focus | `0644` | `0600` |
+| a photograph of the room (`⌃⌥⌘L`) | `0644` | `0600` |
+
+The snapshot used `os.Create`, which asks for `0666` and lands on `0644` under
+the default umask of 022, so the mode is now **named** rather than left to how a
+shell was configured. Both tests ask the filesystem for the mode on the file
+rather than reading the argument, because the argument is not what a person can
+read.
+
+⚠ **Files already written stay as they were.** `chmod 600` them if you want:
+`chmod -R go-rwx ~/Library/Application\ Support/go-xrkit-desk/snapshots`.
+
 ## v0.1.0 — 2026-10-04
 
 The first version with a number. `0.x` is the promise: the geometry and the

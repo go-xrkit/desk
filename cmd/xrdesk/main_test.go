@@ -5,6 +5,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/go-xrkit/desk"
@@ -354,5 +357,95 @@ func TestAWideDesksPlanBuildsNoFan(t *testing.T) {
 		t.Errorf("an ordinary band's splay came out %g°; it derives a positive "+
 			"one from its own optics, and flattening it would undo the ribbon",
 			band.SplayDeg())
+	}
+}
+
+// ⛔⛔ A SNAPSHOT IS A PICTURE OF EVERY DISPLAY SOMEBODY HAD OPEN, and it was
+// written 0644 into a 0755 directory -- world-readable, while the journal beside
+// it, which only NAMES windows, was already 0600. Nine months of captures on the
+// machine this was written on measured `-rw-r--r--`. The more sensitive artefact
+// had the weaker mode, which is the inversion an audit exists to find.
+//
+// ⚠ IT ASKS THE FILESYSTEM RATHER THAN READING THE ARGUMENT. A mode is masked
+// by the umask on its way to disk, so a test that checked the argument would
+// pass for a program using os.Create -- which asks for 0666 and lands on 0644
+// under the default 022. What a person can read is the mode ON THE FILE.
+//
+// ⚠ AND THE REFUSAL IS CHECKED IN BOTH DIRECTIONS, which is the only way a
+// guard like this is known to work: inside a work tree it must FAIL and name the
+// tree, outside it must write normally. A guard verified one way round is a
+// guard that might be refusing everything.
+func TestASnapshotIsNotWorldReadableAndRefusesAWorkTree(t *testing.T) {
+	// ⛔⛔ BOTH VARIABLES, AND HOME ALONE WAS NOT ENOUGH. os.UserConfigDir reads
+	// a DIFFERENT one per platform: $HOME/Library/Application Support on darwin,
+	// $XDG_CONFIG_HOME-or-$HOME/.config on linux. With only HOME set, the linux
+	// runner has XDG_CONFIG_HOME pointing at its real config directory, so the
+	// snapshot landed outside this test's temporary tree -- where there is no
+	// .git above it, so the refusal below correctly did not fire and the test
+	// failed for a reason that had nothing to do with the guard.
+	//
+	// It PASSED on darwin, which is the part worth remembering: a test whose
+	// setup is platform-dependent is green on the platform it was written on.
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+
+	pix := make([]byte, 4*2*2)
+	path, err := writeSnapshot(pix, 2, 2, "a plan, a renderer, a focus")
+	if err != nil {
+		t.Fatalf("writeSnapshot = %v", err)
+	}
+	// ⛔ AND THE PREMISE IS ASSERTED, not assumed. Everything below depends on
+	// the snapshot landing inside this test's own tree; when it did not, the
+	// second half of this test was measuring nothing and said so only by
+	// failing confusingly on one platform.
+	if !strings.HasPrefix(path, home) {
+		t.Fatalf("the snapshot went to %s, which is outside this test's tree at "+
+			"%s -- os.UserConfigDir was not redirected, so nothing below is "+
+			"measuring what it says", path, home)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Errorf("the snapshot is %04o, want 0600 -- %04o lets every account on "+
+			"this machine read a picture of all of somebody's screens", got, got)
+	}
+	if fi.Size() == 0 {
+		t.Error("the snapshot is empty, so this measured the mode of nothing")
+	}
+	// The note beside it describes the same desk, so it carries the same mode:
+	// locking the pixels and publishing the caption protects nothing.
+	side := strings.TrimSuffix(path, ".png") + ".txt"
+	note, err := os.Stat(side)
+	if err != nil {
+		t.Fatalf("the note beside the picture: %v", err)
+	}
+	if got := note.Mode().Perm(); got != 0o600 {
+		t.Errorf("the note is %04o, want 0600", got)
+	}
+	// And the directory, whose listing is the times somebody took one.
+	dir, err := os.Stat(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := dir.Mode().Perm(); got != 0o700 {
+		t.Errorf("the snapshots directory is %04o, want 0700", got)
+	}
+
+	// ⛔ AND NOW THE OTHER DIRECTION. A .git anywhere above the target means
+	// refuse -- a capture of somebody at work is one `git add -A` from
+	// publication, and a .gitignore entry is a safety net rather than a barrier.
+	if err := os.MkdirAll(filepath.Join(home, ".git"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	switch _, err := writeSnapshot(pix, 2, 2, "n"); {
+	case err == nil:
+		t.Error("a snapshot was written with a .git above it; a picture of " +
+			"somebody's screens must never land where it can be committed")
+	case !strings.Contains(err.Error(), home):
+		t.Errorf("the refusal is %q, which does not name the work tree it "+
+			"found -- a refusal nobody can act on", err)
 	}
 }
