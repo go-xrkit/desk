@@ -673,6 +673,13 @@ best part of a minute and takes as long to let old ones go. Rounds after that
 report the machine, not the program, so the bench tells the two apart and says
 **skipped** rather than counting it.
 
+## Versions
+
+This module had no tags at all until **v0.1.0**, so anybody importing it got a
+pseudo-version of whatever `main` happened to be. `0.x` is the promise: the
+geometry is measured and worn daily, the API is not settled. See
+[CHANGELOG.md](CHANGELOG.md).
+
 ## Licence
 
 BSD-3-Clause.
