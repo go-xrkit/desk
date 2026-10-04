@@ -620,10 +620,24 @@ func (f *Fan) reachIn() int {
 	if n < FanReach {
 		n = FanReach
 	}
-	if f.ring.total > 0 {
-		if half := int(float64(len(f.ring.f)) * 180 / f.ring.total); half < n {
-			n = half
-		}
-	}
+	// ⛔⛔ AND NO HALF-TURN CAP HERE ANY MORE. It read len(f)*180/total -- how many
+	// facets make half a turn IF they all turned alike -- and on a ring with one
+	// curved screen among ordinary ones they do not: facets of MaxFacetDeg beside
+	// folds of the whole splay. [Fan.Frame] now trims the walk against the
+	// cumulative angle of the chain it is about to walk, which is the same
+	// quantity measured where it is true rather than averaged.
+	//
+	// ⭐ KEEPING IT HERE AS WELL WAS NOT HARMLESS, which is what "wrong to rely on
+	// but right to bound by" missed. The average is an UNDER-estimate from a
+	// finely faceted focus, so it became the binding constraint and starved the
+	// walk: measured on nine screens with one of them wide and curved, 60 facets
+	// over 643°, it allowed 16 panels where the derivation asked for 54, and the
+	// walk ran out of reach before a single panel was refused. All 460 remaining
+	// "out of reach" cases in the sweep's classification were this, on 40
+	// configurations, every one of them a desk with a faceted wide screen.
+	//
+	// ⚠ WHAT THIS STILL IS, is the bound that sizes f.slots -- see rebuildRing --
+	// so a walk cannot run past the buffers that exist. That is a memory bound,
+	// not a geometric claim, and it has no business pretending to be one.
 	return n
 }
