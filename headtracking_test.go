@@ -5,8 +5,10 @@
 package desk
 
 import (
+	"errors"
 	"github.com/go-xrkit/xrkit/glasses"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/go-macos/hotkey"
@@ -1031,5 +1033,122 @@ func TestTheHeadIsAmplifiedByWhatTheScreenDemands(t *testing.T) {
 			}
 		}
 		d.Close()
+	}
+}
+
+// ⛔⛔ AN OFFER MADE WHERE IT CANNOT BE TAKEN IS WORSE THAN NO OFFER. A desk run
+// from a terminal told somebody wearing a headset that ⌃⌥⌘F would reach the
+// rest of a 6400 screen; the camera it needs cannot be opened from a bare
+// binary, and the refusal went to the journal. Twice, in one session of 2m45s.
+func TestTheHeadOfferSaysWhenTheKeyCannotWork(t *testing.T) {
+	t.Parallel()
+
+	why := errors.New("a camera cannot be opened from a bare executable")
+	for _, c := range []struct {
+		name            string
+		widest, viewW   int
+		key             string
+		why             error
+		wantEmpty       bool
+		wantAll, wantNo []string
+	}{
+		{
+			name:   "wider, and the key works: the offer",
+			widest: 6400, viewW: 1920, key: "⌃⌥⌘F",
+			wantAll: []string{"6400", "1920", "⌃⌥⌘F", "follows your head"},
+		},
+		{
+			// ⛔ THE WIDTH STAYS IN IT. The person is holding the question "how
+			// do I see the other 4480 columns", and an answer that drops the
+			// width is a notice about a feature instead.
+			name:   "wider, and the key cannot work: the reason, with the width",
+			widest: 6400, viewW: 1920, key: "⌃⌥⌘F", why: why,
+			wantAll: []string{"6400", "1920", "⌃⌥⌘F", "bare executable"},
+			wantNo:  []string{"how you reach the rest of it"},
+		},
+		{
+			// ⚠ NOTHING TO SAY, either way: a screen that fits needs no gesture,
+			// and saying it anyway is the notice that buries the next one.
+			name: "not wider: nothing", widest: 1920, viewW: 1920,
+			key: "⌃⌥⌘F", wantEmpty: true,
+		},
+		{
+			name:   "not wider, and the key cannot work: still nothing",
+			widest: 1920, viewW: 1920, key: "⌃⌥⌘F", why: why, wantEmpty: true,
+		},
+		{
+			// ⛔ AND NO KEY MEANS NO OFFER. Naming a gesture with nothing bound
+			// to it is the shortcut that moved between launches, said twice.
+			name:   "wider, but nothing is bound: nothing",
+			widest: 6400, viewW: 1920, key: "", wantEmpty: true,
+		},
+		{
+			name:   "wider, nothing bound, and it could not work either: nothing",
+			widest: 6400, viewW: 1920, key: "", why: why, wantEmpty: true,
+		},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			got := HeadOffer(c.widest, c.viewW, c.key, c.why)
+			if c.wantEmpty {
+				if got != "" {
+					t.Errorf("HeadOffer = %q, want nothing to say", got)
+				}
+				return
+			}
+			if got == "" {
+				t.Fatal("HeadOffer said nothing")
+			}
+			for _, want := range c.wantAll {
+				if !strings.Contains(got, want) {
+					t.Errorf("HeadOffer = %q, which does not say %q", got, want)
+				}
+			}
+			for _, no := range c.wantNo {
+				if strings.Contains(got, no) {
+					t.Errorf("HeadOffer = %q, which still promises %q", got, no)
+				}
+			}
+		})
+	}
+}
+
+// ⛔⛔ THE REASON WINS OVER THE GRANT, because a grant outlives the bundle it was
+// given to. The start-up report printed "✓ the camera — showing the room, and
+// photographs (granted)" in a session where no capture could start, and the
+// head-following gesture was then offered on the strength of that tick.
+func TestAGrantedCameraThatCannotBeOpenedIsNotHeld(t *testing.T) {
+	t.Parallel()
+
+	why := errors.New("desk: a camera cannot be opened from a bare executable")
+	g := cameraRow("granted", true, false, why)
+	if g.Held {
+		t.Error("a camera that cannot be opened is reported as held; that tick " +
+			"is what sent somebody to System Settings, where the grant says yes")
+	}
+	if !strings.Contains(g.How, "bare executable") {
+		t.Errorf("the advice is %q, which does not name the build", g.How)
+	}
+	// ⚠ AND THE STATUS IS STILL SAID, because "granted but unopenable" is the
+	// fact, and hiding half of it would make the row a different lie.
+	if !strings.Contains(g.What, "granted") {
+		t.Errorf("the row is %q, which no longer says what the Mac decided", g.What)
+	}
+
+	// Nothing in the way: the grant is the answer, and a never-asked camera
+	// gets the advice that does not send anybody to a row that does not exist.
+	if g := cameraRow("granted", true, false, nil); !g.Held || g.How != "" {
+		t.Errorf("a granted, openable camera came back held=%t how=%q", g.Held, g.How)
+	}
+	g = cameraRow("not determined", false, true, nil)
+	if g.Held {
+		t.Error("a never-asked camera is reported as held")
+	}
+	if !strings.Contains(g.How, "until it has asked once") {
+		t.Errorf("a never-asked camera's advice is %q", g.How)
+	}
+	if g := cameraRow("refused", false, false, nil); g.How != "" {
+		t.Errorf("a refused camera got advice %q; System Settings is the only "+
+			"place left and the default line already says so", g.How)
 	}
 }

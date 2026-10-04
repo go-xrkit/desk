@@ -93,3 +93,48 @@ func permissionLines(gs []Grant, app string) []string {
 	}
 	return lines
 }
+
+// cameraRow shapes the camera's line in the start-up report, from the two
+// facts about it: what this Mac has decided, and whether this process could
+// open a camera at all.
+//
+// ⛔ THE TWO WAYS OF NOT HAVING IT NEED DIFFERENT ADVICE, AND ONE OF THEM MAKES
+// SYSTEM SETTINGS THE WRONG ANSWER. macOS lists an application under Camera
+// once it has ASKED once, and not before -- so telling somebody with a
+// never-asked camera to go and switch it on there sends them to look for a row
+// that does not exist. What they have to do is press the key and answer the
+// prompt. A refusal is the opposite: the prompt will not come back, and System
+// Settings is the only place left.
+//
+// ⛔⛔ AND A THIRD WAY, WHICH THE GRANT CANNOT SEE: a camera that is granted and
+// cannot be opened. A bare executable has no Info.plist and therefore no
+// NSCameraUsageDescription, so no capture can start -- while
+// -[AVCaptureDevice authorizationStatusForMediaType:] still answers
+// "authorized", because a grant outlives the bundle it was given to.
+//
+// This row printed "✓ the camera — showing the room, and photographs (granted)"
+// in a session where opening one was impossible, and the person was then
+// offered a head-following gesture on the strength of it. A check that passes
+// for the wrong reason is worse than no check: it sends somebody looking in the
+// one place that cannot help. So the reason WINS over the grant here, and it
+// names a build rather than a setting.
+func cameraRow(status string, granted, neverAsked bool, why error) Grant {
+	g := Grant{
+		What: "the camera — showing the room, and photographs (" + status + ")",
+		Pane: "Camera",
+		Held: granted,
+		// The desk starts without it; only passthrough and photographs stop.
+		Needed: false,
+	}
+	if why != nil {
+		g.Held = false
+		g.How = why.Error()
+		return g
+	}
+	if neverAsked {
+		g.How = "nothing to do in System Settings, which will not list this " +
+			"application until it has asked once: press the key that shows the " +
+			"room and macOS will ask"
+	}
+	return g
+}

@@ -387,7 +387,8 @@ func run() int {
 		// other number here.
 		wideW := wideOr(*wide, settings)
 		bendR := bendOr(*bend, settings)
-		plan, err := planFor(chosen, screensForWide(n, wideW, settings.Mirror()), dist, splay, *fov,
+		plan, err := planFor(chosen, screensForWide(n, wideW, settings.Mirror()),
+			dist, splayForWide(splay, wideW), *fov,
 			desk.EvidenceFor(chosen, model != "", desk.Peripherals()),
 			settings.Anchoring())
 		if err != nil {
@@ -1250,6 +1251,51 @@ func planFor(d glasses.Display, screens int, dist, splay, fov float64,
 // drives it with both, so a clamp cannot come back without being written down.
 func screensForWide(n, wide int, mirror bool) int {
 	return n
+}
+
+// splayForWide is the angle between one screen and the next on a WIDE desk:
+// none, so the band stays one flat plane and the strip draws it.
+//
+// ⛔⛔ A TURNED BAND IS SHARP ONLY WHILE THE HEAD IS STILL, which is the one
+// thing a wide screen is never used with: a screen of 6400 is reached by
+// TURNING. Measured, source columns per destination column in the middle third
+// of the view, three screens of 6400 with a reach of 15°:
+//
+//	head turned   flat band (strip)   bent band (fan)
+//	        0°               1.000             1.000
+//	        5°               1.000             1.019   (0.000 .. 2.000)
+//	       10°               1.000             1.073
+//	       15°               1.000             1.167   (0.000 .. 2.000)
+//	       20°               1.000             1.073
+//	       30°               1.000             1.000
+//
+// A rate of 0.000 is a source column drawn twice and a rate of 2.000 is one
+// never drawn at all. The flat band is exactly one everywhere, at every angle,
+// because it is a band and not a plane in space: it SLIDES, in row copies.
+//
+// ⭐ AND IT IS WHAT WAS ASKED FOR, TWICE. "le probleme du cintrage visible est
+// que l'image n'est plus nette, ne peut on pas avoir un cintrage virtuel, ie on
+// tourne la tete et l'ecran en face de soi est toujours plat? comme ca on n'a
+// pas de bande perdue et tout reste lisible" -- and then, when I curved it
+// again, "je parle toujours de cintrage virtuel, pas de deformation".
+//
+// ⚠ IT DOES NOT CONTRADICT THE CURVE THAT CAME BEFORE IT. A flat wide screen
+// WAS unusable at its edges -- "l'ecran plat de 6400 sans courbure n'est
+// franchement pas utilisable aux bors, c'est trop loin" -- and bending it was
+// the remedy available at the time. What changed is that the head now reaches
+// the edges itself: amplified by what the screen demands, over a virtual curve
+// of its own radius. The edge of a wide screen is no longer seen obliquely at
+// 28% scale, it is brought square on. See bendOr, which still curves a wide
+// screen for anybody who asks for a bend by name.
+//
+// ⚠ AND ONLY WHEN NOBODY SAID. A splay from the flag or the settings file is a
+// choice and this leaves it alone -- including `-splay 20` on a wide desk,
+// which is how the bent band stays reachable for a comparison.
+func splayForWide(splay float64, wide int) float64 {
+	if wide <= 0 || splay != 0 {
+		return splay
+	}
+	return -1 // one flat plane; see desk.Config.SplayDeg for the convention
 }
 
 // wideOr is the flag if it was given, else the settings file.
