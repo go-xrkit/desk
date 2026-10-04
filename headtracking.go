@@ -285,7 +285,10 @@ func (d *Desk) followHead() {
 // be a correction towards nothing. See TestAFanOfNothingDrawsWhatTheStripDraws.
 func (d *Desk) headToBand() float64 {
 	if d.fan == nil || d.strip.n < 2 {
-		return 1
+		// ⛔ THE GAIN STILL APPLIES HERE, and this early return is exactly where
+		// wide mode lives: one screen on the band. Answering a bare 1 was
+		// answering "no amplification" for the one arrangement that needs it.
+		return d.headGain()
 	}
 	focus := d.nav.Focus()
 	next := (focus + 1) % d.strip.n
@@ -298,7 +301,51 @@ func (d *Desk) headToBand() float64 {
 	// division here to guard against.
 	x0, z0 := d.fan.centre(focus, 0)
 	x1, z1 := d.fan.centre(focus, 1)
-	return band / (math.Atan2(x1, z1) - math.Atan2(x0, z0))
+	return d.headGain() * band / (math.Atan2(x1, z1) - math.Atan2(x0, z0))
+}
+
+// headGain is how much a head movement is amplified, so that a turn somebody is
+// willing to make reaches the ends of the screen they are looking at.
+//
+// The caller holds the lock.
+//
+// ⛔⛔ IT IS DELIBERATE, DECLARED, AND DERIVED, which is what makes it a
+// different thing from the defect [Desk.headToBand] exists to fix. That one was
+// an ACCIDENTAL scale error that varied with how many screens somebody had --
+// 1.83x too slow at four screens, 0.81x too fast at nine -- so the band dragged
+// or lagged by an amount nobody could predict. Making the scale correct was the
+// fix; keeping it at exactly one for ever was never the point.
+//
+// ⭐ AND WITHOUT IT WIDE MODE DOES NOT WORK AT ANY WIDTH. Asked for in these
+// terms -- "ne pourrait on pas juste augmenter la distance parcourue quand on
+// tourne la tete? ca permettrait d'utiliser les ecrans larges (distance a
+// afiner en fonction de la taille de l'ecran)" -- after three widths were worn
+// and refused in turn:
+//
+//	screen   views   head needed at 1:1   worn and reported
+//	6400      3.33                  60°   "trop grand pour le voir d'un bout a l'autre"
+//	5120      2.67                  43°   "encore trop large"
+//	3840      2.00                  26°   "toujours trop large"
+//
+// I argued against amplifying and was wrong about how much the doctrine
+// forbade. Three refusals is not a preference, it is the measurement: at 1:1 the
+// reach of a head is the ceiling on a wide screen, and the ceiling is below two
+// views.
+//
+// ⭐ THE GAIN IS THE SCREEN'S OWN DEMAND, which is the refinement that was asked
+// for: what the far end needs, over what somebody will turn. A screen that needs
+// nothing gets exactly 1, so an ordinary desk is untouched and head tracking
+// there is still the 1:1 that was measured and fixed.
+func (d *Desk) headGain() float64 {
+	// ⚠ No guard on ScreenW. NewPlan refuses a band of no width, so a plan that
+	// reached here has a positive one -- and a branch no test could reach
+	// honestly is a hole in the coverage gate rather than safety.
+	w := d.plan.ScreenWidth(d.nav.Focus())
+	deg, beyond := HeadYawFor(float64(w)/float64(d.plan.ScreenW), d.plan.HFOVDeg)
+	if !beyond {
+		return 1
+	}
+	return deg / ComfortableYawDeg
 }
 
 // toggleFollowHead turns head tracking on, opening the camera the first time,

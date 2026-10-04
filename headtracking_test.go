@@ -950,3 +950,86 @@ func leftEdgeOf(d *Desk, i int) (float64, bool) {
 	}
 	return 0, false
 }
+
+// ⛔⛔ WITHOUT A GAIN, WIDE MODE DOES NOT WORK AT ANY WIDTH. Three were worn and
+// refused in turn, each needing less head rotation than the last:
+//
+//	screen   views   head needed at 1:1   worn and reported
+//	6400      3.33                  60°   "trop grand pour le voir d'un bout a l'autre"
+//	5120      2.67                  43°   "encore trop large"
+//	3840      2.00                  26°   "toujours trop large"
+//
+// Asked for in these terms: "ne pourrait on pas juste augmenter la distance
+// parcourue quand on tourne la tete? ca permettrait d'utiliser les ecrans larges
+// (distance a afiner en fonction de la taille de l'ecran)".
+//
+// ⭐ AND THE GAIN IS THE SCREEN'S OWN DEMAND, which is that refinement: what the
+// far end needs, over what somebody will turn. So every width arrives at
+// ComfortableYawDeg and the number a person feels is the same whatever they
+// asked for:
+//
+//	screen   gain   head needed WITH it
+//	1920     1.00                    0°
+//	3840     1.29                   20°
+//	6400     3.01                   20°
+//	8640     4.51                   20°
+//
+// ⛔ A SCREEN THAT NEEDS NOTHING GETS EXACTLY ONE, which is the half that keeps
+// the doctrine: Desk.headToBand was written to correct an ACCIDENTAL scale error
+// that varied with the number of screens, and on an ordinary desk its answer is
+// untouched. A gain of 1.0001 there would be the old defect with a new author.
+func TestTheHeadIsAmplifiedByWhatTheScreenDemands(t *testing.T) {
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+
+	for _, c := range []struct {
+		px   int
+		gain float64
+	}{
+		// ⛔ THE ORDINARY SCREEN FIRST, and exactly one.
+		{1920, 1},
+		{3840, 1.29},
+		{5120, 2.15},
+		{6400, 3.01},
+		{8640, 4.51},
+	} {
+		p, err := NewPlan(beast, Options{Screens: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p = WidePlan(p, c.px)
+		d, err := New(p, []Feed{&shapedFeed{w: p.ScreenWidth(0), h: p.ScreenH}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		// ⚠ A RENDER FIRST: a plan does not know a screen is wide until a source
+		// has arrived. See TestAPlanDoesNotKnowAScreenIsWideUntilASourceArrives.
+		d.Render()
+
+		d.mu.Lock()
+		got := d.headGain()
+		d.mu.Unlock()
+
+		if c.px == 1920 && got != 1 {
+			t.Errorf("an ordinary screen is amplified %.4f, want exactly 1: "+
+				"head tracking on a plain desk is the 1:1 that was measured "+
+				"and fixed", got)
+		}
+		if math.Abs(got-c.gain) > 0.02 {
+			t.Errorf("a screen %d wide is amplified %.2f, want about %.2f",
+				c.px, got, c.gain)
+		}
+
+		// ⭐ AND THE POINT OF THE NUMBER: whatever the width, the far end has to
+		// arrive at the same turn of the head. Asserting the CONSEQUENCE rather
+		// than the gain is what stops the two drifting apart -- a gain that is
+		// right and a yaw that is not would be a table nobody can read.
+		views := float64(d.Plan().ScreenWidth(0)) / float64(p.ScreenW)
+		if raw, beyond := HeadYawFor(views, p.HFOVDeg); beyond {
+			if with := raw / got; math.Abs(with-ComfortableYawDeg) > 1 {
+				t.Errorf("a screen %d wide needs %.0f° at 1:1 and %.1f° with its "+
+					"gain, want %.0f°", c.px, raw, with, ComfortableYawDeg)
+			}
+		}
+		d.Close()
+	}
+}
