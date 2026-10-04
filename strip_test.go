@@ -9,6 +9,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/go-xrkit/xrkit/glasses"
 	"github.com/go-xrkit/xrkit/ribbon"
 )
 
@@ -221,5 +222,109 @@ func TestAScreenTooNarrowToDrawIsRefused(t *testing.T) {
 	placed[1].HalfSpan = 1e-12
 	if _, err := NewStrip(placed, 2*(1920+DefaultSeamPx), 1920, 1200, 1920, 1200); !errors.Is(err, ErrScreens) {
 		t.Errorf("NewStrip = %v, want an ErrScreens", err)
+	}
+}
+
+// ⛔⛔ PUSHING THE BAND BACK MUST CHANGE BOTH AXES, or it is not a distance but a
+// squash. Reported from inside the glasses: "les touches d'eloigement modifie la
+// largeur de l'ecran mais pas sa hauteur, un eloigment doit modifier les deux".
+//
+// The flat band took its horizontal scale from the band's own length, which
+// Desk.build divides by the distance, and its vertical from srcH mapped onto the
+// view, which nothing divided. Measured before the fix, the widest panel drawn
+// on three screens of 6400:
+//
+//	distance   flat band        curved band
+//	1.0x       1920x1080        1600x1080
+//	2.0x       1920x1080         800x540
+//	3.0x       1920x1080         534x360
+//
+// The curved renderer was always right, which is why this took wearing to find:
+// it projects a panel in space, where a distance is a distance.
+//
+// ⚠ AND THE ASSERTION IS ON THE ASPECT RATIO, not on the two numbers. A screen's
+// drawn width is CLIPPED by the view -- a 6400 screen overflows it at every
+// distance -- so comparing widths would measure the clip and not the scale. What
+// a distance has to preserve is the shape.
+func TestPushingTheBandBackScalesBothAxes(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	for _, dist := range []float64{1, 1.5, 2, 3, MaxDistance} {
+		p, err := NewPlan(beast, Options{Screens: 3, SplayDeg: -1, Distance: dist})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p = WidePlan(p, 6400)
+		feeds := make([]Feed, p.Count())
+		for i := range feeds {
+			feeds[i] = &shapedFeed{w: p.ScreenWidth(i), h: p.ScreenH}
+		}
+		d, err := New(p, feeds)
+		if err != nil {
+			t.Fatal(err)
+		}
+		d.Render()
+
+		drawn, top := 0, 0
+		for _, b := range d.blits {
+			if int(b.Dst.H) > drawn {
+				drawn, top = int(b.Dst.H), int(b.Dst.Y)
+			}
+		}
+		if drawn == 0 {
+			t.Fatalf("distance %g: nothing was drawn", dist)
+		}
+		// The screen's width ON THE BAND, which is what the distance scales, over
+		// its drawn height. That ratio is the screen's own shape and a distance
+		// may not change it.
+		onBand := float64(d.Plan().ScreenWidth(0)) / dist
+		want := float64(d.Plan().ScreenWidth(0)) / float64(p.ScreenH)
+		if got := onBand / float64(drawn); math.Abs(got-want) > 0.02 {
+			t.Errorf("distance %g: the screen is %.0f wide on the band and drawn "+
+				"%d tall, a shape of %.3f; the source's is %.3f -- a distance "+
+				"that changes the shape is a squash", dist, onBand, drawn, got, want)
+		}
+		// ⛔ AND IT IS CENTRED, because a band that shrank towards the top would
+		// be a different defect wearing the same fix.
+		if wantTop := (p.ScreenH - drawn) / 2; top != wantTop {
+			t.Errorf("distance %g: the band is drawn %d tall starting at row %d, "+
+				"want row %d -- centred", dist, drawn, top, wantTop)
+		}
+		d.Close()
+	}
+}
+
+// ⚠ AND A HEIGHT THAT IS NOT ONE PUTS THE BAND BACK TO FILLING THE VIEW, which
+// is what every caller that never pushes the band back relies on.
+func TestADrawnHeightOutsideTheViewFillsIt(t *testing.T) {
+	t.Parallel()
+
+	s, err := NewStrip(evenScreens(3, testSpan(3)), 3*(1920+DefaultSeamPx),
+		1920, 1200, 1920, 1200)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range []int{0, -1, 1200, 1201, 99999} {
+		s.SetDrawnHeight(h)
+		bl := s.Frame(nil, 0)
+		if len(bl) == 0 {
+			t.Fatalf("a drawn height of %d drew nothing", h)
+		}
+		if got := int(bl[0].Dst.H); got != 1200 {
+			t.Errorf("a drawn height of %d drew %d rows, want the view's 1200", h, got)
+		}
+		if got := int(bl[0].Dst.Y); got != 0 {
+			t.Errorf("a drawn height of %d starts at row %d, want 0", h, got)
+		}
+	}
+	// And a real one is honoured, centred, with the source mapped over it.
+	s.SetDrawnHeight(600)
+	bl := s.Frame(nil, 0)
+	if got, gotY := int(bl[0].Dst.H), int(bl[0].Dst.Y); got != 600 || gotY != 300 {
+		t.Errorf("a drawn height of 600 gave %d rows at %d, want 600 at 300", got, gotY)
+	}
+	if n := len(bl[0].SrcY); n != 600 {
+		t.Errorf("the vertical mapping has %d rows for a band drawn 600 tall", n)
 	}
 }

@@ -44,6 +44,10 @@ type Strip struct {
 	viewW, viewH int
 	total        int
 	srcW, srcH   int
+	// drawH is how tall the band is DRAWN, and topY where it starts. They are
+	// the view's own height and zero until somebody pushes the band back. See
+	// [Strip.SetDrawnHeight].
+	drawH, topY int
 	// srcWidths is the source width of each screen that is not the shape of
 	// the band. See [Strip.SetSourceWidths].
 	srcWidths []int
@@ -69,7 +73,8 @@ func NewStrip(placed []ribbon.Placed, totalPx, srcW, srcH, viewW, viewH int) (*S
 	case totalPx <= 0:
 		return nil, fmt.Errorf("%w: a band of %d pixels", ErrScreens, totalPx)
 	}
-	s := &Strip{n: n, viewW: viewW, viewH: viewH, srcW: srcW, srcH: srcH}
+	s := &Strip{n: n, viewW: viewW, viewH: viewH, srcW: srcW, srcH: srcH,
+		drawH: viewH}
 
 	s.total = totalPx
 	pxPerRad := float64(totalPx) / (2 * math.Pi)
@@ -160,7 +165,7 @@ func (s *Strip) append(dst []ribbon.Blit, i, left, w int) []ribbon.Blit {
 	}
 	return append(dst, ribbon.Blit{
 		Screen:   i,
-		Dst:      stereo.Rect{X: x0, Y: 0, W: x1 - x0, H: s.viewH},
+		Dst:      stereo.Rect{X: x0, Y: s.topY, W: x1 - x0, H: s.drawH},
 		SrcX:     int64(skip) * int64(s.sourceWidth(i)) << fracBits / int64(w),
 		SrcXStep: int64(s.sourceWidth(i)) << fracBits / int64(w),
 		SrcY:     s.srcY,
@@ -280,4 +285,43 @@ func (s *Strip) sourceWidth(i int) int {
 		return s.srcW
 	}
 	return s.srcWidths[i]
+}
+
+// SetDrawnHeight is how tall the band is drawn, centred in the view. Zero or
+// more than the view puts it back to filling the view.
+//
+// ⛔⛔ PUSHING THE BAND BACK USED TO CHANGE ITS WIDTH AND NOT ITS HEIGHT, which
+// is not a distance, it is a squash. Reported from inside the glasses: "les
+// touches d'eloigement modifie la largeur de l'ecran mais pas sa hauteur, un
+// eloigment doit modifier les deux".
+//
+// ⭐ MEASURED, three wide screens, the widest panel drawn:
+//
+//	distance   flat band        curved band
+//	1.0x       1920x1080        1600x1080
+//	1.5x       1920x1080        1066x720
+//	2.0x       1920x1080         800x540
+//	3.0x       1920x1080         534x360
+//
+// The curved renderer divides both axes exactly, because it projects a panel in
+// space and a distance is a distance there. The flat one got its horizontal
+// scale from the band's own length -- Desk.build divides BandPx by the distance
+// -- and its vertical from srcH mapped onto viewH, which nothing divided. So
+// three screens of 6400 at distance 2 were half as wide and full height.
+//
+// ⚠ AND THE STRIP STILL KNOWS NOTHING ABOUT DISTANCE, which is its own doc's
+// claim: "how large a screen LOOKS is the optics' business and not this
+// package's". It is told a height in pixels, as it is told a band length in
+// pixels, and the optics stay with the caller that has them.
+func (s *Strip) SetDrawnHeight(h int) {
+	if h <= 0 || h > s.viewH {
+		h = s.viewH
+	}
+	s.drawH, s.topY = h, (s.viewH-h)/2
+	// The vertical mapping is over the DRAWN rows now, so it is rebuilt with
+	// them. It still never changes per frame: the band only slides sideways.
+	s.srcY = make([]int32, h)
+	for y := range s.srcY {
+		s.srcY[y] = int32(int64(y) * int64(s.srcH) / int64(h))
+	}
 }

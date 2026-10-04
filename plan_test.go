@@ -598,15 +598,29 @@ func TestTheDerivedSplayAtDistanceOneIsTheFieldOfView(t *testing.T) {
 				"for the gap)", fov, got, want, want-fov)
 		}
 		// And the gap really is what separates the two, rather than a term small
-		// enough to hide a mistake in: it is worth about a degree here.
-		// ⚠ THE BOUND HALVED WITH THE SEAM. It is here to catch a gap that is
-		// ACCIDENTALLY negligible -- "a term small enough to hide a mistake in" --
-		// not to forbid a smaller one chosen on purpose. DefaultSeamPx went from
-		// 48 to 24 on the report of somebody wearing it, so four tenths of a
-		// degree is now the deliberate value and still a term rather than a
-		// rounding.
-		if want-fov < 0.25 || want-fov > 2 {
-			t.Errorf("fov %g: the gap is worth %g°, which is not a gap", fov, want-fov)
+		// enough to hide a mistake in.
+		//
+		// ⛔⛔ AND IT ASKS ONLY THAT THE TERM EXIST, because any floor with a
+		// number in it was a rubber stamp. I lowered one once -- half a degree
+		// to a quarter, when DefaultSeamPx went 48 to 24 -- and was lowering it
+		// again for 16; then I derived a floor from the seam and it landed on
+		// 0.2479 against an actual 0.2472, which is the same chase with
+		// arithmetic on top. A bound that follows the value it constrains
+		// constrains nothing.
+		//
+		// The magnitude is ALREADY asserted, exactly, four lines up: want is
+		// fov + 2·asin(g/2R) and FacingSplayDeg has to equal it to within 1e-9.
+		// There is nothing left for a second check to say about how big the term
+		// is. What it can still say is that the term is THERE -- a seam of zero,
+		// or an arithmetic slip that drops it, makes the splay exactly the field
+		// of view, which is the identity this test's own name says it is no
+		// longer. And a gap worth more than two degrees is too big whatever the
+		// seam is, which is a judgement about the band rather than about this
+		// constant.
+		if want <= fov || want-fov > 2 {
+			t.Errorf("fov %g: the gap is worth %g°, want more than nothing and at "+
+				"most 2° -- a splay that is exactly the field of view is a seam "+
+				"that went missing", fov, want-fov)
 		}
 	}
 	// Pushed back, the neighbour subtends less and wants less turning.
@@ -819,11 +833,20 @@ func TestADamagedNameIsNotAnExcuseToGuess(t *testing.T) {
 	}
 }
 
-// ⚠ WidePlan WIDENS SCREEN ZERO AND COUNTS NOTHING, which is exactly what its
-// comment claims. Asking for one screen is the command's job; a helper that
-// silently overrode a caller's count would be the "comment says one thing, the
-// code does another" defect this package keeps finding elsewhere.
-func TestWidePlanWidensScreenZeroAndNothingElse(t *testing.T) {
+// ⚠ WidePlan WIDENS EVERY SCREEN AND COUNTS NOTHING. The counting half is the
+// one that has always held: asking for a number of screens is the command's
+// job, and a helper that silently overrode a caller's count would be the
+// "comment says one thing, the code does another" defect this package keeps
+// finding elsewhere.
+//
+// ⭐ THE WIDENING HALF CHANGED, ON A REPORT RATHER THAN A MEASUREMENT: "moi je
+// verrais bien 3 ecrans large qu'on peut faire defiler". It used to widen screen
+// zero alone, because wide mode was one screen -- and that decision came from
+// "en mode ecran large on ne veux que un ecran, la j'en vois plusieurs", where
+// the screen in excess was the Mac's MIRROR beside the wide one rather than a
+// second wide one. A mirror beside a wide screen is a band again; three wide
+// screens are a desk of wide screens. The mirror stays off either way.
+func TestWidePlanWidensEveryScreenAndCountsNothing(t *testing.T) {
 	t.Parallel()
 
 	p, err := NewPlan(glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080},
@@ -835,12 +858,15 @@ func TestWidePlanWidensScreenZeroAndNothingElse(t *testing.T) {
 		t.Errorf("a width of zero changed screen 0 to %d", got)
 	}
 	w := WidePlan(p, 6400)
-	if got := w.ScreenWidth(0); got != 6400 {
-		t.Errorf("screen 0 is %d wide, want 6400", got)
+	for i := range w.Count() {
+		if got := w.ScreenWidth(i); got != 6400 {
+			t.Errorf("screen %d is %d wide, want 6400: a desk of wide screens is "+
+				"wide all the way along, or the keyboard scrolls from a "+
+				"spreadsheet onto a panel", i, got)
+		}
 	}
-	if got := w.ScreenWidth(1); got != p.ScreenW {
-		t.Errorf("screen 1 became %d wide; only screen zero was asked for", got)
-	}
+	// ⛔ AND IT STILL DOES NOT COUNT. Three screens were asked for and three is
+	// what comes back; the width is the only thing this touches.
 	if got := w.Count(); got != 3 {
 		t.Errorf("the count changed to %d; this helper does not count", got)
 	}

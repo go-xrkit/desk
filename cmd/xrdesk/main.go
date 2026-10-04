@@ -1222,25 +1222,34 @@ func planFor(d glasses.Display, screens int, dist, splay, fov float64,
 	return p, err
 }
 
-// screensForWide is how many ribbon POSITIONS a wide desk needs: ONE.
+// screensForWide is how many ribbon POSITIONS a wide desk needs: as many as
+// were asked for, which is what any other desk gets.
 //
-// ⛔⛔ ONE SCREEN MEANS ONE SCREEN, and I got this wrong by supposing otherwise.
-// The first version kept the Mac's own screen on the band beside the wide one,
-// on the reasoning that somebody would want both. Reported from the glasses:
-// "en mode ecran large on ne veux que un ecran, la j'en vois plusieurs".
+// ⛔⛔ IT ANSWERED ONE, AND THE REPORT THAT PUT IT THERE WAS ABOUT SOMETHING
+// ELSE. The first version kept the Mac's own screen on the band beside the wide
+// one, on the reasoning that somebody would want both, and the answer from the
+// glasses was "en mode ecran large on ne veux que un ecran, la j'en vois
+// plusieurs". I read that as "a wide desk is one screen" and clamped the count.
+// The screen in excess was the Mac's MIRROR beside the wide one, not a second
+// wide screen -- and turning the mirror off was already the whole remedy.
 //
-// The point of a wide screen is that a window too big for a panel has somewhere
-// to go. A second screen beside it is a band again, and a band is what the wide
-// mode exists to stop being.
+// So the clamp went on forbidding something nobody had objected to, until it was
+// asked for by name, once the keyboard and the head had each found their job --
+// the head reaches the edges of a screen, the keyboard scrolls between them:
+// "moi je verrais bien 3 ecrans large qu'on peut faire defiler".
 //
-// ⚠ The mirror is therefore OFF in this mode -- see where it is read. Leaving it
-// on with one position gave "no screens: 2 feeds for 1 screens": two pictures,
-// one place to put them.
+// ⚠ THE MIRROR IS STILL OFF HERE, which is the half of that report that holds:
+// a mirror beside wide screens is a band again, and a band is what wide mode
+// exists to stop being. See where it is read. Leaving it on back when this
+// answered one gave "no screens: 2 feeds for 1 screens" -- two pictures, one
+// place to put them.
+//
+// ⚠ AND IT STILL TAKES THE WIDTH AND THE MIRROR, both unread. They are the
+// question this answers -- how many positions, for a desk of this width, with
+// the mirror in this state -- and the answer stopped depending on them. The test
+// drives it with both, so a clamp cannot come back without being written down.
 func screensForWide(n, wide int, mirror bool) int {
-	if wide <= 0 {
-		return n
-	}
-	return 1
+	return n
 }
 
 // wideOr is the flag if it was given, else the settings file.

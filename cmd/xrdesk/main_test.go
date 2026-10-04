@@ -158,12 +158,15 @@ func TestAWideDeskCountsTheMirrorIn(t *testing.T) {
 		mirror bool
 		want   int
 	}{
-		// ⛔ ONE SCREEN, WHATEVER THE MIRROR SAYS. Reported from the glasses:
-		// "en mode ecran large on ne veux que un ecran, la j'en vois
-		// plusieurs". A second screen beside the wide one is a band again, and
-		// a band is what this mode exists to stop being.
-		{"wide, whatever the mirror setting says", 6, 6400, true, 1},
-		{"wide, mirror off", 6, 6400, false, 1},
+		// ⭐ AS MANY AS WERE ASKED FOR, WIDE OR NOT, and the mirror does not add
+		// one. This answered 1 for any wide desk, on a report that was about
+		// something else: "en mode ecran large on ne veux que un ecran, la j'en
+		// vois plusieurs" named the Mac's MIRROR beside the wide screen, not a
+		// second wide screen. Asked for since: "moi je verrais bien 3 ecrans
+		// large qu'on peut faire defiler".
+		{"wide, whatever the mirror setting says", 6, 6400, true, 6},
+		{"wide, mirror off", 6, 6400, false, 6},
+		{"three wide screens, which is what was asked for", 3, 6400, true, 3},
 		// ⚠ And no width changes nothing at all: -wide is opt-in, and a desk
 		// that quietly became two screens because the mirror is on would be a
 		// setting nobody asked for.
