@@ -60,3 +60,25 @@ func DescribeWidths(widths []int, h int) string {
 	}
 	return b.String()
 }
+
+// widestBeyondTheView is the widest screen on the band that does not fit the
+// view, and whether there is one.
+//
+// ⛔⛔ IT EXISTS BECAUSE "WIDER THAN THE VIEW" IS THE CONDITION UNDER WHICH
+// TURNING THE HEAD STOPS BEING A COMFORT. The band does not scale a source down
+// -- one source pixel per panel pixel is the whole point -- so a screen wider
+// than [Plan.ScreenW] keeps the remainder of itself out of the view until the
+// head moves. A 6400-pixel screen in a 1920 view is 70% unreachable.
+//
+// ⚠ AND IT IS A FUNCTION RATHER THAN A LINE IN run_display BECAUSE THAT FILE IS
+// EXEMPT FROM THE COVERAGE GATE: it needs a window server. A condition that
+// decides whether a person is told how to reach most of their screen should not
+// live where nothing measures it.
+func widestBeyondTheView(p Plan) (width int, wider bool) {
+	for i := range p.Count() {
+		if w := p.ScreenWidth(i); w > p.ScreenW && w > width {
+			width, wider = w, true
+		}
+	}
+	return width, wider
+}

@@ -696,7 +696,7 @@ func run() int {
 				// off in the window means it off, and a flag whose default is
 				// true would otherwise turn it back on for them every session.
 				// The flag is still there to force it off for one run.
-				if !settings.Dim() || !*dim || !settings.Immersive() {
+				if !dimTheMacsPanel(settings.Dim(), *dim, settings.Immersive(), mirror) {
 					return
 				}
 				on := make([]desk.Offer, 0, inv.Positions())
@@ -1263,4 +1263,37 @@ func bendOr(flag float64, settings desk.Config) float64 {
 		return flag
 	}
 	return settings.Bend()
+}
+
+// dimTheMacsPanel decides whether to turn this Mac's own panel off while the
+// desk runs.
+//
+// THE SETTING FIRST, then the flag. A person who turned this off in the window
+// means it off, and a flag whose default is true would otherwise turn it back on
+// for them every session; the flag is still there to force it off for one run.
+// Windowed rather than immersive, the desk is a window ON one of these screens
+// and darkening them would black out the very thing being used.
+//
+// ⛔⛔ AND ONLY WHILE THE BAND SHOWS A COPY OF THIS MAC, which is what
+// desk.Config.Dim's own doc says it is for: "screen 1 shows this Mac's desktop,
+// so the desktop is in front of the person twice". Wide mode turns the mirror
+// OFF -- one screen means one screen -- so there is no second copy, and the
+// bright rectangle this trades a dark panel for is not there to compete with
+// anything.
+//
+// ⭐ WHAT IT COST WAS THE MENU BAR, AND THE MENU BAR WAS THE ONLY ROUTE. Not on
+// the panel, which this had just turned off, and not in the glasses, because
+// there is no mirror to carry it -- so the tray icon was nowhere, and with it
+// the only way a person had found to head tracking. On a wide screen that is not
+// a comfort: the view shows 1920 of 6400 and turning the head is how the rest is
+// reached. Reported: "le suivi de tete n'etait pas activé et je n'avais pas
+// acces à l'icon de xrdesk pour l'activer. j'ai debranché les lunettes pour
+// reprendre le focus sur la fentre de prompt." Unplugging worked -- the desk
+// stops and puts everything back -- but that is a power cut, not a way out.
+//
+// ⚠ TWO REASONABLE DEFAULTS MADE AN UNREACHABLE DESK BETWEEN THEM. Dimming a
+// panel whose copy you are reading is right. Dropping the mirror when there is
+// one screen is right. Neither looked at the other, and nothing failed.
+func dimTheMacsPanel(setting, flag, immersive, mirror bool) bool {
+	return setting && flag && immersive && mirror
 }
