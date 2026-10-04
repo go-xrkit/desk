@@ -111,44 +111,49 @@ keyboard — which is not a convenience here but the whole design: the desk's ow
 window is deliberately passive and never takes the keyboard from what is running
 on the screens.
 
+Forty of them. This table is CHECKED against `desk.DefaultShortcuts()` by a
+test that reads this file, because an earlier version of it said the galleries
+were on `⌃⌥⌘↑` and `⌃⌥⌘↓` for longer than they were bound there — four of its
+fourteen rows were wrong and sixteen shortcuts were missing. A table about a
+mapping kept in another file is a copy, and a copy rots in silence.
+
 | | |
 |---|---|
 | **`⌃⌥⌘1`…`⌃⌥⌘9`** | **straight to that screen**, from wherever you are |
 | **`⌃⌥⌘0`** | **fit**: one screen, the largest these glasses can show it |
 | `⌃⌥⌘←` `⌃⌥⌘→` | turn the band |
-| `⌃⌥⌘↑` | show the SCREENS |
-| **`⌃⌥⌘↓`** | **show what is RUNNING on them** |
-| `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
-| `⌃⌥⌘A` | the same, for a keyboard where it arrives |
-| **`⌃⌥⌘X`** | **one application per screen** |
-| **`⌃⌥⌘⇥`** | **what this screen shows — including a mirror of the Mac's own display** |
-| `⌃⌥⌘M` | bring the pointer to the screen being looked at |
 | `⌃⌥⌘-` `⌃⌥⌘=` | move the band away, and back |
+| **`⌃⌥⌘F3`** | **show the SCREENS** |
+| **`⌃⌥⌘F4`** | **show what is RUNNING on them** |
+| `⌃⌥⌘↩` | choose: the highlighted screen, or the highlighted application onto the screen in front |
+| `⌃⌥⌘A` | the applications |
+| **`⌃⌥⌘X`** | **one application per screen** |
+| **`⌃⌥⌘C`** | **what this screen shows — including a mirror of the Mac's own display** |
+| `⌃⌥⌘⌫` | take this screen off the band |
+| **`⌃⌥⌘F`** | **follow your head** — which is how you reach a screen wider than the view |
 | `⌃⌥⌘[` `⌃⌥⌘]` | flatten the screens, turn them |
+| `⌃⌥⌘M` | bring the pointer to the screen being looked at |
+| `⌃⌥⌘H` | bring the pointer back to this Mac |
+| `⌃⌥⌘R` | put the picture back in front of you |
+| `⌃⌥⌘D` | 3D on or off |
+| `⌃⌥⌘P` | save a picture of what the glasses show |
+| `⌃⌥⌘L` | photograph the room with the camera |
+| `⌃⌥⌘F1` `⌃⌥⌘F2` | dim the glasses, brighten them |
+| `⌃⌥⌘F10` `⌃⌥⌘F11` `⌃⌥⌘F12` | mute the glasses, quieter, louder |
+| `⌃⌥⌘F5` | mute the microphone **in use** — not the headset's, which publishes no mute switch at all |
+| `⌃⌥⌘F6` | put the glasses down, and pick them back up |
+| `⌃⌥⌘F7` | show the room |
 | `⌃⌥⌘S` | the settings |
 | `⌃⌥⌘⎋` | quit |
 
-Every one of these can be MOVED from `desk.hcl`, except quit — a key taken
-from the whole machine is a key taken from whatever you were using, so the
-default layout is a choice rather than a law. Quit stays put because it is the
-way out of a desk that covers a display, and somebody wearing glasses cannot
-see the menu bar.
-
-```hcl
-shortcut "gallery-open" { keys = "ctrl+alt+cmd+G" }
-shortcut "further"     { keys = "ctrl+alt+cmd+Up" }
-shortcut "fit"         { keys = "ctrl+alt+cmd+Equal" }
-```
-
-⚠ `Equal`, not `=`: the separator between the parts is `-`, so `Minus` is
-written as a word and `Equal` follows for the pair to read alike. A name this
-file does not know is refused at start-up with the list of the ones it does,
-rather than leaving you pressing a key that does nothing.
-
-⚠ And a LETTER can be swallowed. `⌃⌥⌘A` was granted without complaint and never
-delivered on the machine this was written for: an application's own menu key is
-invisible to everything, and nothing can detect it. An arrow is a key nothing
-else claims quietly, which is why the galleries are on them by default.
+**The galleries are on function keys, and that took three tries.** They began on
+`⌃⌥⌘A`, which was granted without complaint and never delivered a single press:
+an application's own menu key is invisible to every check there is, so the only
+symptom is a key that does nothing. They moved to the arrows — nothing claims
+those quietly — and the arrows turned out to be the pair a settings file most
+often wants for the distance. A function key collides with neither. Moving them
+there cost the two menu rows for a while, silently: a tray row bound to `F3`
+draws nothing, in exactly the way a row nothing was granted for does.
 
 Nine digits and not ten, because nine is the most screens a desk carries: there
 is a key for every one and none spare. All nine are claimed whatever the desk
@@ -160,21 +165,46 @@ asks for **no permission at all** — no accessibility prompt, no input
 monitoring. On Linux and Windows the keys work in the window and the run says
 so. `-no-global` leaves them alone.
 
-**They are not always the keys you get.** xrdesk falls back — Shift, then
-Control, then both — and prints whatever it landed on at start-up, because it
-has to: of the three ways a shortcut can already be taken, two are detectable
-and one is not.
+### They are not always the keys you get
 
-The third one is why the applications are on an ARROW. `⌃⌥⌘A` was granted
-without complaint and never delivered a single press: an application's own menu
-key is invisible to every check there is, so the only symptom is a key that does
-nothing. Arrows are not claimed quietly. An application's own menu
-key is invisible to everything. The band was on `⌥⌘←`/`⌥⌘→` until somebody who
-had learnt the desk pressed `⌃⌥⌘←` and got nothing: one prefix for all of them
-is worth more than two keys saved. Those two also register without complaint and are
-also Safari's tab navigation — while xrdesk runs, it wins them, and Safari
-quietly stops seeing them. That is the trade a global shortcut is; it is
-printed rather than hidden.
+Three things move a shortcut, and a session **prints what it landed on** at
+start-up for all three.
+
+**1. You moved it.** Every one of these can be re-bound from `desk.hcl`, except
+quit — a key taken from the whole machine is a key taken from whatever you were
+using, so the default layout is a choice rather than a law. Quit stays put
+because it is the way out of a desk that covers a display, and somebody wearing
+glasses cannot see the menu bar.
+
+```hcl
+shortcut "gallery-open" { keys = "ctrl+alt+cmd+G" }
+shortcut "further"      { keys = "ctrl+alt+cmd+Up" }
+shortcut "fit"          { keys = "ctrl+alt+cmd+Equal" }
+```
+
+⚠ `Equal`, not `=`: the separator between the parts is `-`, so `Minus` is
+written as a word and `Equal` follows for the pair to read alike. A name this
+file does not know is refused at start-up with the list of the ones it does,
+rather than leaving you pressing a key that does nothing.
+
+**2. Something else already holds it.** xrdesk then climbs a ladder of
+MODIFIERS — `⇧⌥⌘`, then `⌃⇧⌥⌘` — keeping the key and changing what is held with
+it. A **whole gesture lands on one rung or none**: pushing the band away and
+bringing it back are one idea, and granting them on different modifiers reads as
+a broken application. That was measured — `⌃⌥⌘↑` pushed the band away sixteen
+times in one session while `closer` sat alone on `⌃⌥⇧⌘↓` and never fired once.
+
+**3. The key is in a different place on your keyboard.** A claim is made for the
+key whose **legend** matches, not for the ANSI position — so `⌃⌥⌘=` is the key
+printing `=` on an AZERTY keyboard rather than wherever ANSI puts it. The
+start-up line names both when they differ: `fit: ⌃⌥⌘= (asked for ⌃⌥⌘-, it was
+taken)`.
+
+⚠ The band was on `⌥⌘←`/`⌥⌘→` until somebody who had learnt the desk pressed
+`⌃⌥⌘←` and got nothing: one prefix for all of them is worth more than two keys
+saved. Those two also register without complaint and are also Safari's tab
+navigation — while xrdesk runs, it wins them, and Safari quietly stops seeing
+them. That is the trade a global shortcut is; it is printed rather than hidden.
 
 ## The mouse does not change screens; the keyboard does
 
@@ -319,6 +349,75 @@ out of the source row, and the fan was still using the band's 1920. The fan now
 reads each screen's own width — and `Canvas.Slant` treats a column outside the
 source as background rather than as a place to read from, because a renderer
 that can be crashed by a source of the wrong size will be.
+
+## One screen wider than the glasses
+
+A spreadsheet does not fit a screen the size of one eye's view. `-wide 6400`
+makes every screen on the band that wide — six thousand four hundred columns,
+three and a third views — and you reach the rest of it by **turning your head**.
+
+```
+xrdesk -wide 6400 -screens 3 -reach 15
+```
+
+`⌃⌥⌘←` and `⌃⌥⌘→` still move between the three; `⌃⌥⌘F` follows your head along
+the one in front of you.
+
+**The band stays FLAT, and that is the whole point.** The screens are drawn two
+ways. The *strip* slides a flat band sideways in row copies; the *fan* projects
+turned facets, one destination column at a time, and a projection resamples.
+Measured, source columns per destination column in the middle third of the view,
+three screens of 6400 at a reach of 15°:
+
+| head turned | flat band | bent band |
+|---|---|---|
+| 0° | 1.000 | 1.000 |
+| 5° | 1.000 | 1.019 (0.000 … 2.000) |
+| 10° | 1.000 | 1.073 |
+| **15°** | **1.000** | **1.167** (0.000 … 2.000) |
+| 20° | 1.000 | 1.073 |
+| 30° | 1.000 | 1.000 |
+
+A rate of 0 is a source column drawn twice; a rate of 2 is one never drawn at
+all. **At rest the two are identical** — which is why this took wearing to find,
+and why the test that keeps it honest turns the head rather than rendering one
+frame.
+
+So a wide desk takes the flat band unless you ask for something else. `-splay`
+and `-bend` are still there, and `-splay 20` on a wide desk gives you the bent
+one to compare against.
+
+### The curve is virtual
+
+A flat screen of 6400 was unusable at its edges before this: a flat plane keeps
+its edges further from the eye than its middle, and a rectilinear projection
+draws them smaller for it — 28% of the middle's scale at the edge of a 6400
+screen, against 81% at the edge of one that is a single view wide. Bending the
+screen was the first remedy, and it is the one that cost the sharpness above.
+
+The second remedy is to make the HEAD go further. `-reach` is the radius of a
+curve that is never drawn: turn your head twenty degrees and the band moves as
+though you had turned across a screen on a cylinder of that radius, so the part
+in front of you is always square on, always at one source pixel per output
+pixel, and nothing is lost to a fold.
+
+| | |
+|---|---|
+| `-reach 15` | a screen of 6400 is comfortable end to end |
+| `-reach 0` | a comfortable 20°, which is `desk.ComfortableYawDeg` |
+| `desk.MinReachDeg` = 5 | below this the head would barely move the band |
+
+It is amplified by what the screen demands: `desk.ComfortableYawDeg` = 20 is the
+turn a person makes without thinking, and a screen that needs more than that gets
+the difference as gain rather than asking for a bigger turn.
+
+### Pushing it back moves both axes
+
+`⌃⌥⌘-` and `⌃⌥⌘=` move the band away and back, between `desk.MinDistance` = 1
+and `desk.MaxDistance` = 4 screens across the view. A distance scales the band in
+**both** axes — it used to scale only its length, which made a pushed-back
+screen half as wide and full height, and that is a squash rather than a distance.
+The band is drawn centred, at the source's own aspect ratio, at every distance.
 
 ## How it is put together
 

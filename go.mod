@@ -1,6 +1,6 @@
 module github.com/go-xrkit/desk
 
-go 1.26.4
+go 1.26.6
 
 require (
 	github.com/go-appdirs/outdir v0.2.0

@@ -92,26 +92,45 @@ func DefaultShortcuts() []Shortcut {
 	return []Shortcut{
 		{hotkey.Combo{Key: hotkey.KeyLeftArrow, Mods: mods | hotkey.Control}, ActionPrev, GroupBand},
 		{hotkey.Combo{Key: hotkey.KeyRightArrow, Mods: mods | hotkey.Control}, ActionNext, GroupBand},
-		// Open and leave, each on its own key.
+		// OPEN ALWAYS MEANS OPEN, and the two galleries are two keys.
 		//
 		// A system-wide shortcut is pressed BLIND: the viewer cannot see whether
 		// the gallery is open before deciding, so one key meaning "open" from
 		// outside and "close" from inside does the wrong thing every time they
-		// have lost track. Up goes in and down comes out, which is also the
-		// direction the grid is in relative to the band.
+		// have lost track. Leaving is not here at all -- while a gallery is up
+		// the desk holds the bare Escape, which is the key somebody reaches for
+		// anyway.
+		//
+		// ⛔ F3 AND F4, AND THIS COMMENT SAID ARROWS FOR LONGER THAN THEY WERE
+		// BOUND. Three claims in it had to go: "up goes in and down comes out",
+		// "↑ shows the SCREENS, ↓ shows what is RUNNING on them", and
+		// "⌃⌥⌘Space toggles from outside" -- Space is in traykey.go's
+		// translation table and bound to no action at all. The README repeated
+		// the first two, so the drift reached a reader.
 		{hotkey.Combo{Key: hotkey.KeyF3, Mods: mods | hotkey.Control}, ActionGalleryOpen, ""},
-		// ↑ shows the SCREENS, ↓ shows what is RUNNING on them.
+		// The screens on one key, what is RUNNING on them on the next.
 		//
-		// The applications were on ⌃⌥⌘A and it did nothing at all on the machine
-		// this was written for -- granted without complaint and never delivered,
-		// which is the third way a shortcut can be taken and the one nothing can
-		// detect: an application's own menu key is invisible to everything. An
-		// arrow is a key nothing else claims quietly, and the pair reads as one
-		// idea: up for the desk, down for what is on it.
+		// ⭐ WHY NOT A LETTER: the applications were on ⌃⌥⌘A and it did nothing
+		// at all on the machine this was written for -- granted without
+		// complaint and never delivered, which is the third way a shortcut can
+		// be taken and the one nothing can detect, because an application's own
+		// menu key is invisible to everything.
 		//
-		// Leaving is not here any more. It does not need to be: while a gallery
-		// is up the desk holds the bare Escape, and ⌃⌥⌘Space toggles from
-		// outside. What a blind press needs is for OPEN to always mean open.
+		// ⭐ AND WHY NOT AN ARROW, WHICH IS WHERE THEY WENT FIRST: ← and → turn
+		// the band, and ↑/↓ are the pair a settings file most often takes for
+		// the distance -- the README's own example of moving a key is
+		// `shortcut "further" { keys = "ctrl+alt+cmd+Up" }`, and the machine
+		// this was written for has exactly that in its desk.hcl. A function key
+		// collides with neither.
+		//
+		// ⚠ THE LADDER COULD NOT HAVE DONE THAT, and I said it had: DefaultLadder
+		// is a list of MODIFIERS, so a group that cannot be granted climbs to
+		// ⌃⇧ and keeps its keys. A session showing ⌃⌥⌘↑ for "further" has been
+		// CONFIGURED, not reassigned -- measured by loading that file.
+		//
+		// ⚠ AND MOVING THEM HERE COST THE MENU ROWS, silently: a tray row bound
+		// to F3 drew nothing, in exactly the way a row nothing was granted for
+		// does. See traykey.go, which now translates the function keys.
 		{hotkey.Combo{Key: hotkey.KeyF4, Mods: mods | hotkey.Control}, ActionAppsOpen, ""},
 		// And choosing, system-wide with the rest.
 		//
