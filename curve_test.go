@@ -568,6 +568,35 @@ func TestAFrameCoversTheWholeView(t *testing.T) {
 // WHICH source lands in them, so a frame with every column filled from the wrong
 // places scores perfectly. A coverage measure is blind to content by
 // construction; this is the test that reads it.
+//
+// ⛔⛔ AND ITS PREMISE HAS A DOMAIN, WHICH IS WRITTEN DOWN HERE BECAUSE IT IS NOT
+// OBVIOUS AND IT IS A TRAP. "A screen's source increases left to right across
+// ITS APPEARANCES" is FALSE on a band of two screens seen from a distance of two
+// or more: there the other screen is reachable in BOTH directions inside the
+// half-turn bound, so it legitimately appears on either side of the view with
+// the right-hand copy showing earlier source. Slant's own doc says as much --
+// "a screen straddling the seam comes back twice".
+//
+// ⭐ MEASURED over seven desk shapes, five splays and three distances: the
+// premise breaks in 45 places and EVERY ONE of them is "two screens, one of them
+// wide" at 2x or 4x. It breaks at a splay of five degrees as readily as at
+// sixty, so it is the SHAPE and the distance, not the fold.
+//
+// ⚠ AND THE OBVIOUS REPAIRS DO NOT WORK, measured rather than assumed:
+//
+//	assertion                              healthy code   with firstFacet back
+//	across all appearances of a screen               45                     43
+//	only within one contiguous run                    0                      0
+//
+// The first fires MORE on healthy code than on broken, and the second is sound
+// and blind. Neither can serve a sweep as wide as TestTheFoldProtocol's, which
+// is why that sweep still has no completeness check for a curved desk and why
+// SweepCurvedDesks is still off. See go-xrkit/desk#222.
+//
+// What makes the assertion work HERE is the narrowness of this table: one screen
+// and six, at the plan's own distance. The two-screen case below is included at
+// that distance deliberately, to pin the edge of the domain rather than leave the
+// next reader to find it by adding a case and getting a false failure.
 func TestAScreenReadsLeftToRight(t *testing.T) {
 	t.Parallel()
 
@@ -582,6 +611,11 @@ func TestAScreenReadsLeftToRight(t *testing.T) {
 		{"a wider one still", 1, 10240, DefaultBend},
 		{"a gentler curve", 1, 6400, 2 * DefaultBend},
 		{"an ordinary desk, where this has always held", 6, 0, FlatBend},
+		// ⛔ THE EDGE OF THE DOMAIN. At the plan's own distance a two-screen band
+		// does not wrap far enough to show a screen twice, so the premise holds
+		// and this passes. Push the same shape out to 2x and it stops holding --
+		// which is a fact about the band, not a defect.
+		{"two screens, one of them wide, at the plan's own distance", 2, 3840, DefaultBend},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
