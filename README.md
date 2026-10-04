@@ -611,6 +611,15 @@ platform file (Go's own `_darwin`/`_linux`/`_android`/`_windows`/`_js`/`_other`
 suffixes), not a command, and not a `_display.go` -- so a new portable file is
 gated the day it is written instead of the day someone remembers to add it.
 
+⚠ **A coverage figure is only as good as the toolchain that counted it.** Go
+1.27 splits basic blocks more finely than 1.26 — it breaks a block before an
+instruction that can panic, where 1.26 folded those in and counted them covered
+on the strength of a later line. So the same code reads differently, and **not
+always lower**: measured here on one commit, **82.0 % under `go1.26.6` and
+82.3 % under `go1.27.1`**, with the gated files at 100 % under both. The CI pins
+`go-version: '1.27.1'` and `go.mod` asks for the same patch, so a figure
+measured locally is a figure the gate agrees with.
+
 Playback needs a display, a video file and a pair of glasses, none of which a
 runner has, so a total-coverage figure would be a number chosen to pass rather
 than a standard. The `_display.go` files are named, not listed, so the exemption

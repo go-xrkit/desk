@@ -5,6 +5,45 @@ it got a pseudo-version of whatever `main` happened to be. Entries below are
 written from the code, not from the commit log: 240 pull requests do not make a
 history somebody can read.
 
+## v0.2.0 — 2026-10-04
+
+### Changed — Go 1.27.1 is now required, and the CI says which one
+
+`go.mod` asks for `go 1.27.1` and every workflow pins
+`go-version: '1.27.1'` instead of `stable`. Raising the directive is a change
+in what it takes to BUILD this, so it is a minor and not a patch.
+
+**`stable` had already moved the repository to 1.27 without a commit.** A minor
+Go release changes `gofmt` and how coverage is counted, and `stable` is a
+channel alias rather than a version: there is nothing to compare, so nothing
+opens a pull request and nothing is reviewed. Pinning is what puts each release
+in front of a person.
+
+Measured on one commit, both toolchains, before changing anything:
+
+| | `go1.26.6` | `go1.27.1` |
+|---|---|---|
+| suite | green | green |
+| gated files | 100 % | 100 % |
+| total statements | 82.0 % | **82.3 %** |
+| `gofmt -l` (each from its own GOROOT) | clean | clean |
+| `govulncheck` reachable | 0 | 0 |
+
+So 1.27 moves the coverage ratio **up** here. It is the finer block counting,
+not more tests: 1.27 breaks a basic block before an instruction that can panic.
+
+⚠ **The security argument is weaker here than elsewhere in this fleet**, and
+saying so is the point: `1.26.6` already carried every standard-library fix
+this code can reach (#240 raised it there for exactly that reason). This upgrade
+buys alignment with the CI, not a smaller vulnerability count.
+
+⚠ **`golang/go#81147`, the loong64 backport, is still open** — read in the
+shipped compiler rather than in the issue: `go1.27.1`'s
+`LOONG64.rules` still has `(Cvt64Fto32 ...) => (TRUNCDW ...)` and 25 op-codes
+declared `reg: fp11`. It cannot reach this repository: a probe with all four
+float→int conversions reports all four names, and this code emits **none** of
+them on loong64 — and the loong64 lane cross-compiles without ever executing.
+
 ## v0.1.2 — 2026-10-04
 
 ### Fixed — a flag told you to press keys that were not bound
