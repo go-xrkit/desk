@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-xrkit/xrkit/glasses"
+	"github.com/go-xrkit/xrkit/stereo"
 )
 
 // The fold protocol.
@@ -269,22 +270,35 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 		// The panels whose columns are all one height are square on, and one of
 		// those really can be a view tall to the pixel: that is the doctrine at
 		// distance one, not an artefact, so they are left out.
+		// ⛔⛔ AND IT IS THE PLATEAU THAT IS THE FINGERPRINT, WHICH IS WHAT THE
+		// PARAGRAPH ABOVE ALREADY SAYS AND NOT WHAT THIS USED TO TEST. "A
+		// plateau at exactly the canvas is arithmetic, not geometry" -- but the
+		// code fired on ONE column touching both edges, which is the apex of a
+		// keystone grazing the top of the view and nothing more.
+		//
+		// ⭐ MEASURED on the curved sweep, at the only place it fired -- the
+		// maximum splay, distance one: 2 of 64 columns pinned at the canvas, with
+		// the heights running 1050 to 1080 across the panel. The tallest column
+		// is exactly a view tall, which at distance one is the doctrine (one
+		// screen fills the view) and not an artefact, and the other 62 are
+		// shorter -- so nothing was clamped. Under the clip EVERY column reads
+		// exactly the canvas whatever its real height, which is what the
+		// paragraph above describes, so "most of them" is the faithful test.
+		//
+		// ⛔ AND THE CHANGE HAS A POSITIVE CONTROL, because a check that stopped
+		// firing and a check that stopped being needed look identical from here.
+		// TestAClippedPanelIsStillCaught builds the clip this exists for and
+		// requires it to be reported. Two other attempts at loosening this file
+		// were measured and thrown away for want of exactly that: one blinded the
+		// protocol to a defect it had found the day before, the other asserted
+		// something a two-screen band makes false. See #222.
 		if !flat {
-			touches, over := false, false
-			for _, col := range s.Cols {
-				if col.Y0 <= 0 && col.Y1 >= int32(viewH) {
-					touches = true
-				}
-				if col.Y0 < 0 || col.Y1 > int32(viewH) {
-					over = true
-				}
-			}
-			if touches && !over {
-				t.Errorf("%s: screen %d fills the canvas top to bottom and not "+
-					"one of its %d columns reaches past it: they were clipped "+
-					"before the source row was worked out, so the screen is "+
-					"squashed into the view rather than cropped by it",
-					where, s.Screen+1, len(s.Cols))
+			if pinned, clipped := looksClipped(s, viewH); clipped {
+				t.Errorf("%s: screen %d fills the canvas top to bottom in %d of "+
+					"its %d columns and not one of them reaches past it: they "+
+					"were clipped before the source row was worked out, so the "+
+					"screen is squashed into the view rather than cropped by it",
+					where, s.Screen+1, pinned, len(s.Cols))
 			}
 		}
 
@@ -360,4 +374,117 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 		}
 	}
 	t.Errorf("%s: no panel covers the middle of the view", where)
+}
+
+// looksClipped reports how many of a panel's columns are pinned to the canvas's
+// own bounds, and whether that is the plateau the clip leaves behind.
+//
+// ⭐ IT IS A FUNCTION SO THAT IT CAN BE HANDED A CLIP. Inline in checkFrame it
+// could only ever be exercised by frames the renderer produces, and the
+// renderer no longer produces this defect -- so the check would pass on the day
+// it stopped working just as surely as on the day it works. See
+// TestAClippedPanelIsStillCaught.
+func looksClipped(s Slant, viewH int) (pinned int, clipped bool) {
+	over := false
+	for _, col := range s.Cols {
+		if col.Y0 <= 0 && col.Y1 >= int32(viewH) {
+			pinned++
+		}
+		if col.Y0 < 0 || col.Y1 > int32(viewH) {
+			over = true
+		}
+	}
+	// A panel taller than the canvas must SAY so: some column of it has to fall
+	// outside. Under the clip none ever did. And it is the plateau that says
+	// clip rather than keystone: a single column pinned is the apex of a turned
+	// panel grazing the top of the view, which is geometry.
+	return pinned, pinned*2 > len(s.Cols) && !over
+}
+
+// ⛔⛔ THE CLIP CHECK MUST STILL FIRE ON A CLIP, and this is the control that
+// made loosening it landable.
+//
+// The defect it hunts squashed every neighbour of the screen in front:
+// [Canvas.Slant] derives the source row from a column's OWN bounds --
+// (y-Y0)*srcH/(Y1-Y0) -- so a column clipped to the canvas BEFORE that
+// arithmetic maps the whole screen into the part of it that fits. Measured when
+// it was found: rows 0..99 of a 100-row source drawn where rows 25..74 belong, a
+// vertical compression of two.
+//
+// Loosening the test from "one column grazes both edges" to "most of them do"
+// removes 20 false positives on the curved sweep -- a 64-column panel with 2
+// pinned and heights running 1050 to 1080 -- and the only way to know it removed
+// nothing else is to hand it a real clip.
+//
+// ⚠ TWO OTHER ATTEMPTS AT LOOSENING THIS FILE WERE THROWN AWAY FOR WANT OF
+// EXACTLY THIS. Scoping the whole-screen check to single-panel runs took the
+// curved sweep to zero -- and it then reported zero against a renderer with the
+// previous day's defect put back, while another test reported twelve. Asserting
+// that a screen is drawn in one run fired 1064 times on healthy code, all on a
+// two-screen band, where a screen really is on both sides of the viewer and
+// [Slant] says so. A protocol that passes on code known to be broken is worse
+// than no protocol, because it is read as evidence.
+func TestAClippedPanelIsStillCaught(t *testing.T) {
+	t.Parallel()
+
+	const viewH, cols, srcW = 1080, 64, 3840
+	panel := func(pin int, shortest int32) Slant {
+		s := Slant{Screen: 0, Dst: stereo.Rect{W: cols, H: viewH}}
+		for x := range cols {
+			c := SlantCol{Src: int32(x * srcW / cols), Y0: 0, Y1: viewH}
+			if x >= pin {
+				// Not pinned: a column that stops short of the canvas, which is
+				// what an unclipped turned panel's columns do.
+				c.Y0, c.Y1 = 15, viewH-15
+			}
+			s.Cols = append(s.Cols, c)
+		}
+		// ⛔ NOT ALL ONE HEIGHT, or the check exempts it as square on -- which at
+		// distance one is the doctrine and not the defect.
+		s.Cols[0].Y1 = shortest
+		return s
+	}
+
+	for _, c := range []struct {
+		name string
+		pin  int
+		want bool
+	}{
+		// The clip itself: every column pinned whatever its real height.
+		{"every column pinned, which is the clip", cols, true},
+		// ⚠ AND THE WEAKEST FORM OF IT, because a clip that happened to leave a
+		// few columns alone is still the clip.
+		{"all but two pinned", cols - 2, true},
+		{"just over half pinned", cols/2 + 1, true},
+		// The keystone grazing the top of the view, which is geometry: measured
+		// at 2 of 64 on the curved sweep at the maximum splay and distance one.
+		{"two of sixty-four, the apex of a keystone", 2, false},
+		{"exactly half, which is not a plateau", cols / 2, false},
+		{"none at all", 0, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			s := panel(c.pin, viewH)
+			pinned, clipped := looksClipped(s, viewH)
+			if pinned != c.pin {
+				t.Fatalf("built %d pinned columns, counted %d: the fixture is "+
+					"not the one this asks about", c.pin, pinned)
+			}
+			if clipped != c.want {
+				t.Errorf("%d of %d columns pinned reads as clipped=%v, want %v",
+					pinned, cols, clipped, c.want)
+			}
+		})
+	}
+
+	// ⭐ AND A PANEL THAT REACHES PAST THE CANVAS IS NEVER THE CLIP, however many
+	// of its columns are pinned: saying so is the whole difference between a
+	// screen cropped by the view and one squashed into it.
+	s := panel(cols, viewH)
+	s.Cols[0].Y1 = viewH + 1
+	if _, clipped := looksClipped(s, viewH); clipped {
+		t.Error("a panel with a column reaching past the canvas reads as clipped: " +
+			"reaching past is exactly what an unclipped panel does")
+	}
 }
