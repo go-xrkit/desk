@@ -635,3 +635,48 @@ func (c Config) Bend() float64 {
 	}
 	return *c.Ribbon.Bend
 }
+
+// BendChosen is the radius a wide screen is curved at and whether anybody chose
+// it, so that "nobody said" can be told from "flat was asked for".
+//
+// ⛔⛔ [Config.Bend] CANNOT TELL THEM APART, and [FlatBend]'s own doc says why
+// that matters: it is a NAME rather than a magic zero because "a person reading
+// `curve = 0` in a settings file has no way to tell flat from unset". The
+// function underneath answers FlatBend for both, so the command could not
+// default a wide screen to anything.
+//
+// ⭐ AND THE DEFAULT WAS WRONG, reported from inside the glasses: "l'ecran plat
+// de 6400 sans courbure n'est franchement pas utilisable aux bors, c'est trop
+// loin". The geometry agrees exactly. A flat plane keeps its edges further from
+// the eye than its middle, and a rectilinear projection then draws them smaller:
+//
+//	screen            edge distance   seen at   scale at the edge
+//	1920, 1 view              1.11x       26°                 81%
+//	3840, 2 views             1.39x       44°                 52%
+//	6400, 3.33 views          1.90x       58°                 28%
+//	8640, 4.5 views           2.39x       65°                 17%
+//
+// Which is why "the desk's screens are flat" was right for its own case and
+// wrong for this one. At one view the penalty is 81% and nobody notices -- that
+// is the judgement made on 2026-08-26, and it stands. At 3.33 views the edge is
+// nearly twice as far away and drawn at 28%, and a person cannot read it.
+//
+// ⚠ IT STILL ONLY REACHES A WIDE SCREEN. [Plan.Bend] is flat unless a screen is
+// wider than the band, so handing the plan [DefaultBend] curves the spreadsheet
+// and leaves every ordinary screen exactly as it was. The doctrine is untouched:
+// a screen the size of the view is still flat, and `-bend 0` still asks for a
+// flat wide one.
+//
+// ⭐ AND THE GATE IS PER SCREEN, which is what keeps this out of the trap the
+// head-tracking notice fell into: the plan's bend can be set before any capture
+// has arrived, because the decision of whether it APPLIES is taken later, from
+// each screen's own width.
+func (c Config) BendChosen() (float64, bool) {
+	if c.Ribbon == nil || c.Ribbon.Bend == nil {
+		return 0, false
+	}
+	if *c.Ribbon.Bend <= FlatBend {
+		return FlatBend, true
+	}
+	return *c.Ribbon.Bend, true
+}
