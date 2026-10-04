@@ -366,3 +366,64 @@ func TestAWidthAPersonAskedForIsClampedNotDropped(t *testing.T) {
 			"was lost with the width", q.ScreenWidth(0), len(f.ring.f))
 	}
 }
+
+// ⛔⛔ A PLAN DOES NOT KNOW A SCREEN IS WIDE UNTIL A SOURCE HAS ARRIVED, and this
+// is the fact that made a notice built for a wide screen never fire once.
+//
+// The band takes a screen's shape from what it SHOWS -- Desk.fit reads the width
+// off each captured frame -- so the plan a desk is constructed with has every
+// screen at the band's own width, whatever the command asked for. xrdesk widens
+// the plan it hands to Provide, which makes the displays, and deliberately not
+// the one it hands to New: "the band picks the shape up by itself once the
+// source is that wide".
+//
+// ⭐ WHAT IT COST. run_display offered head tracking when a screen was wider
+// than the view -- on a wide screen that is not a comfort, it is the only way to
+// the rest of the picture -- and asked that question while claiming the
+// shortcuts, where every screen is still 1920. The notice never appeared, on the
+// very session it was written for, while the pointer's -- driven by an event
+// rather than a reading -- appeared as intended.
+//
+// ⚠ AND THE PREDICATE'S OWN TEST PASSED THROUGHOUT, because the predicate was
+// right. TestWiderThanTheViewIsWhatMakesTheHeadNecessary hands
+// widestBeyondTheView a plan and checks its answer. A predicate test is not a
+// wiring test, and the wiring is where this lived. So the fact is pinned here
+// instead: anybody about to read a width has somewhere to find out when it
+// becomes true.
+func TestAPlanDoesNotKnowAScreenIsWideUntilASourceArrives(t *testing.T) {
+	p := testPlan(t)
+	wide := 2 * p.ScreenW
+
+	feeds := feedsFor(p)
+	feeds[1] = &shapedFeed{w: wide, h: p.ScreenH}
+	d, err := New(p, feeds)
+	if err != nil {
+		t.Fatalf("New = %v", err)
+	}
+
+	// Before a frame: the shape the plan was BUILT with, not the one it will show.
+	if got := d.Plan().ScreenWidth(1); got != p.ScreenW {
+		t.Fatalf("before a render, screen 2 is %d wide; want the band's %d. If "+
+			"this now reports %d, a plan learns its widths earlier than it did "+
+			"and the note in run_display about where to read them is stale",
+			got, p.ScreenW, wide)
+	}
+	if _, wider := widestBeyondTheView(d.Plan()); wider {
+		t.Error("before a render, the plan already says a screen is wider than " +
+			"the view -- so a reading taken at start-up would be right by luck")
+	}
+
+	d.Render()
+
+	// After one: the shape it is actually showing.
+	if got := d.Plan().ScreenWidth(1); got != wide {
+		t.Fatalf("after a render, screen 2 is %d wide; want the %d its source is",
+			got, wide)
+	}
+	w, wider := widestBeyondTheView(d.Plan())
+	if !wider || w != wide {
+		t.Errorf("after a render, widestBeyondTheView = %d, %v; want %d, true -- "+
+			"this is the moment a notice about a wide screen can be trusted",
+			w, wider, wide)
+	}
+}

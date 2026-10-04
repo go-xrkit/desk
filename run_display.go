@@ -541,6 +541,10 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// keyboard, which is the difference between a desk you use and a desk you
 	// have to click on first.
 	var global <-chan Action
+	// headKey is the combination the window server granted ActionFollowHead,
+	// carried from here to `watch` because that is the first place a screen's
+	// real width is known. Emptied once the offer has been made.
+	var headKey string
 	if opt.Shortcuts == nil {
 		opt.Shortcuts = DefaultShortcuts()
 	}
@@ -604,12 +608,23 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// every screen fits the view and the head is a convenience, so saying
 		// this would be a notice nobody needs -- and a notice nobody needs is how
 		// the next one stops being read.
-		if c, ok := hk.Granted()[ActionFollowHead]; ok && !d.FollowingHead() {
-			if w, wider := widestBeyondTheView(d.Plan()); wider {
-				d.say(fmt.Sprintf("a screen is %d wide and the view shows %d — %s "+
-					"follows your head, which is how you reach the rest of it",
-					w, d.Plan().ScreenW, c.Glyphs()))
-			}
+		//
+		// ⛔⛔ AND IT IS SAID FROM `watch`, NOT FROM HERE, because here the width
+		// it asks about DOES NOT EXIST YET. The desk takes a screen's shape from
+		// the source it shows, so every screen is still panel-sized until a
+		// capture has arrived -- the note on facetsSaid says exactly this, in
+		// those words, and I wrote this check above it anyway. Measured: the
+		// notice never fired once, on the very session it was written for, while
+		// the pointer's -- which is driven by an event rather than a reading --
+		// fired as intended.
+		//
+		// ⚠ AND THE TEST DID NOT CATCH IT, which is the part to remember.
+		// TestWiderThanTheViewIsWhatMakesTheHeadNecessary hands widestBeyondTheView
+		// a plan and checks its answer, and it passes: the predicate was right all
+		// along. A predicate test is not a WIRING test, and the wiring is where
+		// this lived.
+		if c, ok := hk.Granted()[ActionFollowHead]; ok {
+			headKey = c.Glyphs()
 		}
 	}
 
@@ -740,6 +755,23 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			}
 			logf("the band is drawn from %d facet(s) for %d screen(s) of %v",
 				n, p.Count(), ws)
+		}
+		// ⭐ AND THIS IS WHERE THE HEAD IS OFFERED, for the reason the note above
+		// gives: the widths are real here and nowhere earlier. A screen wider than
+		// the view keeps the remainder of itself out of reach until the head
+		// moves, and the only route a person had found to that setting was a tray
+		// icon on a panel this desk used to turn off. See the hotkeys block.
+		//
+		// ⚠ ONCE, AND ONLY WHILE IT IS STILL OFF. Somebody who turns it on has
+		// answered the offer; somebody who leaves it off has declined, and
+		// repeating it every second would make the next notice unreadable too.
+		if headKey != "" && !d.FollowingHead() {
+			if w, wider := widestBeyondTheView(d.Plan()); wider {
+				d.say(fmt.Sprintf("a screen is %d wide and the view shows %d — %s "+
+					"follows your head, which is how you reach the rest of it",
+					w, d.Plan().ScreenW, headKey))
+				headKey = ""
+			}
 		}
 		if !caught {
 			if hit := DamagedWitnesses(witnesses); len(hit) > 0 {
