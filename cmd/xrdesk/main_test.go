@@ -376,13 +376,33 @@ func TestAWideDesksPlanBuildsNoFan(t *testing.T) {
 // tree, outside it must write normally. A guard verified one way round is a
 // guard that might be refusing everything.
 func TestASnapshotIsNotWorldReadableAndRefusesAWorkTree(t *testing.T) {
+	// ⛔⛔ BOTH VARIABLES, AND HOME ALONE WAS NOT ENOUGH. os.UserConfigDir reads
+	// a DIFFERENT one per platform: $HOME/Library/Application Support on darwin,
+	// $XDG_CONFIG_HOME-or-$HOME/.config on linux. With only HOME set, the linux
+	// runner has XDG_CONFIG_HOME pointing at its real config directory, so the
+	// snapshot landed outside this test's temporary tree -- where there is no
+	// .git above it, so the refusal below correctly did not fire and the test
+	// failed for a reason that had nothing to do with the guard.
+	//
+	// It PASSED on darwin, which is the part worth remembering: a test whose
+	// setup is platform-dependent is green on the platform it was written on.
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
 
 	pix := make([]byte, 4*2*2)
 	path, err := writeSnapshot(pix, 2, 2, "a plan, a renderer, a focus")
 	if err != nil {
 		t.Fatalf("writeSnapshot = %v", err)
+	}
+	// ⛔ AND THE PREMISE IS ASSERTED, not assumed. Everything below depends on
+	// the snapshot landing inside this test's own tree; when it did not, the
+	// second half of this test was measuring nothing and said so only by
+	// failing confusingly on one platform.
+	if !strings.HasPrefix(path, home) {
+		t.Fatalf("the snapshot went to %s, which is outside this test's tree at "+
+			"%s -- os.UserConfigDir was not redirected, so nothing below is "+
+			"measuring what it says", path, home)
 	}
 	fi, err := os.Stat(path)
 	if err != nil {
