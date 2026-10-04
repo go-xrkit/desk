@@ -50,26 +50,81 @@ const MaxFacets = 256
 // view subtends; curve is the radius as a multiple of the viewing distance, so
 // [DefaultBend] is "every pixel equidistant" and larger is flatter.
 //
-// ⚠ A FLAT SCREEN COMES BACK AS ONE FACET TURNING BY NOTHING, rather than as a
-// special case the caller has to remember. One facet of the whole source at zero
-// degrees IS the flat screen, and saying it this way means the flat path and the
-// curved one are the same code.
+// ⚠ A FLAT SCREEN TURNS BY NOTHING, rather than being a special case the caller
+// has to remember. Facets of the source at zero degrees ARE the flat screen, and
+// saying it this way means the flat path and the curved one are the same code.
+// ⚠ ONE CEILING, APPLIED ONCE, for both paths. It used to be applied inside the
+// curved branch and again inside panelsAcross, and the second copy was a branch
+// NO TEST COULD REACH HONESTLY: the widest screen a plan will hold is
+// ScreenH*MaxAspectNum/MaxAspectDen, so views cannot exceed about four and a
+// half, and a ceiling at 256 panels could never fire there. That is a hole in
+// the coverage gate rather than safety -- the same argument the note below makes
+// against flooring the arc.
 func bendFacets(views, fovDeg, bend float64) (n int, degPerFacet float64) {
-	if views <= 0 || fovDeg <= 0 || bend <= FlatBend || math.IsInf(bend, 0) || math.IsNaN(bend) {
-		return 1, 0
-	}
+	flat := views <= 0 || fovDeg <= 0 || bend <= FlatBend ||
+		math.IsInf(bend, 0) || math.IsNaN(bend)
+
+	// One panel per view the screen spans, whatever its curvature. See
+	// [panelsAcross].
+	n = panelsAcross(views)
+
 	// The whole arc, in degrees: the angle the screen subtends, divided by the
 	// radius in units of the viewing distance. At curve 1 they are equal.
-	arc := views * fovDeg / bend
-	// ⚠ No floor at one: the guard above leaves views, fovDeg and curve all
-	// positive, so arc is positive and its ceiling over two is at least one. A
-	// guard here would be a branch no test could reach honestly -- a hole in the
-	// coverage gate rather than safety.
-	n = int(math.Ceil(arc / MaxFacetDeg))
+	arc := 0.0
+	if !flat {
+		arc = views * fovDeg / bend
+		// ⚠ No floor at one: the guard above leaves views, fovDeg and curve all
+		// positive, so arc is positive and its ceiling over two is at least one.
+		// A guard here would be a branch no test could reach honestly.
+		if k := int(math.Ceil(arc / MaxFacetDeg)); k > n {
+			n = k
+		}
+	}
 	if n > MaxFacets {
 		n = MaxFacets
 	}
+	if flat {
+		return n, 0
+	}
 	return n, arc / float64(n)
+}
+
+// panelsAcross is how many panels a screen needs on the chain whatever its
+// curvature: one per view it spans, and never fewer than one.
+//
+// ⛔⛔ A SCREEN WITH ONE PANEL HAS NOWHERE FOR THE GAZE TO STEP. Frame walks the
+// chain in PANELS -- `toward` is a fraction of the step from one to the next --
+// so a flat screen left as a single facet made a quarter step a quarter of the
+// way to the screen's own next copy, twenty degrees round the band. Measured,
+// one flat screen of 6400 at a splay of twenty: at toward 0 the panel filled all
+// 1920 columns, and at toward 0.25 it painted 382 of them and left 1538 dark.
+//
+// ⛔ AND IT IS REACHABLE BY THE ONE GESTURE WIDE MODE EXISTS FOR. headToBand
+// returns 1 when the desk holds fewer than two screens, so on a single wide
+// screen a head turn goes into the ribbon's yaw unconverted and Desk.draw hands
+// Frame exactly these values: turning to read the right-hand end of a
+// spreadsheet is what emptied the view.
+//
+// ⚠ INERT FOR AN ORDINARY DESK, which is the property the fold protocol rests
+// on: a screen the shape of the glasses spans one view, so this returns one and
+// every number in facetRing is the one the chain used before facets existed.
+// Measured: the flat sweep reports 0 complaints with this and 0 without it.
+//
+// ⚠ AND ALMOST INERT FOR A CURVED ONE. At [DefaultBend] an arc of views*fovDeg
+// cut at [MaxFacetDeg] is already far more facets than views, so the angular cut
+// wins. It is the GENTLE curves where this still decides: the two agree at a
+// radius of fovDeg/2 -- about 26 viewing distances -- and beyond that the
+// angular cut asks for fewer panels than the screen has views, which is the same
+// hole the flat case had.
+//
+// ⛔ NO CEILING HERE. [bendFacets] applies the one ceiling to both of its paths;
+// a second copy in this function could never fire, since a plan's widest screen
+// is a little over four views across.
+func panelsAcross(views float64) int {
+	if n := int(math.Ceil(views)); n > 1 {
+		return n
+	}
+	return 1
 }
 
 // facet is one flat piece of a screen on the chain.

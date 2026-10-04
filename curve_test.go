@@ -12,25 +12,23 @@ import (
 	"github.com/go-xrkit/xrkit/glasses"
 )
 
-// ⛔⛔ A FLAT SCREEN IS ONE FACET TURNING BY NOTHING, not a special case the
-// caller has to remember. If flat came back as "no facets" every reader of this
-// would need a branch, and one of them would forget it.
+// ⛔⛔ A FLAT SCREEN TURNS BY NOTHING AND IS NEVER NO FACETS AT ALL, rather than
+// a special case the caller has to remember. If flat came back as "no facets"
+// every reader of this would need a branch, and one of them would forget it.
 //
-// ⚠ AND THE "ONE" IS KNOWN TO BE WRONG FOR A SCREEN WIDER THAN THE VIEW, which
-// is recorded here rather than left for the next reader to rediscover. Frame
+// ⛔ IT USED TO DEMAND EXACTLY ONE, AND THAT WAS THE BELIEF THAT BROKE. Frame
 // walks the chain in PANELS and `toward` is a fraction of the step from one
 // panel to the next, so a screen left as a single panel has nowhere for the gaze
-// to step: a quarter step goes a quarter of the way to the screen's own next
-// copy, a whole splay round the band. Measured, one flat screen of 6400 at a
-// splay of twenty: at toward 0 the panel filled all 1920 columns, at toward 0.25
-// it painted 382 and left 1538 dark.
+// to step: a quarter step went a quarter of the way to that screen's own next
+// COPY, a whole splay round the band. Measured, one flat screen of 6400 at a
+// splay of twenty: at toward 0 the panel filled all 1920 columns, and at toward
+// 0.25 it painted 382 and left 1538 dark -- reached by the one gesture wide mode
+// exists for, since headToBand returns 1 below two screens and a head turn goes
+// into the ribbon's yaw unconverted.
 //
-// Cutting a flat screen into one panel per view fixes that and costs something
-// else -- it inflates the half-turn reach cap, which counts panels and assumes
-// they all turn -- so the flat fold protocol went from 0 complaints to 217.
-// Deriving the cap from the cumulative angle instead recovers most of it but not
-// all. See the skipped cases in TestAFrameCoversTheWholeView.
-func TestFlatComesBackAsOneFacetTurningByNothing(t *testing.T) {
+// What this test is FOR is unchanged and is still checked: flat means deg == 0,
+// and no case ever yields fewer than one facet.
+func TestFlatComesBackAsFacetsTurningByNothing(t *testing.T) {
 	t.Parallel()
 
 	for _, c := range []struct {
@@ -38,21 +36,35 @@ func TestFlatComesBackAsOneFacetTurningByNothing(t *testing.T) {
 		views float64
 		fov   float64
 		bend  float64
+		want  int
 	}{
-		{"asked to be flat", 3.3, 51.57, FlatBend},
-		{"a negative radius", 3.3, 51.57, -1},
-		{"an infinite one, which is what flat MEANS geometrically", 3.3, 51.57, math.Inf(1)},
-		{"not a number", 3.3, 51.57, math.NaN()},
-		{"a screen of no width", 0, 51.57, DefaultBend},
-		{"glasses that report no field of view", 3.3, 0, DefaultBend},
+		// ⭐ A SCREEN THE SHAPE OF THE GLASSES IS STILL EXACTLY ONE PANEL, which
+		// is the property the fold protocol rests on: every number in facetRing
+		// is then the one the chain used before facets existed, so the whole flat
+		// sweep is inert to this. Measured: 0 complaints with the split, as
+		// without it.
+		{"an ordinary screen asked to be flat", 1, 51.57, FlatBend, 1},
+		{"asked to be flat", 3.3, 51.57, FlatBend, 4},
+		{"a negative radius", 3.3, 51.57, -1, 4},
+		{"an infinite one, which is what flat MEANS geometrically", 3.3, 51.57, math.Inf(1), 4},
+		{"not a number", 3.3, 51.57, math.NaN(), 4},
+		{"a screen of no width", 0, 51.57, DefaultBend, 1},
+		{"glasses that report no field of view", 3.3, 0, DefaultBend, 4},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
 			n, deg := bendFacets(c.views, c.fov, c.bend)
-			if n != 1 || deg != 0 {
-				t.Errorf("bendFacets(%g, %g, %g) = %d facets of %g°, want 1 of 0",
-					c.views, c.fov, c.bend, n, deg)
+			if n != c.want || deg != 0 {
+				t.Errorf("bendFacets(%g, %g, %g) = %d facets of %g°, want %d of 0",
+					c.views, c.fov, c.bend, n, deg, c.want)
+			}
+			// ⛔ AND NEVER NONE, stated apart from the count above because it is
+			// the part every caller depends on and the part a future change to
+			// panelsAcross could lose without touching a number here.
+			if n < 1 {
+				t.Errorf("bendFacets(%g, %g, %g) gave %d facets: a caller that "+
+					"walks them draws nothing at all", c.views, c.fov, c.bend, n)
 			}
 		})
 	}
@@ -427,47 +439,45 @@ func TestAFrameCoversTheWholeView(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			// ⛔⛔ A KNOWN DEFECT, SKIPPED AND NAMED RATHER THAN QUIETLY DROPPED.
-			// A FLAT screen wider than the view is one panel on the chain, and
-			// Frame steps in panels: `toward` a quarter of the way to the next
-			// one goes a quarter of the way to this screen's own next COPY, a
-			// whole splay round the band, which lands in the void beside it.
-			// Measured here, one flat screen of 6400 at a splay of twenty:
+			// ⭐⭐ THE FLAT WIDE CASE ASSERTS COVERAGE LIKE THE OTHERS NOW, and the
+			// way it got here is worth more than the assertion.
 			//
-			//	toward 0.00   0 of 1920 columns unpainted
-			//	toward 0.25   1538 unpainted
-			//	toward 0.50   727 unpainted
-			//	toward 0.75   1538 unpainted
+			// A FLAT screen wider than the view used to be ONE panel on the
+			// chain, and Frame steps in panels: `toward` a quarter of the way to
+			// the next panel went a quarter of the way to that screen's own next
+			// COPY, a whole splay round the band, landing in the void beside it.
+			// Measured, one flat screen of 6400 at a splay of twenty:
 			//
-			// ⛔ AND IT IS REACHED BY THE ONE GESTURE WIDE MODE EXISTS FOR.
-			// headToBand returns 1 when the desk holds fewer than two screens,
-			// so on a single wide screen a head turn goes into the ribbon's yaw
-			// unconverted and Desk.draw hands Frame exactly these values:
-			// turning to read the right-hand end of a spreadsheet empties the
-			// view. The BENT case below is correct and is not skipped, so a wide
-			// screen is usable today by curving it.
+			//	toward   was unpainted   now
+			//	0.00     0 of 1920       51
+			//	0.25     1538            0
+			//	0.50     727             44
+			//	0.75     1538            45
 			//
-			// Cutting a flat screen into one panel per view fixes this and
-			// inflates the half-turn reach cap, which counts panels and assumes
-			// every panel turns: the flat fold protocol went from 0 complaints to
-			// 217. Deriving that cap from the cumulative angle instead recovers
-			// most of them. Neither half is landed because together they are not
-			// yet green, and a renderer that is nearly right is worse than one
-			// whose limits are written down.
-			// ⛔⛔ CHARACTERISED, NOT SKIPPED, and the difference is not cosmetic.
-			// A t.Skip here stopped the frame being DRAWN at all, and the 100%
-			// coverage gate caught it at once: Frame fell to 95.0% and reachIn to
-			// 88.2%, because the flat wide screen is the only case in the suite
-			// that walks those branches. A skip that stops exercising the code is
-			// how a known defect becomes an unknown one.
+			// (51 is the seam.) It was reached by the one gesture wide mode exists
+			// for: headToBand returns 1 below two screens, so on a single wide
+			// screen a head turn goes into the ribbon's yaw unconverted and
+			// Desk.draw hands Frame exactly these values -- turning to read the
+			// right-hand end of a spreadsheet emptied the view.
 			//
-			// ⭐ SO IT FAILS WHEN THE DEFECT IS FIXED. The frame is drawn, the
-			// blank columns are counted, and a case marked known must STILL come
-			// back blank -- otherwise this says so and asks for the marker to be
-			// taken out. A characterisation test that cannot notice being fixed
-			// is a comment with a test's name on it.
-			known := c.wide > 0 && c.bend == FlatBend
-			worstKnown := 0
+			// ⛔⛔ THE FIX WAS WRITTEN FIVE DAYS BEFORE IT WORKED, and sat in a
+			// stash because it took the flat fold protocol from 0 complaints to
+			// 163. Cutting a screen into panels adds panels, and the reach was a
+			// COUNT of them -- so the same number reached less far along the band.
+			// Nothing was wrong with the split; the thing it needed did not exist
+			// yet. Replacing that count with a walk, for an unrelated defect,
+			// took the split to 0 with no change to it at all.
+			//
+			// ⭐ AND THE CHARACTERISATION TEST IS WHAT SAID SO. It drew the frame,
+			// counted the blank columns, and required a case marked known to STILL
+			// come back blank -- so the day the split was re-measured it failed
+			// with "the defect this case characterises is fixed, so take the
+			// marker out". A t.Skip would have stopped drawing the frame
+			// altogether: the coverage gate caught that at once, Frame falling to
+			// 95.0% and reachIn to 88.2%, because this is the only case in the
+			// suite that walks those branches. A skip that stops exercising the
+			// code is how a known defect becomes an unknown one, and how a fix
+			// that arrives later goes unnoticed.
 
 			// ⛔ WIDE MODE IS ONE SCREEN, so that is the desk this asks about. A
 			// wide screen BESIDE an ordinary one is an arrangement the command no
@@ -527,30 +537,11 @@ func TestAFrameCoversTheWholeView(t *testing.T) {
 					// ⚠ A few columns may legitimately be background -- the gap
 					// between two screens crosses the view. A TENTH of the view
 					// painted is the defect; nine tenths blank is not a gap.
-					if known {
-						if blank > worstKnown {
-							worstKnown = blank
-						}
-						continue
-					}
 					if blank > len(painted)/2 {
 						t.Errorf("focus %d, %.2f along: %d of %d columns are unpainted",
 							focus, toward, blank, len(painted))
 					}
 				}
-			}
-			// ⭐ AND THE KNOWN DEFECT HAS TO STILL BE THERE. Measured at 1538 of
-			// 1920 when this was written; anything above half the view is the
-			// same defect. If it comes back under that, somebody has fixed it --
-			// which is good news and means this marker and the one in
-			// TestFlatComesBackAsOneFacetTurningByNothing should go, and the
-			// stashed facet split should be re-measured against the fold
-			// protocol rather than left in a stash.
-			if known && worstKnown <= p.ScreenW/2 {
-				t.Errorf("a flat screen %d wide now leaves at worst %d of %d "+
-					"columns unpainted, where it left 1538: the defect this case "+
-					"characterises is fixed, so take the marker out and assert "+
-					"coverage like the others", c.wide, worstKnown, p.ScreenW)
 			}
 		})
 	}
@@ -840,5 +831,63 @@ func TestAWideScreenIsNotASliverFromNextDoor(t *testing.T) {
 					"governing the walk", splay, dist, drawn[0], facets)
 			}
 		}
+	}
+}
+
+// ⛔⛔ A GENTLE CURVE HAS THE SAME HOLE THE FLAT CASE HAD, and this is the only
+// place [panelsAcross] still decides anything for a CURVED screen.
+//
+// The two cuts cross at a radius of fovDeg/2. Below it the angular cut wins --
+// at [DefaultBend] an arc of views*fovDeg at [MaxFacetDeg] is far more facets
+// than views, which is why the floor is inert there. Above it the angular cut
+// asks for FEWER panels than the screen has views, and a screen with one panel
+// has nowhere for the gaze to step: `toward` a quarter of the way to the next
+// panel goes a quarter of the way to that screen's own next copy.
+//
+// ⚠ IT IS REACHABLE. Config.Bend takes any radius a person types, and 30 is not
+// an absurd one -- it is "nearly flat", which is what somebody who dislikes the
+// curve but wants a wide screen would reach for.
+func TestAGentleCurveStillGetsAPanelPerView(t *testing.T) {
+	t.Parallel()
+
+	const fov = 51.57
+	// 3.3 views at radius 30: the arc is 3.3*51.57/30 = 5.7°, which at
+	// MaxFacetDeg is 3 facets -- one FEWER than the screen has views.
+	const views = 3.3
+	for _, c := range []struct {
+		name string
+		bend float64
+		want int
+	}{
+		// Below the crossing: the angular cut asks for far more, and decides.
+		{"curved at the viewing distance", DefaultBend, 86},
+		{"twice that radius", 2 * DefaultBend, 43},
+		// Around the crossing, fovDeg/2 = 25.8 viewing distances.
+		{"a nearly flat curve", 30, 4},
+		{"flatter still", 100, 4},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			n, deg := bendFacets(views, fov, c.bend)
+			if n != c.want {
+				t.Errorf("%g views at radius %g gives %d facets, want %d",
+					views, c.bend, n, c.want)
+			}
+			// ⛔ AND NEVER FEWER PANELS THAN THE SCREEN HAS VIEWS, which is the
+			// property rather than the number: a screen 3.3 views across needs at
+			// least four places for the gaze to step.
+			if n < int(math.Ceil(views)) {
+				t.Errorf("%g views at radius %g gives %d panels: fewer than the "+
+					"views it spans, so a quarter step lands on its own next copy",
+					views, c.bend, n)
+			}
+			// ⚠ And the arc is still the screen's own: adding panels must not
+			// change how far it wraps, only how finely it is cut.
+			if got, want := float64(n)*deg, views*fov/c.bend; math.Abs(got-want) > 0.01 {
+				t.Errorf("%g views at radius %g wrap %g°, want %g°",
+					views, c.bend, got, want)
+			}
+		})
 	}
 }
