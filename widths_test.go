@@ -131,10 +131,16 @@ func TestHeadYawForSaysWhenAScreenIsWiderThanAHeadCanSweep(t *testing.T) {
 		// of its height wide, and the arithmetic goes through zero there.
 		{1280, 0, false},
 		{480, 0, false},
-		{3840, 26, false},
-		// ⚠ 5120 IS THE EDGE and is deliberately in the table: at 43° it is just
-		// past comfortable, so an off-by-one in either direction shows up here
-		// rather than as somebody's stiff neck.
+		// ⚠ 2560 IS THE EDGE NOW and is deliberately in the table: at 9° it is
+		// just inside ComfortableYawDeg, so an off-by-one in either direction
+		// shows up here rather than as somebody.s stiff neck. The edge MOVED when
+		// the constant did -- it was 5120 at 43° while comfortable was forty --
+		// which is the whole reason the number is named rather than buried.
+		{2560, 9, false},
+		// ⭐ AND 3840 IS PAST IT, which is the report that moved the constant:
+		// 26° was worn and refused. At 1:1 this screen is out of reach; with
+		// Desk.headGain it arrives at twenty.
+		{3840, 26, true},
 		{5120, 43, true},
 		{6400, 60, true},
 		{8640, 90, true},

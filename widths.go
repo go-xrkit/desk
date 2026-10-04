@@ -88,11 +88,27 @@ func widestBeyondTheView(p Plan) (width int, wider bool) {
 //
 // ⚠ IT IS A HUMAN RANGE, NOT A MEASUREMENT OF THIS SYSTEM, and saying so is the
 // point: every other number in this package is derived from the optics, and this
-// one is not. Forty degrees is the middle of what the ergonomics literature
-// calls comfortable sustained head rotation; sixty is reachable and not
-// sustainable. Somebody who disagrees should change it here, where it is named,
-// rather than discover it as a feeling.
-const ComfortableYawDeg = 40.0
+// one is not.
+//
+// ⭐ TWENTY DEGREES, AND IT IS THE WEARER.S OWN NUMBER NOW, not the ergonomics
+// literature.s. It was forty, which is the middle of what sustained head
+// rotation is reckoned to allow, and three widths were then worn and refused in
+// turn:
+//
+//	screen   views   head needed at 1:1   worn and reported
+//	6400      3.33                  60°   "trop grand pour le voir d.un bout a l.autre"
+//	5120      2.67                  43°   "encore trop large"
+//	3840      2.00                  26°   "toujours trop large"
+//
+// So the bound is BELOW twenty-six, and twenty is the next step that is not a
+// guess dressed as a measurement -- three refusals brought it there, and a
+// fourth would move it again. Somebody who disagrees changes it here, where it
+// is named, rather than discovering it as a stiff neck.
+//
+// ⚠ AND IT NOW SETS A GAIN RATHER THAN A CEILING. Desk.headGain amplifies a head
+// movement by what the screen demands over this, so this is no longer "the
+// widest usable screen" but "the turn you are willing to make".
+const ComfortableYawDeg = 20.0
 
 // HeadYawFor is how far the head must turn, to either side, to bring the far end
 // of a screen that many views across into the middle of the view -- and whether
