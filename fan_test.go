@@ -921,13 +921,25 @@ func TestTheReachFallsBackWhenItCannotBeDerived(t *testing.T) {
 		f:      []facet{{screen: 0, hw: 0.5, turnBy: 60}, {screen: 1, hw: 0.5, turnBy: 60}},
 		prefix: []float64{0, 60}, total: 120,
 	}
-	// A ring of right angles: the derivation comes out at three, BELOW FanReach,
-	// so the floor is what raises it -- and the cap then cuts it to two, because
-	// four right angles is a full turn and two is half of it.
+	// A ring of right angles: the derivation comes out BELOW FanReach, so the
+	// floor is what raises it.
 	rightAngles := &facetRing{
 		f:      []facet{{screen: 0, hw: 0.5, turnBy: 90}, {screen: 1, hw: 0.5, turnBy: 90}},
 		prefix: []float64{0, 90}, total: 180,
 	}
+	// ⛔⛔ AND NOTHING HERE IS ABOUT HALF A TURN ANY MORE. reachIn used to cap at
+	// len(f)*180/total as well, and two cases below pinned the ORDER of that cap
+	// against the floor. The cap is gone: it was an average over a ring whose
+	// facets do not turn alike, so from a finely faceted focus it UNDER-estimated
+	// and became the binding constraint -- 16 panels where the derivation asked
+	// for 54, and the walk ran out of reach before a single panel was refused.
+	// Measured: all 460 remaining "out of reach" cases in the sweep were that,
+	// and removing it took them to zero.
+	//
+	// Half a turn is now enforced in [Fan.Frame], against the cumulative angle of
+	// the chain it is about to walk, and asserted by
+	// TestTheBandNeverComesRoundOnItself. What reachIn still is, is the bound
+	// that sizes f.slots -- a memory bound, not a geometric claim.
 	for _, c := range []struct {
 		name string
 		fan  *Fan
@@ -935,22 +947,14 @@ func TestTheReachFallsBackWhenItCannotBeDerived(t *testing.T) {
 	}{
 		{"no ring at all, which is the chain before a width is known",
 			&Fan{splayDeg: 20, fovDeg: 51.57}, FanReach},
-		{"a derivation under the floor, raised by it and then cut by the cap",
-			&Fan{splayDeg: 90, fovDeg: 51.57, ring: rightAngles}, 2},
+		{"a derivation under the floor, which the floor raises",
+			&Fan{splayDeg: 90, fovDeg: 51.57, ring: rightAngles}, FanReach},
 		{"glasses that report no field of view",
 			&Fan{splayDeg: 20, fovDeg: 0, ring: wideStep}, FanReach},
 		{"a chain with no angle to divide by",
 			&Fan{splayDeg: 0, fovDeg: 51.57, ring: flatRing}, FanReach},
-		// ⛔⛔ THE FLOOR APPLIES AND THE CAP THEN OVERRIDES IT, which is the
-		// ORDER reachIn insists on and the one thing here that is not obvious.
-		// Written the other way round -- the floor last -- it silently undid the
-		// half-turn cap on any desk whose ring closes in fewer than four panels,
-		// and the fold protocol reported 460 overlaps rather than 6. Two facets
-		// closing in 120° is half a turn in three, so three is the answer even
-		// though the floor is four: a fourth panel would be the far side of the
-		// band drawn over the near one.
-		{"steps so wide the derivation comes out under the floor, which the cap " +
-			"then cuts below it anyway", &Fan{splayDeg: 60, fovDeg: 51.57, ring: wideStep}, 3},
+		{"steps so wide the derivation comes out under the floor",
+			&Fan{splayDeg: 60, fovDeg: 51.57, ring: wideStep}, FanReach},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
