@@ -893,17 +893,24 @@ const MinReachDeg = 5.0
 // that could not fold another screen into its gallery suddenly could, and eight
 // columns fitted a view that had been too narrow for them. Two tests said so.
 //
-// ⭐ TWENTY-FOUR, HALVED ON THE REPORT OF SOMEBODY WEARING IT: "peut on reduire
-// l'espace de 50% entre les ecrans virtuels, la ca semble un peu grand".
-// Forty-eight was never measured, only chosen, and the person who sees it every
-// day is the better instrument.
+// ⭐ THIRTY-TWO, DOWN FROM FORTY-EIGHT ON THE REPORT OF SOMEBODY WEARING IT:
+// "peut on reduire l'espace de 50% entre les ecrans virtuels, la ca semble un
+// peu grand", and then "va pour 32 alors" when 24 was measured to make the seam
+// very thin at the far end of the distance range. Forty-eight was never
+// measured, only chosen, and the person who sees it every day is the better
+// instrument -- including about the compromise.
 //
-// ⚠ AND IT STAYS WIDE ENOUGH TO BE THE THING IT IS FOR, which is why halving is
+// ⚠ AND IT STAYS WIDE ENOUGH TO BE THE THING IT IS FOR, which is why reducing is
 // the whole move and zero is not. The seam exists so a fold can be FOUND -- asked
 // for in exactly those terms, "il faut donc pouvoir detecter la fin d'un ecran
 // sur le coté et le debut d'un autre", after two screens met at a seam with no
-// seam and overlapped by a pixel. At 24 it is still worth about four tenths of a
-// degree at distance one, which is a term and not a rounding, and the fold
-// protocol's bound on a hole is twice this number so it halves with it rather
-// than going slack.
-const DefaultSeamPx = 24
+// seam and overlapped by a pixel. The fold protocol's bound on a hole is twice
+// this number, so that bound shrinks with it rather than going slack.
+//
+// ⚠ AND NARROWING IT COSTS SOMETHING, measured on the curved sweep rather than
+// reasoned about: 1256 complaints at 48, 1294 at 32, 1304 at 24. A thinner seam
+// crosses the protocol's "no seam between them" threshold at the long distances,
+// which is exactly what the seam exists to prevent. Two thirds of that cost
+// remains at 32, so the width of the seam is NOT the dominant term in those
+// complaints and chasing it further would be chasing the wrong number.
+const DefaultSeamPx = 32
