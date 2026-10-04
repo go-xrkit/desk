@@ -767,10 +767,33 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// repeating it every second would make the next notice unreadable too.
 		if headKey != "" && !d.FollowingHead() {
 			if w, wider := widestBeyondTheView(d.Plan()); wider {
+				p := d.Plan()
 				d.say(fmt.Sprintf("a screen is %d wide and the view shows %d — %s "+
 					"follows your head, which is how you reach the rest of it",
-					w, d.Plan().ScreenW, headKey))
+					w, p.ScreenW, headKey))
 				headKey = ""
+				// ⛔⛔ AND A SCREEN CAN BE WIDER THAN A HEAD CAN SWEEP, which the
+				// optics do not stop and nothing was saying. Reported of a screen
+				// 6400 across: "l'ecran de 6400 est trop grand pour le voir d'un
+				// bout a l'autre en tournant la tete". It is 3.33 views, so 172°
+				// of arc, so 60° of head rotation to each side -- reachable and
+				// not sustainable. See HeadYawFor for the table.
+				//
+				// ⭐ SAID WITH THE WIDTH THAT WOULD FIT, because a notice that
+				// only names a problem leaves somebody with nothing to do. The
+				// alternative -- amplifying the head so a smaller turn covers
+				// more band -- is the first idea anybody has and it is the wrong
+				// one: Desk.headToBand exists to make the picture hold still
+				// while the head moves, and that was a defect reported and
+				// fixed. This tells the person the ceiling instead of
+				// engineering around it.
+				views := float64(w) / float64(p.ScreenW)
+				if deg, beyond := HeadYawFor(views, p.HFOVDeg); beyond {
+					d.say(fmt.Sprintf("it spans %.0f°, so its ends are %.0f° of "+
+						"head turn away — about %d wide is what a comfortable "+
+						"turn reaches", views*p.HFOVDeg, deg,
+						WidthWithinReach(p.ScreenW, p.HFOVDeg)))
+				}
 			}
 		}
 		if !caught {
