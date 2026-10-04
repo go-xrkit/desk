@@ -5,6 +5,8 @@
 package desk
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strconv"
 
@@ -389,6 +391,51 @@ func (d *Desk) toggleFollowHead() {
 	}
 	d.FollowHead(true)
 	d.say("following your head, with the camera light on while it does")
+}
+
+// ErrNoAppBundle means this program is running as a bare executable, so the
+// camera that follows a head cannot be opened at all.
+//
+// ⛔ IT NAMES THE REMEDY, because the remedy is a BUILD and not a setting. A
+// person told "the camera is not available" in a terminal will go looking in
+// System Settings, where the grant is already there and says yes -- which is
+// how this cost two sessions. See [WhyTheHeadCannotBeFollowed].
+var ErrNoAppBundle = errors.New("desk: a camera cannot be opened from a bare " +
+	"executable, only from an app bundle -- build one with cmd/macapp and run that")
+
+// HeadOffer is what to tell somebody who is looking at a screen wider than
+// their view: how to reach the rest of it, or why they cannot.
+//
+// It answers "" when there is nothing to say -- no screen is wider than the
+// view, or no key is bound to the gesture.
+//
+// ⛔⛔ IT EXISTS BECAUSE THE OFFER WAS MADE WHERE IT COULD NOT BE TAKEN. A desk
+// run from a terminal said, on the picture, "a screen is 6400 wide and the view
+// shows 1920 -- ⌃⌥⌘F follows your head, which is how you reach the rest of it".
+// Pressing it could not work: a camera cannot be opened without an
+// NSCameraUsageDescription, a bare binary has no Info.plist at all, and the
+// refusal went to the JOURNAL -- twice in one session, in a stream nobody reads
+// while wearing a headset. Measured on that session's log: two refusals, two
+// minutes forty-five of running, and the person took the headset off.
+//
+// ⚠ THE REASON IS THE CALLER'S TO SUPPLY, from [WhyTheHeadCannotBeFollowed].
+// This function knows what to SAY, which is portable and testable; what is
+// possible depends on how the process was launched, which is neither.
+func HeadOffer(widest, viewW int, key string, why error) string {
+	if widest <= viewW || key == "" {
+		return ""
+	}
+	if why != nil {
+		// ⛔ THE WIDTH IS STILL IN IT. "The head cannot be followed" on its own
+		// is a notice about a feature; with the width in front of it, it is the
+		// answer to the question the person is actually holding -- how do I see
+		// the other 4480 columns of this screen.
+		return fmt.Sprintf("a screen is %d wide and the view shows %d, and %s "+
+			"cannot follow your head here: %v", widest, viewW, key, why)
+	}
+	return fmt.Sprintf("a screen is %d wide and the view shows %d — %s "+
+		"follows your head, which is how you reach the rest of it",
+		widest, viewW, key)
 }
 
 // openCameraHead is the seam: the real one opens a camera, which a test cannot

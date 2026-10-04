@@ -6,6 +6,7 @@ package desk
 
 import (
 	"errors"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -1534,5 +1535,111 @@ func TestBandsNowSkipsAPanelClippedToAColumn(t *testing.T) {
 	if !strings.Contains(got, "screen 1 at x 0..960") ||
 		!strings.Contains(got, "screen 2 at x 960..1920") {
 		t.Errorf("bandsNow() = %q, want both visible bands with their stretches", got)
+	}
+}
+
+// ⛔⛔ THE FLAT BAND IS SHARP AT EVERY ANGLE AND THE BENT ONE IS NOT, which is
+// the measurement that made the flat band what a wide desk gets. Reported from
+// inside the glasses: "le probleme du cintrage visible est que l'image n'est
+// plus nette, ne peut on pas avoir un cintrage virtuel, ie on tourne la tete et
+// l'ecran en face de soi est toujours plat?".
+//
+// Source columns per destination column, in the middle third of the view, three
+// screens of 6400 with a reach of 15°:
+//
+//	head turned   flat band (strip)   bent band (fan)
+//	        0°               1.000             1.000
+//	        5°               1.000             1.019   (0.000 .. 2.000)
+//	       10°               1.000             1.073
+//	       15°               1.000             1.167   (0.000 .. 2.000)
+//	       20°               1.000             1.073
+//	       30°               1.000             1.000
+//
+// A rate of 0 is a source column drawn twice; a rate of 2 is one never drawn.
+//
+// ⚠ AT REST BOTH ARE EXACTLY ONE, which is why this took wearing to find and
+// why the test has to TURN THE HEAD. My first measurement rendered one frame
+// per renderer, found 1.000 both times, and would have concluded there was
+// nothing to choose between them.
+//
+// ⚠ AND IT ASSERTS THE ASYMMETRY, not the numbers above. The exact rate at 15°
+// depends on the facet count, which depends on the field of view and the bend,
+// and pinning it would be pinning the geometry rather than the property. What
+// must hold is that the flat band never resamples and the bent one does, at
+// some angle a head reaches.
+func TestAWideScreenIsSharpAtEveryAngleOnlyWhenFlat(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	build := func(t *testing.T, splay float64) *Desk {
+		t.Helper()
+		p, err := NewPlan(beast, Options{Screens: 3, SplayDeg: splay})
+		if err != nil {
+			t.Fatal(err)
+		}
+		p = WidePlan(p, 6400).WithReach(15)
+		feeds := make([]Feed, p.Count())
+		for i := range feeds {
+			feeds[i] = &shapedFeed{w: p.ScreenWidth(i), h: p.ScreenH}
+		}
+		d, err := New(p, feeds)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	// The angles a head reaches, which is what makes this a measurement of the
+	// thing in use rather than of the thing at rest.
+	angles := []float64{0, 5, 10, 15, 20, 30}
+
+	flat := build(t, -1)
+	defer flat.Close()
+	if flat.fan != nil {
+		t.Fatal("a negative splay still built a fan; the renderers are chosen " +
+			"by the splay and this test would be measuring one of them twice")
+	}
+	for _, deg := range angles {
+		flat.nav.SetYaw(deg * math.Pi / 180)
+		flat.Render()
+		for _, b := range flat.blits {
+			if b.SrcXStep != one {
+				t.Errorf("flat, head at %g°: %v source columns per column, want "+
+					"exactly 1 -- a band slides, it does not resample",
+					deg, float64(b.SrcXStep)/float64(one))
+			}
+		}
+	}
+
+	bent := build(t, 0)
+	defer bent.Close()
+	if bent.fan == nil {
+		t.Fatal("a derived splay built no fan; there is no bent band to compare")
+	}
+	resampled := make(map[float64]bool)
+	for _, deg := range angles {
+		bent.nav.SetYaw(deg * math.Pi / 180)
+		bent.Render()
+		for _, s := range bent.slants {
+			for i := 1; i < len(s.Cols); i++ {
+				x := s.Dst.X + i
+				if x < 640 || x > 1280 {
+					continue
+				}
+				if step := s.Cols[i].Src - s.Cols[i-1].Src; step != 1 && step >= 0 {
+					resampled[deg] = true
+				}
+			}
+		}
+	}
+	if len(resampled) == 0 {
+		t.Error("the bent band resampled nothing at any angle a head reaches; " +
+			"either it stopped being a projection or this test stopped looking " +
+			"at the middle of the view, and the flat default rests on this")
+	}
+	// ⛔ AND IT IS SHARP AT REST, which is the half that makes the defect hard
+	// to see: a measurement taken without turning the head finds nothing.
+	if resampled[0] {
+		t.Error("the bent band resampled with the head straight ahead; the " +
+			"measurement this test records says both renderers are exactly 1 there")
 	}
 }

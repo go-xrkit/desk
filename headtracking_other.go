@@ -30,3 +30,8 @@ func (h *CameraHead) Recenter() {}
 
 // Close has nothing to close.
 func (h *CameraHead) Close() error { return nil }
+
+// WhyTheHeadCannotBeFollowed says what the platform file above already says:
+// there is no way to open a camera here, and that is known before anybody
+// presses the key.
+func WhyTheHeadCannotBeFollowed() error { return ErrNoCameraHead }

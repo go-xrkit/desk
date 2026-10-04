@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-macos/appbundle"
 	"github.com/go-macos/avfoundation"
 	"github.com/go-xrkit/xrkit/headflow"
 )
@@ -124,4 +125,29 @@ func (h *CameraHead) Close() error {
 	h.cancel()
 	<-h.done
 	return h.cap.Close()
+}
+
+// WhyTheHeadCannotBeFollowed says why this process could not follow a head at
+// all, or nil when nothing is known to stand in the way.
+//
+// ⛔⛔ A BARE BINARY CANNOT OPEN A CAMERA, whatever the grant says. macOS reads
+// what a program is from the bundle around it, and
+// -[AVCaptureDevice ...] needs an NSCameraUsageDescription in an Info.plist to
+// let a capture start; a program without one is not refused, it is KILLED by
+// TCC. avfoundation checks for the key before touching the camera and returns
+// [avfoundation.ErrNoUsageDescription] -- see its own note on why it must.
+//
+// ⚠ AND THIS IS AN IMPLICATION, NOT AN EQUIVALENCE. Outside a bundle there is
+// no Info.plist at all, so the answer is certain. Inside one the key may still
+// be missing, and this says nothing about that: the exact predicate lives
+// unexported in avfoundation, and the honest thing here is to report what is
+// known rather than to guess the rest.
+//
+// ⚠ IT OPENS NOTHING AND LIGHTS NOTHING. appbundle.Running is path work on the
+// executable's own location -- no AppKit, no camera, no indicator.
+func WhyTheHeadCannotBeFollowed() error {
+	if _, ok := appbundle.Running(); !ok {
+		return ErrNoAppBundle
+	}
+	return nil
 }

@@ -48,29 +48,12 @@ func Permissions() []Grant {
 	}
 }
 
-// cameraGrant says where the camera stands and what to do about it.
-//
-// ⛔ THE TWO WAYS OF NOT HAVING IT NEED DIFFERENT ADVICE, AND ONE OF THEM MAKES
-// SYSTEM SETTINGS THE WRONG ANSWER. macOS lists an application under Camera
-// once it has ASKED once, and not before -- so telling somebody with a
-// never-asked camera to go and switch it on there sends them to look for a row
-// that does not exist. What they have to do is press the key and answer the
-// prompt. A refusal is the opposite: the prompt will not come back, and System
-// Settings is the only place left.
+// cameraGrant is the darwin wiring: it reads this Mac's decision and how this
+// process was launched, and leaves the shaping to [cameraRow], which is
+// portable and tested.
 func cameraGrant(a avfoundation.CameraAccess) Grant {
-	g := Grant{
-		What: "the camera — showing the room, and photographs (" + a.String() + ")",
-		Pane: "Camera",
-		Held: a.Granted(),
-		// The desk starts without it; only passthrough and photographs stop.
-		Needed: false,
-	}
-	if a == avfoundation.CameraNotDetermined {
-		g.How = "nothing to do in System Settings, which will not list this " +
-			"application until it has asked once: press the key that shows the " +
-			"room and macOS will ask"
-	}
-	return g
+	return cameraRow(a.String(), a.Granted(),
+		a == avfoundation.CameraNotDetermined, WhyTheHeadCannotBeFollowed())
 }
 
 // LogPermissions says what has been granted, once, at the start.

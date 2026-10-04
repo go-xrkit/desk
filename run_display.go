@@ -765,13 +765,18 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		// ⚠ ONCE, AND ONLY WHILE IT IS STILL OFF. Somebody who turns it on has
 		// answered the offer; somebody who leaves it off has declined, and
 		// repeating it every second would make the next notice unreadable too.
+		//
+		// ⛔⛔ AND IT SAYS SO WHEN THE KEY CANNOT WORK, which it used not to. Run
+		// as a bare binary this offered a gesture that is impossible -- the
+		// camera needs an app bundle -- and the refusal went to the journal,
+		// where somebody wearing a headset cannot read it. See [HeadOffer].
 		if headKey != "" && !d.FollowingHead() {
 			if w, wider := widestBeyondTheView(d.Plan()); wider {
-				p := d.Plan()
-				d.say(fmt.Sprintf("a screen is %d wide and the view shows %d — %s "+
-					"follows your head, which is how you reach the rest of it",
-					w, p.ScreenW, headKey))
-				headKey = ""
+				if s := HeadOffer(w, d.Plan().ScreenW, headKey,
+					WhyTheHeadCannotBeFollowed()); s != "" {
+					d.say(s)
+					headKey = ""
+				}
 			}
 		}
 		if !caught {

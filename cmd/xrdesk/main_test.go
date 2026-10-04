@@ -280,3 +280,79 @@ func TestAWideScreenNobodySpokeForIsCurved(t *testing.T) {
 		})
 	}
 }
+
+// ⛔⛔ A WIDE DESK DEFAULTS TO THE FLAT BAND, because a turned band is sharp
+// only while the head is still -- and a screen of 6400 is reached by turning.
+// The measurement is in splayForWide's own doc; the package test
+// TestAWideScreenIsSharpAtEveryAngleOnlyWhenFlat keeps it honest.
+//
+// ⚠ AND A CHOICE IS LEFT ALONE. Zero is the only value that means "nobody
+// said": the flag's own default, and what desk.Config.SplayDeg answers for a
+// settings file that is silent.
+func TestAWideDeskTakesTheFlatBandUnlessSomebodyChose(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name  string
+		splay float64
+		wide  int
+		want  float64
+	}{
+		{"wide, nobody said: the flat band", 0, 6400, -1},
+		{"wide, a splay was asked for: left alone", 20, 6400, 20},
+		{"wide, flat was asked for: already flat", -1, 6400, -1},
+		// ⛔ AND IT REACHES ONLY A WIDE DESK. An ordinary band derives its own
+		// splay from its optics, and flattening that would undo the ribbon.
+		{"not wide, nobody said: the plan derives it", 0, 0, 0},
+		{"not wide, a splay was asked for", 20, 0, 20},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			if got := splayForWide(c.splay, c.wide); got != c.want {
+				t.Errorf("splayForWide(%g, %d) = %g, want %g",
+					c.splay, c.wide, got, c.want)
+			}
+		})
+	}
+}
+
+// ⛔⛔ AND THE PLAN REALLY COMES OUT FLAT, which the table above does not show.
+// splayForWide answers -1 and desk.NewPlan reads -1 as "one flat plane", but
+// those are two conventions meeting on one number -- zero means "nobody said"
+// on one side and "the flat band" on the other, and the translation between
+// them has been wrong here before. A plan whose SplayDeg stayed positive would
+// build a fan, and the whole measurement that chose this default is about not
+// building one.
+//
+// ⚠ IT GOES THROUGH planFor, the way the session does, rather than calling
+// NewPlan itself: the predicate is already tested above, and what is left to
+// check is the wiring.
+func TestAWideDesksPlanBuildsNoFan(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+	flat, err := planFor(beast, screensForWide(3, 6400, false), 1,
+		splayForWide(0, 6400), 0, nil, desk.AnchorOnGaze)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if flat.SplayDeg() > 0 {
+		t.Errorf("a wide desk's splay came out %g°, which is the angle that "+
+			"builds a fan -- see desk.build", flat.SplayDeg())
+	}
+	if got := flat.Count(); got != 3 {
+		t.Errorf("the wide desk has %d screens, want the 3 asked for", got)
+	}
+	// ⚠ AND AN ORDINARY DESK STILL DERIVES ITS OWN, which is the ribbon. A
+	// change that flattened every band would pass the check above.
+	band, err := planFor(beast, screensForWide(3, 0, false), 1,
+		splayForWide(0, 0), 0, nil, desk.AnchorOnGaze)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if band.SplayDeg() <= 0 {
+		t.Errorf("an ordinary band's splay came out %g°; it derives a positive "+
+			"one from its own optics, and flattening it would undo the ribbon",
+			band.SplayDeg())
+	}
+}
