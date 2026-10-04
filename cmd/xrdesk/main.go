@@ -117,7 +117,13 @@ func run() int {
 	reach := flag.Float64("reach", 0,
 		"the head turn, in degrees, that brings a wide screen's far end into the "+
 			"middle of the view: the virtual curve's radius, where smaller is more "+
-			fmt.Sprintf("wrapped (0 = %g; at most %g)", desk.ComfortableYawDeg, desk.MinReachDeg))
+			// ⛔ "AT LEAST", AND THIS SAID "AT MOST". MinReachDeg is a FLOOR --
+			// Plan.WithReach raises anything under it -- and the help inverted
+			// the one number a person has to get right, on the flag whose whole
+			// job is to be typed by hand. Five degrees on the widest screen the
+			// band allows is already a gain of twelve.
+			fmt.Sprintf("wrapped (0 = %g; at least %g)",
+				desk.ComfortableYawDeg, desk.MinReachDeg))
 	depthModel := flag.String("depth-model", "",
 		"a Core ML depth model (.mlpackage or .mlmodelc) for -3d; without one, depth is guessed from the picture and is visibly worse")
 	dim := flag.Bool("dim", true,
