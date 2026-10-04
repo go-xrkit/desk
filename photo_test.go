@@ -267,3 +267,40 @@ func TestWritePhotoRefusesTheSameWayPhotoPathDoes(t *testing.T) {
 		t.Error("it wrote the file before finding out it must not")
 	}
 }
+
+// ⛔⛔ A PHOTOGRAPH OF SOMEBODY'S ROOM IS NOT WORLD-READABLE, and it was: 0644,
+// while the journal beside it -- which only names windows -- was already 0600.
+// The more sensitive artefact had the weaker mode, which is the inversion an
+// audit exists to find. Measured on disk before the change: `-rw-r--r--`.
+//
+// ⚠ IT WRITES A REAL FILE AND ASKS THE FILESYSTEM, rather than intercepting
+// writeFile and checking the argument. The argument is not the thing that
+// matters: a mode is masked by the umask on its way to disk, and a test that
+// read the argument would pass for a program that asks for 0600 through
+// os.Create -- which asks for 0666 and lands on 0644 under the default 022.
+// What a person can read is the mode ON THE FILE.
+func TestAPhotographIsNotWorldReadable(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(PhotoDirEnv, dir)
+
+	p := Picture{Pix: make([]byte, 4*2*2), W: 2, H: 2, Stride: 2 * 4}
+	path, err := WritePhoto(p, time.Date(2026, 10, 4, 20, 57, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("WritePhoto = %v", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := fi.Mode().Perm(); got != 0o600 {
+		t.Errorf("the photograph is %04o, want 0600 -- %04o lets every account "+
+			"on this machine read a picture of the room somebody was sitting in",
+			got, got)
+	}
+	// ⛔ AND THE TEST MUST HAVE WRITTEN SOMETHING. A WritePhoto that silently
+	// produced no file would leave Stat on a path that never existed -- which
+	// errors -- but an empty one would pass a mode check while saying nothing.
+	if fi.Size() == 0 {
+		t.Error("the photograph is empty, so this measured the mode of nothing")
+	}
+}

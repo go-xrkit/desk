@@ -1090,7 +1090,13 @@ func writeSnapshot(pix []byte, w, h int, note string) (string, error) {
 			"a picture of somebody's screens must never be written where it can be committed",
 			dir, root)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	// ⛔⛔ 0700, AND THE FILES 0600 -- THEY WERE 0755 AND 0644. A snapshot is a
+	// picture of every display this person had open, and the directory's own
+	// listing is the times they took one. The JOURNAL was already 0600 while the
+	// PICTURES were world-readable: the more sensitive artefact had the weaker
+	// mode. Measured on disk before the change: `-rw-r--r--` on nine months of
+	// captures.
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
 	img := &image.NRGBA{Pix: pix, Stride: w * 4, Rect: image.Rect(0, 0, w, h)}
@@ -1099,7 +1105,10 @@ func writeSnapshot(pix []byte, w, h int, note string) (string, error) {
 	// moments -- and comparing two moments is what it is for.
 	path := filepath.Join(dir, fmt.Sprintf("xrdesk-%s-%dx%d.png",
 		time.Now().Format("2006-01-02-150405"), w, h))
-	f, err := os.Create(path)
+	// ⚠ OpenFile RATHER THAN Create, because Create asks for 0666 and leaves
+	// the rest to the umask -- 022 by default, which is 0644 on disk. The mode
+	// is named here so it does not depend on how a shell was configured.
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return "", err
 	}
@@ -1121,7 +1130,11 @@ func writeSnapshot(pix []byte, w, h int, note string) (string, error) {
 	// A note that cannot be written does not lose the picture: the path is
 	// returned either way, with the failure named.
 	side := strings.TrimSuffix(path, ".png") + ".txt"
-	if err := os.WriteFile(side, []byte(note+"\n"), 0o644); err != nil {
+	// ⛔ 0600 LIKE THE PICTURE IT DESCRIBES. The note names the plan, the
+	// renderer and which screen occupied which band of x -- it is a description
+	// of somebody's desk, and leaving it readable while locking the picture
+	// would protect the pixels and publish the caption.
+	if err := os.WriteFile(side, []byte(note+"\n"), 0o600); err != nil {
 		return path, fmt.Errorf("the picture is at %s but its note is not: %w", path, err)
 	}
 	return path, nil
