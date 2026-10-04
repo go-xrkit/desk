@@ -235,7 +235,32 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	// real desk are, or it re-squares the one being looked at and therefore
 	// moves. See [Anchoring]; the wearer picks.
 	base := 0
-	if f.anchor == AnchorOnGaze {
+	// ⛔⛔ AND RE-SQUARING NEEDS ANOTHER SCREEN TO RE-SQUARE TO. Taking the whole
+	// units off `toward` and handing them to `focus` is how the gaze anchor keeps
+	// the screen being read square on -- and with ONE screen on the band it hands
+	// them to the screen they came from, because screenAt wraps. So the move
+	// costs nothing and the residue is all that is left, which means the pan is
+	// thrown away and the picture cannot move at all.
+	//
+	// ⭐ MEASURED, one wide screen of 6400, head turned through a half lap, how
+	// far the view's centre travels:
+	//
+	//	anchoring      flat   curved
+	//	on the gaze      0%       1%
+	//	rigid           75%      75%
+	//
+	// Identically for flat and curved, which is the signature of the units being
+	// right; nought and one per cent are the signature of the pan being eaten.
+	// Reported as "j'ai activé le suivi de tete mais bien que la camera soit
+	// active cela ne faisait rien", and on one screen that is exactly what
+	// re-squaring does: the chain is rebuilt around the same screen every frame.
+	//
+	// ⚠ IT IS NOT A SETTING OVERRULED. [Anchoring] offers a real choice between a
+	// rigid desk and one that turns towards the viewer, and on a desk of several
+	// screens that choice stands. With one screen there is no second placement
+	// for the chain to be rebuilt at, so there is nothing for the gaze anchor to
+	// do and no choice to take away.
+	if f.anchor == AnchorOnGaze && f.n > 1 {
 		// Taking the whole screens off `toward` and giving them to `focus`
 		// leaves a residue in [-0.5, 0.5]: the panel in front is the one being
 		// looked at, square on when it is squarely looked at. screenAt wraps, so
@@ -254,7 +279,7 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	}
 
 	next := base + 1
-	if f.anchor == AnchorOnGaze && toward < 0 {
+	if f.anchor == AnchorOnGaze && f.n > 1 && toward < 0 {
 		next = -1
 	}
 	// ⛔⛔ INTERPOLATE THE POINT, NOT THE ANGLE. Rotating the view by an angle
@@ -272,7 +297,7 @@ func (f *Fan) Frame(dst []Slant, focus int, toward float64) []Slant {
 	ax, az := f.centre(focus, base)
 	bx, bz := f.centre(focus, next)
 	t := toward
-	if f.anchor == AnchorOnGaze {
+	if f.anchor == AnchorOnGaze && f.n > 1 {
 		t = toward * float64(next)
 	}
 	turn := math.Atan2(ax+t*(bx-ax), az+t*(bz-az))
@@ -640,4 +665,42 @@ func (f *Fan) reachIn() int {
 	// so a walk cannot run past the buffers that exist. That is a memory bound,
 	// not a geometric claim, and it has no business pretending to be one.
 	return n
+}
+
+// PanelsOf is how many panels of the chain screen s occupies.
+//
+// ⛔⛔ IT EXISTS BECAUSE TWO UNITS MET WITHOUT NOTICING. [Strip.Toward] answers
+// in SCREENS -- "0.5 is half way to the next one" -- and [Fan.Frame] consumes
+// PANELS, interpolating between two panels' own centres. They were the same
+// number while a screen was one panel, and facets ended that: a curved screen of
+// 3840 is 52 panels, a flat one of 6400 is 4.
+//
+// ⭐ MEASURED, one wide screen, head turned a quarter of a lap:
+//
+//	bend   facets   the view's centre moves   of 6400
+//	flat        4   1200 columns                 19%
+//	curved     86   55 columns                    1%
+//
+// The ratio is the facet count, which is the signature of the mistake: a unit of
+// Toward was being spent as a single facet. Head tracking looked like it did
+// nothing -- "j'ai activé le suivi de tete mais bien que la camera soit active
+// cela ne faisait rien" -- and on the curved screen it very nearly did.
+func (f *Fan) PanelsOf(s int) int {
+	if f.ring == nil || len(f.ring.firstOf) == 0 {
+		return 1
+	}
+	n := len(f.ring.firstOf)
+	i := ((s % n) + n) % n
+	end := len(f.ring.f)
+	if i+1 < n {
+		end = f.ring.firstOf[i+1]
+	}
+	// ⚠ No floor at one. newFacetRing gives every screen at least one facet --
+	// bendFacets never answers fewer, and panelsAcross floors it -- so this
+	// difference is positive for any ring that function built. A guard here would
+	// be a branch no test could reach honestly, which is a hole in the coverage
+	// gate rather than safety: the same argument bendFacets makes against
+	// flooring its arc. The nil ring above is the case that really happens, and
+	// it has one.
+	return end - f.ring.firstOf[i]
 }

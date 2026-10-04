@@ -1001,3 +1001,99 @@ func TestTheHalfTurnCapHoldsWithoutARing(t *testing.T) {
 		}
 	}
 }
+
+// ⛔⛔ TWO UNITS MET WITHOUT NOTICING, and PanelsOf is the conversion between
+// them. [Strip.Toward] answers in SCREENS -- "0.5 is half way to the next one" --
+// and [Fan.Frame] consumes PANELS, interpolating between two panels' own
+// centres. Those were the same number while a screen was one panel, and facets
+// ended it.
+//
+// ⭐ MEASURED, one wide screen of 6400, head turned through a half lap, how far
+// the view's centre travels across the source:
+//
+//	                      flat (4 facets)   curved (86 facets)
+//	before                            19%                   1%
+//	after                             75%                  75%
+//
+// The ratio before was the facet count, which is the signature of a unit of
+// Toward being spent as a single facet. Identical afterwards, which is the
+// signature of the units agreeing. Reported as "j'ai activé le suivi de tete
+// mais bien que la camera soit active cela ne faisait rien".
+func TestPanelsOfIsHowManyPanelsAScreenOccupies(t *testing.T) {
+	t.Parallel()
+
+	beast := glasses.Display{Name: "VITURE Beast", Width: 3840, Height: 1080}
+
+	// ⚠ A FAN WITH NO RING ANSWERS ONE, which is what the chain did before facets
+	// existed and what the hand-built fans in this file still are.
+	if got := (&Fan{}).PanelsOf(0); got != 1 {
+		t.Errorf("a fan with no ring says a screen is %d panels, want 1", got)
+	}
+
+	for _, c := range []struct {
+		name string
+		n    int
+		wide int
+		bend float64
+	}{
+		{"an ordinary desk, one panel each", 6, 0, FlatBend},
+		{"a wide flat screen among ordinary ones", 6, 6400, FlatBend},
+		{"a wide curved screen among ordinary ones", 6, 3840, DefaultBend},
+		{"one wide screen and nothing else", 1, 6400, DefaultBend},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			p, err := NewPlan(beast, Options{Screens: c.n})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.wide > 0 {
+				p = p.WithScreenWidth(0, c.wide).WithBend(c.bend)
+			}
+			widths := make([]int, p.Count())
+			for i := range widths {
+				widths[i] = p.ScreenWidth(i)
+			}
+			f, err := NewFan(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.SetSourceWidths(widths)
+			f.SetBends(p.Bends())
+
+			// ⭐ THE PROPERTY, NOT THE NUMBER: every panel of the ring belongs to
+			// exactly one screen, so the counts have to add up to the ring. A
+			// conversion that lost or double-counted a panel would turn a head
+			// movement into the wrong distance, which is what this exists to
+			// stop, and the sum is the only check that cannot be fooled by one
+			// screen happening to be right.
+			sum := 0
+			for i := range p.Count() {
+				n := f.PanelsOf(i)
+				if n < 1 {
+					t.Errorf("screen %d occupies %d panels: a screen the chain "+
+						"cannot step through is a screen the head cannot reach",
+						i+1, n)
+				}
+				sum += n
+			}
+			if sum != len(f.ring.f) {
+				t.Errorf("the screens occupy %d panels between them and the ring "+
+					"holds %d: some panel belongs to no screen or to two",
+					sum, len(f.ring.f))
+			}
+
+			// ⛔ AND IT WRAPS, like every other index into the chain: screenAt
+			// does, and a focus off either end is still a screen.
+			if got, want := f.PanelsOf(p.Count()), f.PanelsOf(0); got != want {
+				t.Errorf("screen %d past the end reports %d panels, want screen "+
+					"1's %d", p.Count(), got, want)
+			}
+			if got, want := f.PanelsOf(-1), f.PanelsOf(p.Count()-1); got != want {
+				t.Errorf("screen -1 reports %d panels, want the last one's %d",
+					got, want)
+			}
+		})
+	}
+}

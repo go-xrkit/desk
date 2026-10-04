@@ -186,8 +186,32 @@ func (s *Strip) Width() int { return s.total }
 // ribbon rather than assuming an even spread is what keeps this in step with the
 // navigator, which it once was not.
 func (s *Strip) Toward(yaw float64, focus int) float64 {
-	if focus < 0 || focus >= s.n || s.n < 2 {
+	if focus < 0 || focus >= s.n || s.n < 1 || s.total <= 0 {
 		return 0
+	}
+	// ⛔⛔ ONE SCREEN STILL HAS SOMEWHERE TO GO, and this used to answer zero for
+	// every yaw it was ever given. The guard said `s.n < 2` -- "how far towards
+	// the neighbour" needs a neighbour -- and on a ring the neighbour is the
+	// screen itself, one lap along. Which is exactly the shape wide mode makes:
+	// ONE screen, wider than the view, where turning the head is the only way to
+	// the rest of it.
+	//
+	// ⭐ SO HEAD TRACKING DID NOTHING IN WIDE MODE, flat or curved, and said
+	// nothing either. Reported: "j'ai activé le suivi de tete mais bien que la
+	// camera soit active cela ne faisait rien". The log of that session shows
+	// the tracker working -- "following your head, with the camera light on
+	// while it does", no darkness, nothing lost -- and the band standing still.
+	// Measured: a band of 6448 pixels for a screen of 6400, and Toward
+	// answering 0.000 at every yaw from a tenth of a turn to three quarters.
+	//
+	// ⚠ AND THE WALK BELOW WOULD ANSWER ZERO TOO, so this is not a shortcut past
+	// it. With one screen `next` is the focus, the span between them is nothing,
+	// and the loop takes its `span <= 0` exit on the first pass. The early
+	// return is the only place a one-screen band can be measured at all.
+	//
+	// One lap IS the step, because the next screen is this one again.
+	if s.n == 1 {
+		return float64(s.short(s.Offset(yaw)-s.centre[focus])) / float64(s.total)
 	}
 	// How far past the focused screen's centre the band is, in pixels, the
 	// SHORTEST way round -- which is what "past" has to mean on a band that
