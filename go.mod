@@ -1,6 +1,6 @@
 module github.com/go-xrkit/desk
 
-go 1.27.1
+go 1.27.2
 
 require (
 	github.com/go-appdirs/outdir v0.2.0
@@ -71,7 +71,7 @@ require (
 	github.com/tannevaled/gobig2 v0.2.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/sync v0.23.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
