@@ -3,32 +3,32 @@ module github.com/go-xrkit/desk
 go 1.27.1
 
 require (
-	github.com/go-appdirs/outdir v0.2.0
-	github.com/go-freedesktop/screencast v0.1.0
-	github.com/go-macos/accessibility v0.3.2
-	github.com/go-macos/appbundle v0.5.0
-	github.com/go-macos/appicon v0.3.0
-	github.com/go-macos/avfoundation v0.11.0
-	github.com/go-macos/brightness v0.1.1
-	github.com/go-macos/coreaudio v0.2.0
-	github.com/go-macos/hotkey v0.10.1
-	github.com/go-macos/iokit v0.13.1
-	github.com/go-macos/multitouch v0.1.0
-	github.com/go-macos/objc v0.10.2
-	github.com/go-macos/pointer v0.1.0
-	github.com/go-macos/screencapture v0.1.2
-	github.com/go-macos/virtualdisplay v0.3.0
-	github.com/go-mswin/screencapture v0.2.0
-	github.com/go-viture/beast v0.3.0
-	github.com/go-viture/luma v0.2.0
-	github.com/go-widgets/mvvm v0.9.0
-	github.com/go-widgets/painter v0.13.0
-	github.com/go-widgets/toolkit v0.321.2
-	github.com/go-widgets/tray v0.12.0
-	github.com/go-widgets/window v0.83.0
-	github.com/go-xrkit/android v0.1.0
-	github.com/go-xrkit/depth3d v0.1.0
-	github.com/go-xrkit/xrkit v0.17.0
+	github.com/go-appdirs/outdir v0.3.0
+	github.com/go-freedesktop/screencast v0.3.0
+	github.com/go-macos/accessibility v0.5.0
+	github.com/go-macos/appbundle v0.6.0
+	github.com/go-macos/appicon v0.5.0
+	github.com/go-macos/avfoundation v0.13.0
+	github.com/go-macos/brightness v0.3.0
+	github.com/go-macos/coreaudio v0.4.0
+	github.com/go-macos/hotkey v0.11.0
+	github.com/go-macos/iokit v0.14.0
+	github.com/go-macos/multitouch v0.3.0
+	github.com/go-macos/objc v0.11.0
+	github.com/go-macos/pointer v0.3.0
+	github.com/go-macos/screencapture v0.2.0
+	github.com/go-macos/virtualdisplay v0.5.0
+	github.com/go-mswin/screencapture v0.4.0
+	github.com/go-viture/beast v0.5.0
+	github.com/go-viture/luma v0.4.0
+	github.com/go-widgets/mvvm v0.13.0
+	github.com/go-widgets/painter v0.15.0
+	github.com/go-widgets/toolkit v0.328.0
+	github.com/go-widgets/tray v0.14.0
+	github.com/go-widgets/window v0.87.0
+	github.com/go-xrkit/android v0.6.1
+	github.com/go-xrkit/depth3d v0.2.0
+	github.com/go-xrkit/xrkit v0.19.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/zclconf/go-cty v1.19.0
 )
@@ -36,16 +36,16 @@ require (
 require (
 	github.com/agext/levenshtein v1.2.1 // indirect
 	github.com/ajroetker/go-highway v0.0.4 // indirect
-	github.com/andybalholm/brotli v1.2.5 // indirect
+	github.com/andybalholm/brotli v1.2.6 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/apparentlymart/go-textseg/v17 v17.0.1 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-crdt/collab v0.74.0 // indirect
 	github.com/go-crdt/crdt v0.55.0 // indirect
-	github.com/go-freedesktop/x11 v0.2.0 // indirect
+	github.com/go-freedesktop/x11 v0.3.0 // indirect
 	github.com/go-gfx/gfx v0.34.0 // indirect
-	github.com/go-gtk/gtk4 v0.8.0 // indirect
+	github.com/go-gtk/gtk4 v0.9.0 // indirect
 	github.com/go-icons/iconoir v0.2.0 // indirect
 	github.com/go-images/depth v0.4.0 // indirect
 	github.com/go-images/gif v0.1.0 // indirect
@@ -53,16 +53,17 @@ require (
 	github.com/go-images/jpeg v0.2.0 // indirect
 	github.com/go-images/jpeg2000 v0.1.0 // indirect
 	github.com/go-images/png v0.1.0 // indirect
-	github.com/go-macos/appkit v0.8.0 // indirect
+	github.com/go-macos/appkit v0.9.0 // indirect
 	github.com/go-macos/coreml v0.1.0 // indirect
 	github.com/go-macos/metal v0.1.0 // indirect
-	github.com/go-mswin/win32 v0.5.0 // indirect
+	github.com/go-mswin/win32 v0.6.0 // indirect
 	github.com/go-opentype/fonts v0.10.0 // indirect
-	github.com/go-opentype/opentype v0.13.0 // indirect
+	github.com/go-opentype/opentype v0.15.0 // indirect
 	github.com/go-opentype/shape v0.5.0 // indirect
 	github.com/go-richdoc/richdoc v0.4.0 // indirect
 	github.com/go-typeset/bidi v0.3.0 // indirect
-	github.com/go-widgets/android v0.13.1 // indirect
+	github.com/go-widgets/android v0.15.0 // indirect
+	github.com/go-widgets/webcanvas v0.3.0 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
