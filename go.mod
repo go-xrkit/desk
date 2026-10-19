@@ -26,9 +26,9 @@ require (
 	github.com/go-widgets/toolkit v0.329.0
 	github.com/go-widgets/tray v0.15.0
 	github.com/go-widgets/window v0.89.1
-	github.com/go-xrkit/android v0.11.0
+	github.com/go-xrkit/android v0.17.1
 	github.com/go-xrkit/depth3d v0.2.0
-	github.com/go-xrkit/xrkit v0.20.0
+	github.com/go-xrkit/xrkit v0.21.0
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/zclconf/go-cty v1.19.0
 )
