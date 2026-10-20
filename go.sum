@@ -108,12 +108,12 @@ github.com/go-widgets/webcanvas v0.4.0 h1:GcvAOzoIO9iTIJgWDtzT5FyXRiZHNOQqbua3wn
 github.com/go-widgets/webcanvas v0.4.0/go.mod h1:GF9MyBmSlH/aNk4RjNwnC0LfAT3fng33EOSW7+r4LHs=
 github.com/go-widgets/window v0.89.1 h1:kNTwPTjfarEBwQCd+7+/B4JBICM5wgC2GYDachUX0fA=
 github.com/go-widgets/window v0.89.1/go.mod h1:MsQ9jO0Ylsxd/4wxEzo/JRlxXTW8ni6lELuvFrQqGTs=
-github.com/go-xrkit/android v0.11.0 h1:5cssQgLhX7TYLJ95b6YP/LPTCkRerHcU01T0tl3FoFg=
-github.com/go-xrkit/android v0.11.0/go.mod h1:u5aIAX3AsHJxeuvw0ovv4JSojU7Rrd2UIy10ogIeJRw=
+github.com/go-xrkit/android v0.17.1 h1:ZalRGV7cPURRIoJ5nmfcrNB3uIytJkFkJxeKKeDowoo=
+github.com/go-xrkit/android v0.17.1/go.mod h1:5QYBXOVMysY3i83lWb0EEj5xp0pwz/xtTp3UGcrdy1U=
 github.com/go-xrkit/depth3d v0.2.0 h1:8LHifOptCBEr7JItSSaU663vORLw+q5kLdqTVDzNXmc=
 github.com/go-xrkit/depth3d v0.2.0/go.mod h1:MyCyF4pON5dChD6AYHRZfuBjYVsQQq+qqXvyxVwWlBM=
-github.com/go-xrkit/xrkit v0.20.0 h1:Pzxx2whjSC56B/DjWvDy5O3llIui5p5i5z6v7qFWgIQ=
-github.com/go-xrkit/xrkit v0.20.0/go.mod h1:7l4G/Z4poDHMuGjRBa32KVV+Yicv2pzzhQm+xW8bWnM=
+github.com/go-xrkit/xrkit v0.21.0 h1:sEa+WxuEIlb6gLfxrazRrqEtU/E19T3FAbPFip/BJK0=
+github.com/go-xrkit/xrkit v0.21.0/go.mod h1:7l4G/Z4poDHMuGjRBa32KVV+Yicv2pzzhQm+xW8bWnM=
 github.com/godbus/dbus/v5 v5.2.2 h1:TUR3TgtSVDmjiXOgAAyaZbYmIeP3DPkld3jgKGV8mXQ=
 github.com/godbus/dbus/v5 v5.2.2/go.mod h1:3AAv2+hPq5rdnr5txxxRwiGjPXamgoIHgz9FPBfOp3c=
 github.com/golang/protobuf v1.5.4 h1:i7eJL8qZTpSEXOPTxNKhASYpMn+8e5Q6AdndVa1dWek=
