@@ -28,6 +28,10 @@ type Screens struct {
 	IDs []uint64
 	// Virtual reports whether these were created by us.
 	Virtual bool
+	// Settled says that waiting will not change this answer. Provide here
+	// never returns a Screens at all, so nothing reads it; the field exists
+	// because the caller is portable and the type is not.
+	Settled bool
 	// Why explains what happened, and is worth showing to a person.
 	Why string
 }

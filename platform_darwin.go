@@ -26,6 +26,17 @@ type Screens struct {
 	IDs []uint64
 	// Virtual reports whether these were created by us.
 	Virtual bool
+	// Settled says that waiting will not change this answer.
+	//
+	// ⛔ FALSE HERE, AND THAT IS THE POINT OF THE FIELD. This is the one
+	// platform where `!Virtual` really is worth waiting out: a Mac that has
+	// just released six displays refuses the next for the best part of a
+	// minute, while a single display asked for on a quiet machine succeeds at
+	// once. So the caller's retry is right here and only here — on Android,
+	// Linux and Windows it spent fifteen seconds a start waiting for something
+	// those platforms document as impossible. See the field's long note in
+	// platform_android.go.
+	Settled bool
 	// Why explains what happened, and is worth showing to a person: a fallback
 	// to real displays is not a failure, but it IS a different feature.
 	Why string

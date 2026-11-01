@@ -29,6 +29,15 @@ type Screens struct {
 	IDs []uint64
 	// Virtual reports whether these were created by us. Never true here.
 	Virtual bool
+	// Settled says that waiting will not change this answer, which here it
+	// cannot: no protocol an ordinary program can speak offers a virtual
+	// display, so there is nothing for a retry to catch in a better mood.
+	//
+	// ⛔ Without it the caller applies a macOS policy — "the window server
+	// refused, it may relent" — and waits 3s five times on every start. That
+	// was measured on Android (see platform_android.go) and it is the same code
+	// path here. See the field's long note there.
+	Settled bool
 	// Why explains what happened, and is worth showing to a person.
 	Why string
 }
@@ -54,7 +63,7 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	if len(ds) == 0 {
 		return nil, errors.New("desk: no displays at all")
 	}
-	s := &Screens{}
+	s := &Screens{Settled: true}
 	for _, d := range ds {
 		s.IDs = append(s.IDs, uint64(d.ID))
 	}
