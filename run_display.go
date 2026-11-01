@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-macos/hotkey"
 	"github.com/go-widgets/toolkit"
-	"github.com/go-widgets/window"
 	"github.com/go-xrkit/depth3d"
 	"github.com/go-xrkit/xrkit/glasses"
 )
@@ -124,6 +123,21 @@ type RunOptions struct {
 	// mirrors this Mac's own panel onto the ribbon.
 	Screens []uint64
 
+	// Start are actions carried out once, as the session opens, exactly as
+	// though they had been asked for.
+	//
+	// ⛔⛔ IT EXISTS FOR THE PLATFORM THAT CANNOT ASK. Every route an action had
+	// — a global shortcut, the menu bar, three fingers on a trackpad — is
+	// macOS, and on Android the ribbon drew on the glasses at 62 fps with no
+	// way at all to turn head-following on. A headset has no keyboard, and
+	// following the head is the reason somebody put it on.
+	//
+	// ⚠ A CALLER'S CHOICE, NOT A DEFAULT HIDDEN IN HERE. cmd/xrdesk decides
+	// what belongs in it per platform, and `-head=false` takes it back out:
+	// this package carries out what it is handed and has no opinion about which
+	// platform wants what.
+	Start []Action
+
 	// Showing answers, per ribbon position, the display it is showing right now,
 	// or 0 for a position showing nothing.
 	//
@@ -204,51 +218,16 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 	// corruption is one report rather than one a second. See damagedname.go.
 	var damageLog damagedNames
 
-	// Ask the window system for the target display NOW, rather than trusting the
-	// one the caller looked up earlier.
-	//
-	// Creating virtual displays REARRANGES the desktop: on the first live run a
-	// VITURE Beast sat at -1920,0 before three screens were made and at -3840,0
-	// afterwards, so the frame captured beforehand matched nothing and the window
-	// refused to open with "the requested screen is no longer attached". The name
-	// survives that; a rectangle does not.
-	screen, err := currentScreen(opt.Screen.Name)
+	// Where the frames will be shown. One road per platform, chosen at RUN time
+	// and not in the build tags: see panel.go for the phone that built this
+	// file perfectly and then had nowhere to draw.
+	p, err := openPanel(ctx, opt, title, logf, &damageLog)
 	if err != nil {
-		// The same distinction the watch makes below: a name damaged in memory
-		// still names a display that is right there, and refusing to start on
-		// it would be refusing over a bug in a string.
-		var damaged errDamagedName
-		if !errors.As(err, &damaged) {
-			return err
-		}
-		if s := damageLog.report(time.Now(), damaged.want, damaged.got); s != "" {
-			logf("%s", s)
-		}
+		return err
 	}
-	win, err := window.Open(window.Config{
-		Title: title,
-		// A self-rendering root composes its own pixels at whatever size it is
-		// handed, which is exactly what NativeScale is for: no logical-point
-		// scaling between us and the panel.
-		RenderScale: window.NativeScale,
-		Screen:      screen,
-		Fullscreen:  true,
-		// Above the menu bar and the Dock rather than under them. A full-screen
-		// window covers the DESKTOP and nothing more; on a display that carries
-		// the furniture it appears on top of the picture, which on glasses
-		// showing a captured desktop reads as two menu bars.
-		Immersive: !opt.Windowed,
-		// A picture, not something to work in: the keyboard and the pointer belong
-		// to the applications the desk is showing.
-		Passive: !opt.Interactive,
-		Theme:   toolkit.DefaultDark(),
-	})
-	if err != nil {
-		return fmt.Errorf("desk: cannot open a window on %s: %w", opt.Screen, err)
-	}
-	defer win.Close()
+	defer p.Close()
 
-	fbW, fbH := win.Size()
+	fbW, fbH := p.Size()
 	logf("framebuffer %dx%d", fbW, fbH)
 	if opt.Interactive {
 		logf("this window takes the keyboard and the mouse, so the applications on " +
@@ -507,8 +486,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 			}
 		}
 	}
-	surface := toolkit.NewSurface(v.frame)
-	surface.OnInput = func(ev toolkit.Event) {
+	onInput := func(ev toolkit.Event) {
 		switch ev.Kind {
 		case toolkit.EventKeyDown:
 			if a := KeyAction(ev.Code); a != ActionNone {
@@ -525,17 +503,10 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		}
 	}
 
-	// A window that can be repainted from any goroutine is what lets the loop
-	// live outside the event loop. Without it the picture would only move when
-	// the viewer did something, which for a desk full of other people's windows
-	// is exactly backwards.
-	repaint := func() {}
-	if r, ok := win.(window.Repainter); ok {
-		repaint = r.Repaint
-	} else {
-		logf("this back-end cannot be repainted from another goroutine; " +
-			"the picture will only move on input")
-	}
+	// The ribbon advances on a timer, so the picture has to be pushed from
+	// outside whatever loop the panel runs. Where a back-end cannot be
+	// repainted from another goroutine this is a no-op and the opening said so.
+	repaint := p.Repaint
 
 	// The global shortcuts. They work while another application has the
 	// keyboard, which is the difference between a desk you use and a desk you
@@ -785,7 +756,7 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				logf("%s", WitnessReport(hit, len(witnesses)))
 			}
 		}
-		if _, err := currentScreen(opt.Screen.Name); err != nil {
+		if err := displayStillThere(ctx, opt.Screen.Name); err != nil {
 			// ⛔ A DAMAGED NAME IS NOT AN UNPLUGGED HEADSET, and treating it as
 			// one took a desk away mid-session while the headset was listed
 			// among the attached displays in the very same message.
@@ -875,6 +846,30 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 				defer st.Stop()
 				settled = st.C
 			}
+			// ⛔⛔ WHAT A PLATFORM WITH NO KEYBOARD CANNOT ASK FOR ITSELF.
+			//
+			// Following the head is an ACTION, and the only ways to send one
+			// were a global shortcut, a menu bar and a trackpad — all three of
+			// them macOS. Measured on a Pixel 11 Pro Fold on 2026-11-01, with
+			// the ribbon drawing on the glasses at 62 fps:
+			//
+			//	no global shortcut for ⌃⌥⌘F (follow your head): hotkey:
+			//	    unsupported on this platform (darwin only)
+			//	no trackpad gestures: multitouch: only macOS has this
+			//
+			// So on the one platform where the whole point is turning your
+			// head, nothing could turn it on. A desk on a phone is reached
+			// through a cable and a headset, not through a menu bar.
+			//
+			// ⚠ Performed HERE, inside the loop's goroutine and before the
+			// first tick, because act talks to hardware — it opens the camera —
+			// and the handlers it reaches expect to be called from exactly
+			// here. Doing it on the caller's goroutine would race the first
+			// frame.
+			for _, a := range opt.Start {
+				act(d, logf, "this platform's default", a, arm)
+				sync()
+			}
 			last := time.Now()
 			for {
 				select {
@@ -916,56 +911,23 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 					beat(now)
 				}
 				if d.Quit() {
-					_ = win.Close()
+					_ = p.Close()
 					return
 				}
 			}
 		})
-		// However it ended, the window has to stop or the run never returns
+		// However it ended, the panel has to stop or the run never returns
 		// and nothing it changed goes back.
-		_ = win.Close()
+		_ = p.Close()
 	}()
 
-	err = win.Run(surface)
+	err = p.Show(v.frame, onInput)
 	close(stop)
 	<-done
 	if crashed != nil {
 		return crashed
 	}
 	return err
-}
-
-// currentScreen finds a display by name, right now.
-//
-// Matching by NAME rather than by the rectangle a caller saw earlier is what
-// survives the desktop being rearranged underneath — which creating a virtual
-// display does, every time.
-//
-// An earlier version of this waited until two readings of the arrangement came
-// back identical, on the theory that the desktop was still moving. It settled
-// INSTANTLY on a false answer, every time, and that is worth recording: on macOS
-// `+[NSScreen screens]` was a cache that a process with no running NSApplication
-// never saw refreshed, so every reading agreed with every other because they all
-// came from the same stale snapshot. A heuristic that waits for agreement cannot
-// tell a settled arrangement from a frozen one. go-widgets/window v0.51.0 reads
-// the geometry from the window server instead, so one reading is now the truth.
-func currentScreen(name string) (*window.Screen, error) {
-	ss, err := window.Screens()
-	if err != nil {
-		return nil, fmt.Errorf("desk: cannot list displays: %w", err)
-	}
-	all := ss.All()
-	plain := make([]string, len(all))
-	for i, s := range all {
-		plain[i] = s.Name
-	}
-	// Which screen, and what an absence means -- an empty list among them. See
-	// displaylist.go, which is where that decision is made and tested.
-	i, err := lookUpScreen(name, plain)
-	if i < 0 {
-		return nil, err
-	}
-	return &all[i], err
 }
 
 // errDamagedName is a screen found in spite of a damaged name.

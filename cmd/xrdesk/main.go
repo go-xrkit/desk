@@ -146,6 +146,13 @@ func run() int {
 	dim := flag.Bool("dim", true,
 		"turn a Mac panel off while the ribbon shows a copy of it; -dim=false leaves every "+
 			"screen lit for one run. The lasting choice is in the settings window.")
+	// ⛔ THE DEFAULT IS THE PLATFORM'S, because the ways of asking for this are
+	// not. A global shortcut, a menu bar and a trackpad are all macOS, so on
+	// Android — a headset with no keyboard, where turning your head IS the
+	// interface — nothing could turn it on at all. See desk.FollowHeadByDefault.
+	head := flag.Bool("head", desk.FollowHeadByDefault,
+		"scroll the ribbon with your head from the start (opens the headset's camera); "+
+			"on by default where there is no way to ask for it later")
 	flag.Parse()
 
 	// ⛔ AND IT GOES TO A FILE, because an application launched from the Finder
@@ -347,17 +354,14 @@ func run() int {
 			// file that moves it moves both.
 			Resume:  desk.ResumeOnly(settings.ShortcutsOr(desk.DefaultShortcuts())),
 			Hotkeys: settings.HotkeyOptions(),
-			List: func() ([]glasses.Display, error) {
-				ss, err := window.Screens()
-				if err != nil {
-					return nil, err
-				}
-				ds := make([]glasses.Display, len(ss.All()))
-				for i, s := range ss.All() {
-					ds[i] = glasses.Display{Name: s.Name, Width: s.Width, Height: s.Height, Primary: s.Primary}
-				}
-				return ds, nil
-			},
+			// ⛔ ASK THE PLATFORM, NOT THE DESKTOP. This used to call
+			// window.Screens straight, and on Android — where GOOS also
+			// satisfies the `linux` build tag — that asks X11 on a phone:
+			// "neither WAYLAND_DISPLAY nor DISPLAY is set", with the glasses
+			// sitting on the USB-C port the whole time. desk.ListDisplays holds
+			// the per-platform answer, and it is also where Scale stopped being
+			// dropped on the floor. See listdisplays.go.
+			List: func() ([]glasses.Display, error) { return desk.ListDisplays(ctx) },
 		})
 		switch {
 		case errors.Is(err, desk.ErrAwaitQuit), errors.Is(err, context.Canceled):
@@ -498,7 +502,17 @@ func run() int {
 		// person who quits the desk and starts it again lands exactly there.
 		//
 		// So it waits, a few times, before settling for that.
-		if !screens.Virtual && provideTries < maxProvideTries {
+		// ⛔⛔ AND IT IS A macOS POLICY, SO IT HAS TO ASK WHETHER IT APPLIES.
+		// `screens.Settled` is the platform saying "waiting will not change
+		// this": Android was asked directly and refused four ways, Linux has no
+		// protocol for it, and Windows needs a signed driver. Without that
+		// question this loop ran there too — measured on a Pixel 11 Pro Fold on
+		// 2026-11-01, 11:55:51 to 11:56:06, five rounds of three seconds and
+		// five copies of the refusal, before settling for what it had been told
+		// in the first round. Fifteen seconds of a start, on three of the four
+		// platforms, waiting for a window server that was never going to answer
+		// differently.
+		if !screens.Virtual && !screens.Settled && provideTries < maxProvideTries {
 			provideTries++
 			say("%s", screens.Why)
 			say("waiting %v for the window server, and asking again (%d of %d)\n",
@@ -1004,6 +1018,14 @@ func run() int {
 			// screen this program made or this Mac's own panel mirrored onto one.
 			Screens: ribbonIDs(mirror, macID, screens.IDs),
 			Showing: showing,
+		}
+		// ⛔ WHAT THIS PLATFORM CANNOT ASK FOR LATER. On Android the shortcut,
+		// the menu bar and the trackpad are all absent, and following the head
+		// is the reason the glasses are on somebody's face: the ribbon is
+		// 309° wide and the view is about 50°, so without it five sixths of the
+		// desk is unreachable. Everywhere else this is off and one key away.
+		if *head {
+			opts.Start = append(opts.Start, desk.ActionFollowHead)
 		}
 		// ⛔ ASKED ONCE AS THE DESK STARTS, so the tick is right BEFORE anybody
 		// clicks anything. The headset has its own button: whatever mode it is

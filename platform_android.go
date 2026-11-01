@@ -27,6 +27,29 @@ type Screens struct {
 	IDs []uint64
 	// Virtual reports whether these were created by us. Never true here.
 	Virtual bool
+	// Settled says that waiting will not change this answer.
+	//
+	// ⛔⛔ WITHOUT IT, A macOS POLICY RAN ON A PHONE FOR FIFTEEN SECONDS. The
+	// caller reads `!Virtual` as "the window server refused, and it may
+	// relent" — true on macOS, where a Mac that has just made six displays
+	// refuses the next for the best part of a minute — so it retried five
+	// times, three seconds apart, printing the refusal each round. Measured on
+	// a Pixel 11 Pro Fold on 2026-11-01, 11:55:51 to 11:56:06:
+	//
+	//	Android does not let an ordinary application put other apps on a
+	//	display it creates, so the ribbon shows this phone's own screen
+	//	waiting 3s for the window server, and asking again (1 of 5)
+	//	… (2 of 5) … (3 of 5) … (4 of 5) … (5 of 5)
+	//
+	// Here `!Virtual` is not a refusal to wait out: it is the platform's
+	// settled answer, asked directly and refused four different ways (see the
+	// type comment above). Waiting for it is waiting for Android to change.
+	//
+	// ⚠ The field is on every platform's Screens, and its zero value means
+	// "keep waiting" DELIBERATELY: a platform that forgets to set it behaves as
+	// it does today, which is slow rather than wrong. Losing macOS's retry
+	// would cost somebody a bad desk, and that is the worse way to be wrong.
+	Settled bool
 	// Why explains what happened, and is worth showing to a person.
 	Why string
 }
@@ -65,7 +88,9 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 	if err != nil {
 		return nil, fmt.Errorf("desk: cannot find the screen to capture: %w", err)
 	}
-	s := &Screens{IDs: []uint64{uint64(d.ID)}}
+	// Settled: Android was asked directly and refused four different ways. No
+	// amount of waiting turns this into virtual displays.
+	s := &Screens{IDs: []uint64{uint64(d.ID)}, Settled: true}
 	s.Why = fmt.Sprintf("Android does not let an ordinary application put other apps on a "+
 		"display it creates, so the ribbon shows this phone's own screen: %q %dx%d",
 		d.Name, d.Width, d.Height)
