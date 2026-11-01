@@ -570,6 +570,44 @@ refusal is about MAKING a display, not about using the one you were given.
 Where virtual displays are not available the ribbon carries the real displays
 and windows instead. That is fewer screens, and everything else is identical.
 
+### ⭐ It runs there, and here is the run
+
+Measured on a Pixel 11 Pro Fold with VITURE Beast glasses on the USB-C port,
+2026-11-01, from the program's own journal:
+
+```
+on "VITURE Beast" 1920x1080
+VITURE Beast: 6 screens of 1920x1080, 51.57°x30.41° each, curved 20.0° at 1.00x
+presenting on display 13 "VITURE Beast" 1920x1080 @110dpi 60Hz (presentation) at 1920x1080, 3 slot(s)
+framebuffer 1920x1080
+the panorama reaches 100.0% of the view
+312 frames in 5.008s
+```
+
+**62 frames a second, held for minutes**, composed in Go and pushed through the
+host's shared buffer onto a `Presentation` on the glasses' own display. No cgo,
+no vendor SDK.
+
+⭐ **And the arithmetic is the point.** Android's own desktop mode already puts
+*a* screen on the glasses. Six screens at 51.57° each is about **309° of band
+against roughly 50° of view** — a desk you reach by looking along it, which is
+the thing a single finite screen cannot be.
+
+Four things stood between a binary that cross-compiled and a picture, and not
+one of them was visible without the device:
+
+| | |
+|---|---|
+| it asked **X11** where the glasses were | `GOOS=android` satisfies the `linux` build tag, so `window.Screens` took the desktop road and answered *"neither WAYLAND_DISPLAY nor DISPLAY is set"* — on a phone. `desk.ListDisplays` asks the host instead |
+| `window.Open` **compiles** on Android | and fails when called, so no build tag could catch it. The `panel` seam is chosen at run time: a window on one side, a `Presentation` on the other |
+| a **macOS policy** waited 15 s a start | `!Virtual` means "the window server may relent" on macOS and nothing of the sort on Android, Linux or Windows. `Screens.Settled` is the platform saying so |
+| nothing could turn **head-following** on | every route for it — shortcut, menu bar, trackpad — is macOS, on the one platform where turning your head *is* the interface. `-head` is on by default there |
+
+⚠ **Two gestures stay a person's**, and no tool can make them: the
+`MediaProjection` consent dialog is never remembered, so it is answered once a
+session; and the headset's USB permission is granted **per application**, which
+costs an unplug and a replug the first time a given APK asks.
+
 
 ## Building it
 
