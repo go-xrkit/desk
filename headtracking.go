@@ -109,6 +109,43 @@ type headTracking struct {
 	landing bool
 	// close puts away whatever is behind src, when there is anything.
 	close func() error
+
+	// ⛔⛔ WHAT A REPORT OF "THE SCREENS JUMP" NEEDS AND THE JOURNAL DID NOT
+	// HAVE. Head-following was switched on at 13:44:32 on 2026-11-03, the
+	// wearer saw the band jump, and the whole of what the log said about it was
+	// "following your head, with the camera light on while it does". Two
+	// different defects produce that complaint and the remedies are opposite:
+	//
+	//	a staircase  the camera delivers every 46-107ms while the band is
+	//	             drawn every 16ms, so most frames move it by NOTHING and a
+	//	             few move it a long way -- few movers, big steps
+	//	too much gain  every frame moves it, each by a little, and the band
+	//	             travels much further than the head did -- many movers,
+	//	             small steps, large total
+	//
+	// So the count is kept where the symptom is: per frame, whether the band
+	// moved at all and by how much. judged counts the frames this actually
+	// decided (sight seen, no turn in flight), which is what makes "47 of 313"
+	// a ratio rather than a number.
+	judged, moved   int
+	biggest, travel float64
+	// ⛔ AND WHAT THE SOURCE SAID, because the band's motion is the source
+	// times a factor and only one of the two can be wrong. Measured
+	// 2026-11-03: the band moved 2160.00° a frame, EXACTLY six turns and
+	// exactly constant for five minutes — and headToBand on that same desk is
+	// 2.051, measured by test. So the source was reporting about 1053° and
+	// holding it, which is not a head and not motion.
+	rawLo, rawHi float64
+	rawSeen      bool
+	// ⛔⛔ AND THE FACTOR ITSELF, because two of the three numbers were not
+	// enough. On 2026-11-03 the source reported a sane, steady 21.7° while the
+	// band moved 1080.00° a frame — a ratio of 49.8 — and a test that built
+	// what looked like the same desk measured headToBand at 2.051. One of them
+	// is not the configuration the application runs, and guessing which took
+	// three wrong hypotheses: facets, a fight with the easing, and a wrap.
+	// The number is printed where it is USED instead.
+	factor float64
+	base0  float64
 }
 
 // FollowHead turns head tracking on or off.
@@ -251,7 +288,86 @@ func (d *Desk) followHead() {
 		d.head.base = d.nav.Yaw()
 		return
 	}
-	d.nav.SetYaw(d.head.base + yaw*d.headToBand())
+	// ⚠ COUNTED BEFORE IT IS APPLIED, and the step is measured in BAND degrees
+	// rather than head degrees: the band is what somebody is looking at, and a
+	// step of two degrees in one sixteen-millisecond frame is the jump they
+	// reported whatever the head did to cause it.
+	factor := d.headToBand()
+	want := d.head.base + yaw*factor
+	// ⛔⛔ BOTH SIDES WRAPPED, AND THE FIRST VERSION OF THIS LINE DID NOT.
+	// Nav.SetYaw stores the yaw UNWRAPPED while Nav.Yaw returns wrap(n.yaw), so
+	// `want - d.nav.Yaw()` subtracts one from the other and yields whole turns.
+	// Measured on 2026-11-03: 720.00°, 1080.00°, 2160.00°, 7560.00° — every one
+	// an EXACT multiple of 360, every one constant for minutes, and every one
+	// an artefact of this subtraction rather than a band that moved. Three
+	// hypotheses were chased on the strength of those numbers.
+	//
+	// ⚠ A judge and its subject must count alike. The renderer sees a wrapped
+	// band, so this measures the shortest arc between two wrapped angles —
+	// which is what a viewer's eye would call the step.
+	step := math.Abs(shortestArc(wrapTo2Pi(want), d.nav.Yaw())) * 180 / math.Pi
+	deg := yaw * 180 / math.Pi
+	d.head.factor = factor
+	d.head.base0 = d.head.base * 180 / math.Pi
+	if !d.head.rawSeen {
+		d.head.rawLo, d.head.rawHi, d.head.rawSeen = deg, deg, true
+	}
+	d.head.rawLo, d.head.rawHi = math.Min(d.head.rawLo, deg), math.Max(d.head.rawHi, deg)
+	d.head.judged++
+	if step > 0 {
+		d.head.moved++
+		d.head.travel += step
+		if step > d.head.biggest {
+			d.head.biggest = step
+		}
+	}
+	d.nav.SetYaw(want)
+}
+
+// HeadBeat hands back what head-following has done since the last call, and
+// forgets it.
+//
+// ⚠ IT RESETS, because the caller prints one line every five seconds and a
+// running total would hide the moment somebody started moving. on reports
+// whether there was anything to count at all, so a caller can stay silent
+// rather than print a row of zeroes for a desk nobody is following.
+func (d *Desk) HeadBeat() (judged, moved int, biggest, travel, rawLo, rawHi, factor, base float64, on bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	judged, moved = d.head.judged, d.head.moved
+	biggest, travel = d.head.biggest, d.head.travel
+	rawLo, rawHi = d.head.rawLo, d.head.rawHi
+	factor, base = d.head.factor, d.head.base0
+	on = d.head.on && d.head.src != nil
+	d.head.judged, d.head.moved = 0, 0
+	d.head.biggest, d.head.travel = 0, 0
+	d.head.rawSeen = false
+	return judged, moved, biggest, travel, rawLo, rawHi, factor, base, on
+}
+
+// wrapTo2Pi folds an angle into [0, 2π), which is the space Nav.Yaw answers in.
+func wrapTo2Pi(a float64) float64 {
+	a = math.Mod(a, 2*math.Pi)
+	if a < 0 {
+		a += 2 * math.Pi
+	}
+	return a
+}
+
+// shortestArc is the signed distance from b to a, never more than half a turn.
+//
+// ⛔ THE SHORT WAY ROUND, because the band is a circle: 359° and 1° are two
+// degrees apart, not 358. A measure that said 358 would report a wrap as a
+// lurch, which is the mistake the caller above was making in another form.
+func shortestArc(a, b float64) float64 {
+	d := math.Mod(a-b, 2*math.Pi)
+	switch {
+	case d > math.Pi:
+		d -= 2 * math.Pi
+	case d < -math.Pi:
+		d += 2 * math.Pi
+	}
+	return d
 }
 
 // headToBand converts a real head rotation into ribbon yaw.

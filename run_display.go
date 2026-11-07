@@ -790,6 +790,25 @@ func Run(ctx context.Context, plan Plan, d *Desk, opt RunOptions) error {
 		since := now.Sub(beatAt)
 		if since >= 5*time.Second {
 			logf("%d frames in %v", frames, since.Round(time.Millisecond))
+			// ⛔ AND WHAT THE HEAD DID TO THE BAND, which the frame count
+			// cannot show: 313 frames a second is the same number whether the
+			// band glided or lurched. Printed only while somebody is being
+			// followed, so an ordinary session gains no noise.
+			if judged, moved, biggest, travel, lo, hi, factor, base, on := d.HeadBeat(); on && judged > 0 {
+				logf("  head: %d of %d frame(s) moved the band, %.1f° in all, "+
+					"biggest single step %.2f°", moved, judged, travel, biggest)
+				// ⛔ AND WHAT THE CAMERA SAID, beside it. The band's motion is
+				// the source times a factor; without both numbers a reader
+				// cannot tell a runaway tracker from a wrong conversion, and
+				// the two have nothing to do with each other.
+				logf("  head: the tracker reported %.1f° … %.1f° of head rotation",
+					lo, hi)
+				// ⛔ AND THE ARITHMETIC THAT TURNS ONE INTO THE OTHER, in full.
+				// Two numbers left the ratio to be inferred and three wrong
+				// guesses came out of that inference.
+				logf("  head: band = %.1f° + head × %.3f, so %.1f° of head is %.1f° of band",
+					base, factor, hi, base+hi*factor)
+			}
 			frames, beatAt = 0, now
 			// AND THE SCREEN IT IS ON IS STILL THERE.
 			//
