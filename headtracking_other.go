@@ -2,7 +2,11 @@
 //
 // SPDX-License-Identifier: BSD-3-Clause
 
-//go:build !darwin
+// ⚠ NOT ANDROID EITHER, AND THE EXCLUSION HAS TO BE EXPLICIT. GOOS=android
+// satisfies `!darwin` just as it satisfies `linux`, so without this the phone
+// would take the refusal below while headtracking_android.go sat unbuilt beside
+// it — the same trap platform_linux.go carries `linux && !android` for.
+//go:build !darwin && !android
 
 package desk
 

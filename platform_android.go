@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/go-xrkit/android"
 )
@@ -27,6 +28,11 @@ type Screens struct {
 	IDs []uint64
 	// Virtual reports whether these were created by us. Never true here.
 	Virtual bool
+	// granted carries the answer to a consent dialog nobody has answered yet,
+	// so the desk does not wait on a person. Nil when there was nothing to ask.
+	// See Provide.
+	granted chan bool
+
 	// Settled says that waiting will not change this answer.
 	//
 	// ⛔⛔ WITHOUT IT, A macOS POLICY RAN ON A PHONE FOR FIFTEEN SECONDS. The
@@ -74,14 +80,48 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 		return nil, errors.New("desk: this process was not started by the Android host")
 	}
 	if !android.Authorized() {
-		logf("asking for permission to capture the screen")
-		ok, err := android.RequestAuthorization(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("desk: asking to capture the screen: %w", err)
-		}
-		if !ok {
-			return nil, errors.New("desk: permission to capture the screen was declined")
-		}
+		// ⛔⛔ THE DESK NO LONGER WAITS ON A PERSON, AND THAT IS THE WHOLE
+		// POINT OF A HEADSET. RequestAuthorization blocks until the dialog is
+		// answered, and the dialog is on the PHONE's screen, which is in a
+		// pocket or on a table while somebody is wearing the glasses. Measured
+		// on 2026-11-01: the band was ready, the glasses were on a head, and
+		// the session sat at "asking for permission to capture the screen" for
+		// twelve minutes and then for half an hour, because nothing downstream
+		// of this line could start.
+		//
+		// ⭐ ONLY ONE RIBBON POSITION NEEDS THIS PERMISSION. The mirror of the
+		// phone is one screen of six; the band, the head-following, the gallery
+		// and everything this application draws need no consent at all — see
+		// the Wall in go-xrkit/android, which creates displays and shows a
+		// Presentation on them with no permission, no dialog and no
+		// MediaProjection. So the answer is worth having and worth waiting for,
+		// but not worth stopping for.
+		//
+		// ⚠ AND A LATE YES STILL COUNTS. The ask carries on in the background;
+		// when it lands, the mirror joins position 0 (see lazyFeed in Capture).
+		// Giving up on the answer would make a dialog answered five seconds too
+		// slowly indistinguishable from one refused.
+		//
+		// ⚠ It is also the same mistake the Java host made the same day, in the
+		// other direction: there a refusal killed the whole process thirty
+		// seconds later (go-xrkit/android#52). A refusal is an ANSWER, and an
+		// answer is something to carry on from.
+		logf("asking for permission to capture this phone's screen; the band starts " +
+			"without it and the phone joins position 1 if you allow it")
+		granted := make(chan bool, 1)
+		go func() {
+			ok, err := android.RequestAuthorization(ctx)
+			if err != nil {
+				logf("asking to capture the screen: %v", err)
+			}
+			granted <- ok && err == nil
+			close(granted)
+		}()
+		s := &Screens{Settled: true, granted: granted}
+		s.Why = "the band carries what this application draws; this phone's screen joins " +
+			"it when the dialog on the phone is answered"
+		logf("%s", s.Why)
+		return s, nil
 	}
 
 	d, err := android.DefaultDisplay(ctx)
@@ -96,6 +136,83 @@ func Provide(ctx context.Context, plan Plan, logf func(string, ...any)) (*Screen
 		d.Name, d.Width, d.Height)
 	logf("%s", s.Why)
 	return s, nil
+}
+
+// lazyFeed is a ribbon position whose pixels may arrive later, or never.
+//
+// ⛔⛔ IT EXISTS BECAUSE CONSENT IS A PERSON, AND A PERSON IS NOT A DEADLINE.
+// The MediaProjection dialog is on the phone's screen while somebody is wearing
+// the glasses; the desk has no business waiting for it, and no business giving
+// up on it either. So this hands over nothing until the answer lands, and the
+// phone appears on the band the moment it does.
+//
+// ⚠ "Nothing" is (Source{}, false) and NOT a black frame. The compositor reads
+// the second value as "there is no picture here", which is what makes the
+// position show background rather than a convincing black screen — and a black
+// screen is exactly what a viewer would read as a broken capture.
+type lazyFeed struct {
+	mu sync.Mutex
+	s  *android.Stream
+}
+
+// waitAndOpen waits for the answer and, if it is yes, starts the capture.
+func (f *lazyFeed) waitAndOpen(ctx context.Context, plan Plan, granted <-chan bool,
+	logf func(string, ...any)) {
+
+	var ok bool
+	select {
+	case <-ctx.Done():
+		return
+	case ok = <-granted:
+	}
+	if !ok {
+		// Said once, and not as a fault: a person who declined is told what it
+		// costs them and nothing else happens.
+		logf("capturing this phone's screen was declined; the band carries what this " +
+			"application draws, and the head still turns it")
+		return
+	}
+	d, err := android.DefaultDisplay(ctx)
+	if err != nil {
+		logf("cannot find the screen to capture: %v", err)
+		return
+	}
+	st, err := android.CaptureDisplay(ctx, d, android.Options{
+		Width: plan.ScreenW, Height: plan.ScreenH, FPS: 60,
+	})
+	if err != nil {
+		logf("cannot capture this phone's screen: %v", err)
+		return
+	}
+	f.mu.Lock()
+	f.s = st
+	f.mu.Unlock()
+	logf("this phone's screen joined the band: %q %dx%d", d.Name, d.Width, d.Height)
+}
+
+func (f *lazyFeed) Frame() (Source, bool) {
+	f.mu.Lock()
+	st := f.s
+	f.mu.Unlock()
+	if st == nil {
+		return Source{}, false
+	}
+	fr, fresh := st.Frame()
+	if fr.Width <= 0 || fr.Height <= 0 || len(fr.Pix) == 0 {
+		return Source{}, false
+	}
+	return Source{Pix: fr.Pix, W: fr.Width, H: fr.Height, Stride: fr.Stride}, fresh
+}
+
+func (f *lazyFeed) Close() error {
+	f.mu.Lock()
+	st := f.s
+	f.s = nil
+	f.mu.Unlock()
+	if st == nil {
+		return nil
+	}
+	return st.Close()
 }
 
 // captureFeed adapts one capture stream to the portable Feed the desk consumes.
@@ -121,8 +238,28 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 	if logf == nil {
 		logf = func(string, ...any) {}
 	}
+	// ⛔ NO MIRROR IS A RIBBON WITH NOTHING CAPTURED ON IT, NOT A FAILURE. It
+	// means the consent dialog has not been answered yet, or was refused (see
+	// Provide), and the band, the head and everything this application draws
+	// are unaffected. Returning an error here would end a session over the one
+	// position that needed a permission.
+	//
+	// ⚠ The feeds are still plan.Count() long and every one of them is nil or
+	// empty. A shorter slice would be a different defect: the compositor
+	// indexes it by ribbon position.
 	if len(s.IDs) == 0 {
-		return nil, errors.New("desk: no screen to capture")
+		feeds := make([]Feed, plan.Count())
+		if s.granted != nil {
+			f := &lazyFeed{}
+			feeds[0] = f
+			go f.waitAndOpen(ctx, plan, s.granted, logf)
+			logf("the band is running; this phone's screen will join position 1 if the " +
+				"dialog is allowed")
+		} else {
+			logf("no screen is being captured, so every ribbon position shows what this " +
+				"application draws")
+		}
+		return feeds, nil
 	}
 	d, err := android.DefaultDisplay(ctx)
 	if err != nil {
@@ -157,6 +294,13 @@ func Capture(ctx context.Context, plan Plan, s *Screens, logf func(string, ...an
 func Sources(ctx context.Context, _ *Screens) ([]Offer, error) {
 	if !android.Available() {
 		return nil, errors.New("desk: this process was not started by the Android host")
+	}
+	// ⛔ AND NOTHING IS OFFERED THAT CANNOT BE OPENED. Without consent
+	// CaptureDisplay is refused, so listing the phone's screen here would put a
+	// row in front of somebody that answers an error when they choose it. An
+	// empty list is the honest answer, and Provide's Why says why.
+	if !android.Authorized() {
+		return nil, nil
 	}
 	d, err := android.DefaultDisplay(ctx)
 	if err != nil {
