@@ -30,16 +30,24 @@ func TestWhatTheHeadFactorActuallyIsOnARealBand(t *testing.T) {
 		name  string
 		wides int  // the width of screen 0; 0 leaves every screen alike
 		asApp bool // build the plan the way cmd/xrdesk does
+		last  bool // look at the LAST screen, whose next is the first
 	}{
-		{"six screens all alike", 0, false},
-		{"six screens, the first a mirrored ultrawide", 3840, false},
+		{"six screens all alike", 0, false, false},
+		{"six screens, the first a mirrored ultrawide", 3840, false, false},
 		// ⛔⛔ AND THE SAME TWO AS THE APPLICATION BUILDS THEM. cmd/xrdesk ends
 		// its plan with `plan.WithBend(bendR).WithReach(*reach)`, and -reach
 		// defaults to 0, documented as "0 = the setting, or
 		// ComfortableYawDeg". Every case above skips that line, which is why
 		// they measure 2.051 for a desk the application runs at tens.
-		{"all alike, built as the application builds it", 0, true},
-		{"the mirrored ultrawide, built as the application builds it", 3840, true},
+		{"all alike, built as the application builds it", 0, true, false},
+		{"the mirrored ultrawide, built as the application builds it", 3840, true, false},
+		// ⛔ ROUND THE RING. The last screen's next is the FIRST, whose middle
+		// facet has a lower index, so the facet offset comes out negative and
+		// has to be carried round by the total. Without this case the carry is
+		// a branch nothing executes — and the band is a circle precisely so
+		// that looking at the last screen and turning right is an ordinary
+		// thing to do, not an edge.
+		{"looking at the last screen, where the next one wraps", 3840, true, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			p, err := NewPlan(beast, Options{Screens: 6})
@@ -54,7 +62,7 @@ func TestWhatTheHeadFactorActuallyIsOnARealBand(t *testing.T) {
 				// application runs "curved 20.0°", which cuts six screens into
 				// 57 facets — and then centre(focus, 1) is the next FACET
 				// while the numerator is still a whole screen.
-				p = p.WithBend(20).WithReach(0)
+				p = p.WithBend(DefaultBend).WithReach(0)
 			}
 			feeds := make([]Feed, p.Count())
 			for i := range feeds {
@@ -70,6 +78,12 @@ func TestWhatTheHeadFactorActuallyIsOnARealBand(t *testing.T) {
 			}
 			// A plan does not know a screen's shape until a source has arrived.
 			d.Render()
+
+			if c.last {
+				if err := d.Look(p.Count() - 1); err != nil {
+					t.Fatalf("Look at the last screen: %v", err)
+				}
+			}
 
 			d.mu.Lock()
 			gain := d.headGain()
@@ -92,19 +106,24 @@ func TestWhatTheHeadFactorActuallyIsOnARealBand(t *testing.T) {
 			// about one degree, times whatever amplification a screen wider
 			// than the view demands. Anything past ten is not a correction.
 			//
-			// ⛔⛔ AND IT PASSES TODAY ON A FIXTURE THAT CANNOT FAIL IT, which
-			// is said here so that a green run is not mistaken for a desk
-			// without the defect. The application reported head→band 46.679
-			// with 57 facets; the best this fixture reaches is 8 facets and
-			// 3.008, because what cuts the facets is the curve and WithBend(20)
-			// here produces nothing like the runtime ring. The bound is
-			// therefore a TRIPWIRE for the day the fixture reaches the real
-			// facet count, not evidence that the factor is sound.
+			// ⭐⭐ AND IT REPRODUCES THE DEVICE, which is what makes it a guard
+			// rather than a tripwire. The application reported head→band
+			// 46.679 with 57 facets; this fixture reaches 46.679 with 57
+			// facets, to three decimals, with no hardware.
 			//
-			// ⭐ What the fixture CAN show is the relation, and it is monotone
-			// and measured: 6 facets → 1.238, 7 → 2.051, 8 → 3.008, and the
-			// device → 46.679. That is what localised the defect — the
-			// numerator is a SCREEN step and centre(focus, 1) is one FACET.
+			// ⛔ IT TOOK THE RIGHT UNIT TO GET THERE. bendFacets computes
+			// `arc = views * fovDeg / bend`, so bend is a RADIUS in multiples
+			// of the viewing distance and LARGER IS FLATTER. An earlier version
+			// of this test passed WithBend(20) -- twenty times too flat -- and
+			// reached 8 facets and 3.008, which cleared the facet hypothesis by
+			// mistake for an hour. cmd/xrdesk passes desk.DefaultBend, which is
+			// 1.0, and that is what this must pass too.
+			//
+			// Before the fix / after, on the same fixture:
+			//
+			//	6 x 1920 flat          6 facets   1.238 / 1.238   (untouched)
+			//	3840 + 5 x 1920 flat   7 facets   2.051 / 2.051   (untouched)
+			//	3840 + 5 x 1920 curved 57 facets 46.679 / 1.222
 			if factor > 10*gain {
 				t.Errorf("head→band is %.3f with a gain of %.3f: a head turn moves the "+
 					"band %.1f times what the gain asks for, which is a facet step "+
