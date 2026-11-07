@@ -608,6 +608,40 @@ one of them was visible without the device:
 session; and the headset's USB permission is granted **per application**, which
 costs an unplug and a replug the first time a given APK asks.
 
+### The head is followed there, and the desk no longer waits for a dialog
+
+The row above says `-head` is on by default on Android. When that was written the
+flag turned on an action that then refused — *"following the head needs a camera,
+and this platform has no way to open one"* — because every head tracker in this
+package was macOS's. Both halves are closed now.
+
+**The camera is reachable, through `usbfs`.** Neither Android camera API offers
+the headset's: there is no external `camera2` device on this phone, and the Java
+USB API cannot submit isochronous transfers.
+[`go-xrkit/android`](https://github.com/go-xrkit/android)'s `OpenUVCCamera` does
+the nine-step UVC open on an **unrooted** phone, and `headflow` reads the yaw off
+those frames exactly as it does on a Mac.
+
+⛔ **It costs a replug, once per application**, and that is the platform rather
+than this code: the USB permission is granted **per UID**, measured on
+2026-11-03 as `dumpsys usb` naming uid 10350 while the package asking was 10374.
+Claiming the streaming interface also takes it from `uvcvideo` and the reconnect
+does not restore the binding here.
+
+**And the consent dialog no longer blocks the start.** It is on the *phone's*
+screen while the glasses are on a head, so waiting for it meant waiting for
+somebody to put the glasses down — measured at twelve minutes, then half an
+hour, with the band ready the whole time. Only one ribbon position needs that
+permission: the mirror of the phone is one screen of six, and the band, the
+head, the gallery and everything this program draws need no consent at all. So
+the ask carries on in the background and the mirror **joins position 1** when it
+lands. Launch to pixels on the glasses is **53 milliseconds**, with no gesture.
+
+⚠ A late yes still counts, which is why that is not a timeout: giving up on the
+answer would make a dialog answered five seconds too slowly indistinguishable
+from one refused. A refusal is an **answer**, and the band carries on without a
+mirror rather than ending the session.
+
 
 ## Building it
 
