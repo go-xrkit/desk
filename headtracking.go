@@ -415,10 +415,39 @@ func (d *Desk) headToBand() float64 {
 		float64(d.strip.total)
 	// And the same step as the chain actually turns the viewer. It is never
 	// zero: [NewFan] refuses a splay of nothing and a screen of no size, so
-	// panel 1's centre is strictly to the right of panel 0's, and there is no
-	// division here to guard against.
+	// the next screen's centre is strictly to the right of this one's, and
+	// there is no division here to guard against.
+	//
+	// ⛔⛔ THE NEXT SCREEN, NOT THE NEXT PANEL, AND THAT WAS THE DEFECT. The
+	// chain walks FACETS once a screen is curved, so panel 1 is the slice
+	// beside the middle of the focused screen -- a tenth of a screen, not a
+	// screen -- while the numerator above is a whole screen step. The ratio was
+	// therefore multiplied by however finely the band happened to be cut.
+	//
+	// ⭐ MEASURED, reported from a desk in use on 2026-11-03 and reproduced
+	// offline to three decimals:
+	//
+	//	screens            facets  head→band
+	//	6 x 1920 (flat)         6      1.238
+	//	3840 + 5 x 1920         7      2.051
+	//	3840 + 5 x 1920 CURVED 57     46.679   <- "it jumps from one screen to
+	//	                                          the next, it's unusable"
+	//
+	// ⚠ ONLY A SCREEN WIDER THAN THE VIEW IS CURVED (see [Fan.SetBends]: curving
+	// a panel-sized screen bows the thing you are reading), so an ordinary desk
+	// is one facet a screen and this correction is EXACTLY ONE -- firstFacet
+	// answers s itself when there is no ring. That is what keeps the measured
+	// table in TestTheHeadIsAmplifiedByWhatTheScreenDemands untouched: the
+	// defect needed a mirrored ultrawide to appear at all, which is why it
+	// shipped.
+	j := d.fan.firstFacet(next) - d.fan.firstFacet(focus)
+	if j <= 0 {
+		// Round the ring: the last screen's next is the first, whose middle
+		// facet has a lower index.
+		j += d.fan.Facets()
+	}
 	x0, z0 := d.fan.centre(focus, 0)
-	x1, z1 := d.fan.centre(focus, 1)
+	x1, z1 := d.fan.centre(focus, j)
 	return d.headGain() * band / (math.Atan2(x1, z1) - math.Atan2(x0, z0))
 }
 
