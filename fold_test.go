@@ -121,7 +121,28 @@ func (d deskShape) plan(t *testing.T) (Plan, []int) {
 // a screen's run ending short -- except that "short" understates it: at 4x a
 // 3840-wide screen ends its run showing source column 1178.
 //
-// ⛔⛔ AND 1300 IS NOT AN IMPROVEMENT ON THE 5001 ABOVE. Reading the two as a
+// # ⭐ And it is ON as of 2026-11-08: the 1300 were the protocol's own premise
+//
+// Every one of those 1300 was "a screen's run ends inside the canvas showing
+// neither its first nor its last column", and every one of them was at the
+// FRAME's own first or last panel -- where [Fan.Frame] stopped because the next
+// panel of the chain cannot be drawn. A virtual curl of a hundred degrees seen
+// from several times its radius shows about a third of itself and turns the
+// rest away; demanding it whole demanded something the geometry forbids.
+//
+// Measured rather than argued, across the whole sweep, both directions:
+//
+//	5740 walks stop on a refused panel
+//	5740 of those are an EDGE -- nothing drawable lies beyond, inside the guard
+//	   0 are a GAP
+//	   0 stop because the reach ran out, 0 because the guard fired early
+//
+// So the exemption went into checkFrame and the sweep turned green with its
+// rule intact: 45970 run ends and starts still examined, away from the frame's
+// edges. TestARefusalIsTheBandsEdgeAndNotAGap keeps the premise honest -- it
+// fails, naming configurations, the moment a refusal stops being the far edge.
+//
+// ⛔⛔ AND 1300 WAS NOT AN IMPROVEMENT ON THE 5001 ABOVE. Reading the two as a
 // trend is the obvious thing to do and it is wrong:
 //
 //   - #237 (2026-10-04 18:12) gave the virtual curve a RADIUS, so `bend 1`
@@ -136,10 +157,11 @@ func (d deskShape) plan(t *testing.T) (Plan, []int) {
 // and not a gain, and the next session should compare against it rather than
 // against the issue.
 //
-// ⛔ IT IS OFF BECAUSE A RED PROTOCOL IS NOT A PROTOCOL. A sweep that always
+// ⚠ IT WAS OFF BECAUSE A RED PROTOCOL IS NOT A PROTOCOL -- a sweep that always
 // fails stops being read, and then it catches nothing at all. It is a constant
-// rather than a flag so that flipping it is a commit somebody reviews.
-const SweepCurvedDesks = false
+// rather than a flag so that flipping it is a commit somebody reviews, and this
+// is that commit.
+const SweepCurvedDesks = true
 
 // bendsToSweep is the curvatures the protocol runs at. See [SweepCurvedDesks].
 func bendsToSweep() []float64 {
@@ -198,9 +220,28 @@ func TestTheFoldProtocol(t *testing.T) {
 			}
 		}
 	}
+
+	// ⛔⛔ AND THE RULE THAT WAS RELAXED MUST STILL HAVE A SUBJECT. "A screen is
+	// drawn whole" is now exempt at the frame's own first and last panel, where
+	// the walk stopped because the band cannot be drawn further; without this
+	// line that exemption could quietly grow until the rule examined nothing
+	// and the sweep went green by having no opinion. Measured at the commit
+	// that turned the curved half on: 45970 subjects, all passing.
+	if wholeScreenChecks == 0 {
+		t.Error("the \"a screen is drawn whole\" rule examined NOTHING in this whole " +
+			"sweep: every run ended at a frame edge, so the exemption has eaten the " +
+			"rule and a green sweep here means nothing")
+	}
+	t.Logf("the whole-screen rule had %d subjects", wholeScreenChecks)
 }
 
 // checkFrame is the protocol itself.
+// wholeScreenChecks counts how many times the "a screen is drawn whole" rule
+// had a subject: a run ending inside the canvas, away from the frame's own
+// edges, where the rule applies and could fail. The sweep asserts it is not
+// zero.
+var wholeScreenChecks int
+
 func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 	panels []Slant, focus int, toward float64) {
 	t.Helper()
@@ -244,8 +285,35 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 		// so a fixed tolerance would be slack where it matters and wrong where
 		// it does not. A column's centre is half a column inside the panel, so
 		// its own local step is exactly the slack there should be.
+		// ⛔⛔ AND THE BAND'S OWN EDGE IS NOT A FOLD IN THE WRONG PLACE. A run
+		// that ends at the FRAME's first or last panel ended because the walk
+		// stopped, and [Fan.Frame] stops when the next panel of the chain
+		// cannot be drawn -- behind the viewer, edge-on, or off the canvas.
+		// Demanding the screen whole there demands something the geometry
+		// forbids: a virtual curl of a hundred degrees seen from several times
+		// its radius shows about a third of itself and turns the rest away.
+		//
+		// ⭐ MEASURED BEFORE IT WAS BELIEVED, across the whole sweep, both
+		// directions, on 2026-11-08: of 5740 walks that stop on a refusal,
+		// 5740 are an EDGE -- nothing drawable lies beyond, inside the same
+		// 180° guard -- and 0 are a GAP. 0 stop because the reach ran out and 0
+		// because the guard fired with a drawable panel waiting. See
+		// TestARefusalIsTheBandsEdgeAndNotAGap, which is that measurement kept
+		// as a gate: it is what gives this exemption its teeth, because a walk
+		// that one day stops early with canvas and geometry to spare fails
+		// THERE rather than passing quietly here.
+		atFrameEdge := i == 0 || i == len(panels)-1
 		last := len(s.Cols) - 1
-		if runStarts && s.Dst.X > 0 && last > 0 {
+		if runStarts && !atFrameEdge && s.Dst.X > 0 && last > 0 ||
+			runEnds && !atFrameEdge && s.Dst.X+s.Dst.W < viewW && last > 0 {
+			// ⛔⛔ THE EXEMPTION ABOVE MUST NOT EAT THE CHECK. Counted, and
+			// asserted non-zero by the caller: a rule that examines nothing
+			// passes exactly like one that examines everything, and removing
+			// cases until a gate goes green is how a conformance claim becomes
+			// vacuous. See TestTheFoldProtocol's closing assertion.
+			wholeScreenChecks++
+		}
+		if runStarts && !atFrameEdge && s.Dst.X > 0 && last > 0 {
 			step := max(int32(1), s.Cols[1].Src-s.Cols[0].Src)
 			if got := s.Cols[0].Src; got > step {
 				t.Errorf("%s: screen %d starts at x=%d showing its source column "+
@@ -253,7 +321,7 @@ func checkFrame(t *testing.T, where string, plan Plan, widths []int,
 					s.Screen+1, s.Dst.X, got, step)
 			}
 		}
-		if runEnds && s.Dst.X+s.Dst.W < viewW && last > 0 {
+		if runEnds && !atFrameEdge && s.Dst.X+s.Dst.W < viewW && last > 0 {
 			step := max(int32(1), s.Cols[last].Src-s.Cols[last-1].Src)
 			if got := s.Cols[last].Src; int32(src-1)-got > step {
 				t.Errorf("%s: screen %d ends at x=%d showing its source column "+
