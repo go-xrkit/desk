@@ -5,6 +5,100 @@ it got a pseudo-version of whatever `main` happened to be. Entries below are
 written from the code, not from the commit log: 240 pull requests do not make a
 history somebody can read.
 
+## Unreleased
+
+### Changed — the curved half of the fold protocol is ON
+
+`SweepCurvedDesks` is `true`. It had been `false` since the protocol learned
+about facets, behind about 1300 complaints that the notes below call noise, and
+**not one of them was a renderer defect**: every one was a screen's run ending at
+the *frame's own* first or last panel, where `Fan.Frame` stops because the next
+panel of the chain cannot be drawn. A virtual curl of a hundred degrees seen
+from several times its radius shows about a third of itself and turns the rest
+away, so demanding the screen whole demanded what the geometry forbids.
+
+Measured across the whole sweep, both directions, before anything was changed:
+
+| | |
+|---|---|
+| walks that stop on a refused panel | 5740 |
+| …where nothing drawable lies beyond, inside the 180° guard | **5740** |
+| …where something drawable does (a hole) | **0** |
+| …that stop because the reach ran out, or the guard fired early | **0** |
+
+So `checkFrame` exempts a run that ends at the frame's edge, and keeps its
+teeth two ways: the rule still examines **45970** run starts and ends away from
+those edges — counted, and the sweep fails if that count is ever zero — and
+`TestARefusalIsTheBandsEdgeAndNotAGap` holds the premise itself, break-checked
+by mutation.
+
+⛔ **The tidy hypothesis was wrong.** `bendFacets` never receives the distance
+while its own documentation calls the bend "a radius in multiples of viewing
+distance", which would explain the residue growing with distance exactly
+(0, 0, 40, 432, 828 at 1x, 1.5x, 2x, 3x, 4x). `ReachDeg` refutes it: the curve
+is *virtual* and exists to set head-turn gain, asked for in those words, so
+scaling it by distance would silently retune a control somebody set by feel.
+
+Closes [#222](https://github.com/go-xrkit/desk/issues/222) — both halves. The
+flat-wide case it opened with was fixed in v0.1.x, measured in `curve_test.go`:
+at `toward` 0.25 the unpainted columns went from 1538 to 0.
+
+## v0.4.1 — 2026-11-07
+
+### Fixed — a screen step divided by a facet step, so the head moved the band far too far
+
+Reported from a desk in use: head-following on, *"it jumps from one screen to the
+next, it's unusable"*. The journal's own arithmetic on that machine:
+
+```
+head: band = 210.0° + head × 46.679
+```
+
+`headToBand`'s numerator is a whole **screen** step while its denominator spanned
+the focused screen's middle facet to the panel *beside* it — a tenth of a screen
+once the screen is curved — so the ratio was multiplied by however finely the
+band happened to be cut. The denominator now spans the same thing the numerator
+does, carried round the ring when the last screen's next is the first.
+
+Reproduced offline to three decimals, and inert where it should be:
+
+| screens | facets | before | after |
+|---|---|---|---|
+| 6 × 1920 flat | 6 | 1.238 | 1.238 |
+| 3840 + 5 × 1920 flat | 7 | 2.051 | 2.051 |
+| 3840 + 5 × 1920 **curved** | 57 | **46.679** | **1.222** |
+
+⚠ The release's own title says "36 times too far", which does not follow from
+that table — 46.679 over 1.222 is about 38. The factors above are the measured
+ones; the multiplier in the title is not sourced anywhere and should not be
+repeated.
+
+## v0.4.0 — 2026-11-07
+
+### Added — three numbers for "the screens jump", and a head that can be followed on the phone
+
+The head path gained an instrument — `HeadBeat` reports what the band did with a
+turn, so a complaint about the feel has arithmetic behind it instead of an
+opinion. It is what found the defect released as v0.4.1 the same day.
+
+And following your head works on Android: the camera is reached through
+`usbfs`, so `-head` on the phone turns on something that answers instead of
+refusing. The README carries the run rather than the claim.
+
+## v0.3.0 — 2026-11-01
+
+### Added — xrdesk runs on a phone
+
+Six screens of 1920×1080 on VITURE Beast glasses driven by a Pixel 11 Pro Fold,
+`CGO_ENABLED=0`, 312 frames in 5.008 s. Four defects stood between a binary that
+cross-compiled and a picture, and not one was visible without the device: it
+asked X11 where the glasses were, `window.Open` compiled and failed when called,
+a macOS policy waited 15 s a start, and nothing could turn head-following on.
+
+### Changed — the toolchain says which one it was
+
+Go 1.27.3, and `x/net` v0.60.0 for the reachable HTTP/2 advisories.
+
 ## v0.2.0 — 2026-10-04
 
 ### Changed — Go 1.27.1 is now required, and the CI says which one
@@ -140,6 +234,10 @@ without a job going red.
   the seam width, so it is noise at that scale rather than a signal. Closing it
   needs an independent geometric reference. See
   [#222](https://github.com/go-xrkit/desk/issues/222).
+  *(Resolved — see Unreleased, above. It needed no independent reference: the
+  complaints were the protocol asking for something the geometry forbids, and
+  `slantOf` could already say so. This line stays as what was believed at this
+  release.)*
 - **Following your head needs an app bundle.** A camera cannot be opened without
   an `NSCameraUsageDescription`, and a bare executable has no `Info.plist` at
   all. Build one with `go run ./cmd/macapp`; the start-up report says so rather
