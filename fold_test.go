@@ -99,6 +99,43 @@ func (d deskShape) plan(t *testing.T) (Plan, []int) {
 // columns drawn nowhere. What is left is pre-existing and not yet understood,
 // mostly a screen's run ending short at the long distances.
 //
+// # The baseline, re-measured 2026-11-08 at v0.4.1
+//
+// 1300 complaints, every one of them at bend 1 and none at all on the flat
+// half, from one assertion site (the run-coverage check below), split exactly
+// 650 "starts at" and 650 "ends at". By distance:
+//
+//	1x    0
+//	1.5x  0
+//	2x    40
+//	3x    432
+//	4x    828      (MaxDistance)
+//
+// They sum to 1300, which is the control: every complaint is accounted for by
+// a distance, so no distance is missing from the table. ⚠ That table was wrong
+// the first time it was written, in the way this kind of table always is: it
+// had a row for 5x, which this protocol does not sweep, and no row for 1.5x,
+// which it does. A zero against a parameter nobody tried is not a result.
+//
+// The residue grows with distance and is what the paragraph above describes --
+// a screen's run ending short -- except that "short" understates it: at 4x a
+// 3840-wide screen ends its run showing source column 1178.
+//
+// ⛔⛔ AND 1300 IS NOT AN IMPROVEMENT ON THE 5001 ABOVE. Reading the two as a
+// trend is the obvious thing to do and it is wrong:
+//
+//   - #237 (2026-10-04 18:12) gave the virtual curve a RADIUS, so `bend 1`
+//     here no longer means what it meant when 5001 was measured;
+//   - the same commit HALVED the seam tolerance this protocol allows, making
+//     it stricter;
+//   - and go-xrkit/desk#222, where 5001 is written down, was last updated at
+//     09:38 that day -- nine hours before #237 landed.
+//
+// The desks ARE comparable: every entry of theDesksToSweep came in with #178,
+// before either measurement. The curvature is not. So 1300 is a new baseline
+// and not a gain, and the next session should compare against it rather than
+// against the issue.
+//
 // ⛔ IT IS OFF BECAUSE A RED PROTOCOL IS NOT A PROTOCOL. A sweep that always
 // fails stops being read, and then it catches nothing at all. It is a constant
 // rather than a flag so that flipping it is a commit somebody reviews.
