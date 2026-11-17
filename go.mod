@@ -5,7 +5,7 @@ go 1.27.3
 require (
 	github.com/go-appdirs/outdir v0.3.0
 	github.com/go-freedesktop/screencast v0.3.0
-	github.com/go-macos/accessibility v0.5.0
+	github.com/go-macos/accessibility v0.6.1
 	github.com/go-macos/appbundle v0.6.0
 	github.com/go-macos/appicon v0.5.0
 	github.com/go-macos/avfoundation v0.13.0
@@ -23,12 +23,12 @@ require (
 	github.com/go-viture/luma v0.4.0
 	github.com/go-widgets/mvvm v0.15.0
 	github.com/go-widgets/painter v0.17.1
-	github.com/go-widgets/toolkit v0.374.11
+	github.com/go-widgets/toolkit v0.379.0
 	github.com/go-widgets/tray v0.15.0
 	github.com/go-widgets/window v0.93.0
-	github.com/go-xrkit/android v0.20.2
-	github.com/go-xrkit/depth3d v0.2.0
-	github.com/go-xrkit/xrkit v0.21.0
+	github.com/go-xrkit/android v0.20.3
+	github.com/go-xrkit/depth3d v0.3.0
+	github.com/go-xrkit/xrkit v0.21.1
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/zclconf/go-cty v1.20.0
 )
@@ -46,16 +46,15 @@ require (
 	github.com/go-gfx/gpu2d v0.11.0 // indirect
 	github.com/go-gfx/vulkan v0.2.1 // indirect
 	github.com/go-gtk/gtk4 v0.9.0 // indirect
-	github.com/go-icons/iconoir v0.3.0 // indirect
-	github.com/go-images/depth v0.4.0 // indirect
-	github.com/go-images/images v0.1.1-0.20261026203936-4ac989d310a1 // indirect
+	github.com/go-images/depth v0.5.0 // indirect
+	github.com/go-images/images v0.3.0 // indirect
 	github.com/go-macos/appkit v0.9.0 // indirect
-	github.com/go-macos/coreml v0.1.0 // indirect
-	github.com/go-macos/metal v0.6.0 // indirect
+	github.com/go-macos/coreml v0.3.0 // indirect
+	github.com/go-macos/metal v0.7.0 // indirect
 	github.com/go-mswin/d3d11 v0.3.0 // indirect
 	github.com/go-mswin/win32 v0.6.0 // indirect
 	github.com/go-opentype/fonts v0.14.0 // indirect
-	github.com/go-opentype/opentype v0.18.0 // indirect
+	github.com/go-opentype/opentype v0.20.0 // indirect
 	github.com/go-opentype/shape v0.7.0 // indirect
 	github.com/go-richdoc/richdoc v0.7.0 // indirect
 	github.com/go-typeset/bidi v0.3.1 // indirect
@@ -69,7 +68,7 @@ require (
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/tools v0.51.0 // indirect
 )
